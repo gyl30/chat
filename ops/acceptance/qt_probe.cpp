@@ -287,6 +287,79 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         auto id = cmd["id"].toInteger();
         QTimer::singleShot(0, chat, [chat, id] { emit chat->members_requested(id, chat->self_user(), "QA"); });
     }
+    else if (op == "group_profile")
+    {
+        auto* d = window.findChild<QDialog*>("groupDialog");
+        if (!d)
+        {
+            return out;
+        }
+        auto* search = d->findChild<QLineEdit*>("groupMemberSearch");
+        if (cmd.contains("query"))
+        {
+            search->setText(cmd["query"].toString());
+        }
+        auto* list = d->findChild<QListWidget*>("groupMembersList");
+        QJsonArray visible;
+        for (int i = 0; i < list->count(); ++i)
+        {
+            if (!list->item(i)->isHidden())
+            {
+                visible.append(list->item(i)->text());
+            }
+        }
+        out["members"] = visible;
+        out["description"] = d->findChild<QLabel*>("groupDescription")->text();
+        auto key = cmd["group"].toInteger();
+        for (auto [name, id] : {std::pair{"groupImage", -key}, std::pair{"userImage", key}})
+        {
+            auto pix = chat->avatars().image(id);
+            if (!pix.isNull())
+            {
+                out[name] = pix.toImage().pixelColor(pix.width() / 2, pix.height() / 2).name();
+            }
+        }
+        auto* change = d->findChild<QPushButton*>("changeGroupAvatar");
+        out["editable"] = change->isEnabled();
+        if (cmd.contains("image") && change->isEnabled())
+        {
+            QTimer::singleShot(0,
+                               d,
+                               [d, change, path = cmd["image"].toString()]
+                               {
+                                   QTimer::singleShot(80,
+                                                      d,
+                                                      [path]
+                                                      {
+                                                          if (auto* f = qobject_cast<QFileDialog*>(QApplication::activeModalWidget()))
+                                                          {
+                                                              f->findChild<QLineEdit*>("fileNameEdit")->setText(path);
+                                                              QMetaObject::invokeMethod(f, "accept");
+                                                          }
+                                                      });
+                                   change->click();
+                               });
+        }
+        if (cmd.contains("description") && change->isEnabled())
+        {
+            QTimer::singleShot(0,
+                               d,
+                               [d, text = cmd["description"].toString()]
+                               {
+                                   QTimer::singleShot(40,
+                                                      d,
+                                                      [text]
+                                                      {
+                                                          if (auto* input = qobject_cast<QInputDialog*>(QApplication::activeModalWidget()))
+                                                          {
+                                                              input->setTextValue(text);
+                                                              input->accept();
+                                                          }
+                                                      });
+                                   d->findChild<QPushButton*>("editGroupDescription")->click();
+                               });
+        }
+    }
     else if (op == "moderate")
     {
         auto* dialog = window.findChild<QDialog*>("groupDialog");

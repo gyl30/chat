@@ -489,6 +489,7 @@ std::expected<conversation, error> parse_conversation(boost::json::value const& 
     item.marked_unread = marked->as_bool();
     item.pinned = pinned->as_bool();
     item.announcement = std::string(announcement->as_string());
+    item.description = string_field(object, "description");
     item.join_approval = approval->as_bool();
     auto const* speech_role = object.if_contains("speech_role");
     auto const* group_muted = object.if_contains("group_muted");
@@ -516,10 +517,6 @@ std::expected<conversation, error> parse_conversation(boost::json::value const& 
             return std::unexpected(make_error(error_kind::protocol, "Invalid direct conversation"));
         }
         item.user = *peer;
-        if (!parse_avatar_state(object, item.avatar))
-        {
-            return std::unexpected(make_error(error_kind::protocol, "Invalid peer avatar"));
-        }
     }
     else if (kind->as_string() == "group" && user_value->is_null())
     {
@@ -528,6 +525,10 @@ std::expected<conversation, error> parse_conversation(boost::json::value const& 
     else
     {
         return std::unexpected(make_error(error_kind::protocol, "Invalid conversation kind"));
+    }
+    if (!parse_avatar_state(object, item.avatar))
+    {
+        return std::unexpected(make_error(error_kind::protocol, "Invalid conversation avatar"));
     }
     if (!parse_quote(object, "pinned_message", item.pinned_message) ||
         (item.pinned_message && (item.kind != conversation_kind::group || item.pinned_message->deleted)))
@@ -3081,7 +3082,7 @@ struct client::impl
                      });
     }
 
-    boost::capy::task<> set_avatar(std::string data, avatar_state_handler handler)
+    boost::capy::task<> set_avatar(std::string data, avatar_state_handler handler, std::int64_t group)
     {
         if (suppress_callbacks_.load())
         {
@@ -3095,8 +3096,13 @@ struct client::impl
         auto job = std::make_shared<avatar_upload_job>();
         job->data = std::move(data);
         job->handler = std::move(handler);
+        boost::json::object params{{"size", job->data.size()}};
+        if (group)
+        {
+            params.emplace("conversation", group);
+        }
         send_request("begin_avatar_upload",
-                     {{"size", job->data.size()}},
+                     std::move(params),
                      [this, job](auto response)
                      {
                          if (!response)
@@ -3128,7 +3134,9 @@ struct client::impl
     {
         send_request(
             "get_avatar",
-            {{"user", job->value.user}, {"revision", job->value.state.revision}, {"offset", job->value.data.size()}},
+            {{job->value.conversation ? "conversation" : "user", job->value.conversation ? job->value.conversation : job->value.user},
+             {"revision", job->value.state.revision},
+             {"offset", job->value.data.size()}},
             [this, job](auto response)
             {
                 if (!response)
@@ -3138,7 +3146,7 @@ struct client::impl
                 }
                 auto const* fields = response->is_object() ? &response->as_object() : nullptr;
                 avatar_state state;
-                auto const* user_field = fields ? fields->if_contains("user") : nullptr;
+                auto const* user_field = fields ? fields->if_contains(job->value.conversation ? "conversation" : "user") : nullptr;
                 auto const* size_field = fields ? fields->if_contains("size") : nullptr;
                 auto const* offset_field = fields ? fields->if_contains("offset") : nullptr;
                 auto const* data_field = fields ? fields->if_contains("data") : nullptr;
@@ -3147,7 +3155,8 @@ struct client::impl
                 auto user = user_field ? parse_int64(*user_field) : std::nullopt;
                 auto size = size_field ? parse_int64(*size_field) : std::nullopt;
                 auto offset = offset_field ? parse_int64(*offset_field) : std::nullopt;
-                if (!fields || !parse_avatar_state(*fields, state) || !user || *user != job->value.user || !size || *size < 0 ||
+                if (!fields || !parse_avatar_state(*fields, state) || !user ||
+                    *user != (job->value.conversation ? job->value.conversation : job->value.user) || !size || *size < 0 ||
                     *size > static_cast<std::int64_t>(max_avatar_size) || !offset || *offset < 0 || !data_field || !data_field->is_string() ||
                     !type_field || !type_field->is_string() || !more_field || !more_field->is_bool() ||
                     data_field->as_string().size() > 4 * ((avatar_chunk_size + 2) / 3))
@@ -3162,7 +3171,7 @@ struct client::impl
                         job->handler(std::unexpected(make_error(error_kind::protocol, "Invalid stale avatar metadata")));
                         return;
                     }
-                    job->handler(avatar{job->value.user, state, {}, {}});
+                    job->handler(avatar{job->value.user, job->value.conversation, state, {}, {}});
                     return;
                 }
                 auto const type = std::string_view(type_field->as_string());
@@ -3191,20 +3200,26 @@ struct client::impl
             });
     }
 
-    boost::capy::task<> get_avatar(std::int64_t user, std::int64_t revision, avatar_handler handler)
+    boost::capy::task<> get_avatar(std::int64_t user, std::int64_t revision, avatar_handler handler, std::int64_t group = 0)
     {
         auto job = std::make_shared<avatar_download_job>();
         job->value.user = user;
+        job->value.conversation = group;
         job->value.state.revision = revision;
         job->handler = std::move(handler);
         download_avatar_next(job);
         co_return;
     }
 
-    boost::capy::task<> clear_avatar(avatar_state_handler handler)
+    boost::capy::task<> clear_avatar(avatar_state_handler handler, std::int64_t group)
     {
+        boost::json::object params;
+        if (group)
+        {
+            params.emplace("conversation", group);
+        }
         send_request("clear_avatar",
-                     {},
+                     std::move(params),
                      [handler = std::move(handler)](auto response) mutable
                      {
                          if (!response)
@@ -3287,9 +3302,14 @@ void client::set_avatar_handler(avatar_changed_handler handler)
     impl_->avatar_handler_ = std::move(handler);
 }
 
-void client::set_avatar(std::string data, avatar_state_handler handler)
+void client::set_avatar(std::string data, avatar_state_handler handler, std::int64_t group)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->set_avatar(std::move(data), std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->set_avatar(std::move(data), std::move(handler), group));
+}
+
+void client::get_group_avatar(std::int64_t group, std::int64_t revision, avatar_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_avatar(0, revision, std::move(handler), group));
 }
 
 void client::get_avatar(std::int64_t user, std::int64_t revision, avatar_handler handler)
@@ -3297,9 +3317,9 @@ void client::get_avatar(std::int64_t user, std::int64_t revision, avatar_handler
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_avatar(user, revision, std::move(handler)));
 }
 
-void client::clear_avatar(avatar_state_handler handler)
+void client::clear_avatar(avatar_state_handler handler, std::int64_t group)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->clear_avatar(std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->clear_avatar(std::move(handler), group));
 }
 
 void client::set_connected_handler(connection_handler handler)
@@ -3575,6 +3595,12 @@ void client::invite_group_members(std::int64_t conversation, std::vector<std::in
     }
     boost::capy::run_async(impl_->io_context_.get_executor())(
         impl_->group_action("invite_group_members", {{"conversation", conversation}, {"members", std::move(values)}}, std::move(handler)));
+}
+
+void client::set_group_description(std::int64_t conversation, std::string text, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("set_group_description", {{"conversation", conversation}, {"text", std::move(text)}}, std::move(handler)));
 }
 
 void client::set_group_announcement(std::int64_t conversation, std::string text, group_action_handler handler)

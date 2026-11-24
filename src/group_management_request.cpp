@@ -128,7 +128,7 @@ std::optional<group_change> parse_group_change(json_rpc_request& request, std::i
         change.conversation = params.conversation;
         change.text = std::move(params.title);
     }
-    else if (request.method == "set_group_announcement")
+    else if (request.method == "set_group_announcement" || request.method == "set_group_description")
     {
         struct[[= simdjson::deny_unknown_fields]] announcement_params
         {
@@ -137,6 +137,11 @@ std::optional<group_change> parse_group_change(json_rpc_request& request, std::i
         };
         announcement_params params;
         if (document.get(params) || !params.text || params.text->size() > 4096 || params.text->find('\0') != std::string::npos)
+        {
+            return std::nullopt;
+        }
+        if (request.method == "set_group_description" &&
+            std::count_if(params.text->begin(), params.text->end(), [](unsigned char c) { return (c & 0xc0) != 0x80; }) > 256)
         {
             return std::nullopt;
         }
@@ -196,6 +201,10 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> apply_gr
     if (method == "set_group_mute" || method == "set_group_member_mute")
     {
         return set_group_speech(db, change.conversation, actor, change.user, change.mute_until, change.admin);
+    }
+    if (method == "set_group_description")
+    {
+        return set_group_text(db, change.conversation, actor, group_text_field::description, change.text);
     }
     if (method == "rename_group" || method == "set_group_announcement")
     {

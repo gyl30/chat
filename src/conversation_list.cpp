@@ -24,13 +24,13 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                 (SELECT id,name FROM conversation_folders WHERE owner_id=?1 AND (SELECT count(*) FROM page)<=50 ORDER BY position,id))),
             'conversations', json((SELECT json_group_array(json_object(
                 'id',c.id,'folder',coalesce(c.folder_id,0),'kind',c.kind,'user',c.peer,'username',coalesce(c.title,u.username),
-                'nickname',coalesce(u.nickname,''),'remark',coalesce(ct.remark,''),'avatar_revision',coalesce(u.avatar_revision,0),
-                'has_avatar',json(CASE WHEN avatar.user_id IS NULL THEN 'false' ELSE 'true' END),
+                'nickname',coalesce(u.nickname,''),'remark',coalesce(ct.remark,''),'avatar_revision',coalesce(u.avatar_revision,c.avatar_revision),
+                'has_avatar',json(CASE WHEN avatar.user_id IS NULL AND ga.conversation_id IS NULL THEN 'false' ELSE 'true' END),
                 'activity',c.activity,'notification_level',c.notification_level,'mute_until',c.mute_until,
                 'marked_unread',json(CASE WHEN c.unread_mark_message_id IS NULL THEN 'false' ELSE 'true' END),
                 'pinned',json(CASE WHEN c.pinned THEN 'true' ELSE 'false' END),
                 'member_count',(SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
-                 'announcement',c.announcement,
+                 'announcement',c.announcement,'description',c.description,
                 'speech_role',CASE WHEN c.owner_id=?1 THEN 2 WHEN c.is_admin THEN 1 ELSE 0 END,
                 'group_muted',json(CASE WHEN g.conversation_id IS NOT NULL THEN 'true' ELSE 'false' END),
                 'speech_until',coalesce(p.until,0),
@@ -71,6 +71,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                       AND m.sender_id<>?1)
             )) FROM visible c LEFT JOIN users u ON u.id=c.peer LEFT JOIN contacts ct ON ct.owner_id=?1 AND ct.contact_id=c.peer
                 LEFT JOIN user_avatars avatar ON avatar.user_id=u.id
+                LEFT JOIN group_avatars ga ON ga.conversation_id=c.id
                 LEFT JOIN group_mutes g ON g.conversation_id=c.id
                 LEFT JOIN group_member_mutes p ON p.conversation_id=c.id AND p.user_id=?1)),
             'next',json(CASE WHEN (SELECT count(*) FROM page)>50 THEN

@@ -61,6 +61,7 @@ struct conversation
     bool pinned = false;
     std::optional<quoted_message> pinned_message;
     std::string announcement;
+    std::string description;
     bool join_approval = false;
     member_role speech_role = member_role::member;
     bool group_muted = false;

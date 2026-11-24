@@ -410,7 +410,8 @@ boost::capy::task<simdjson::error_code> chat_session::dispatch_request(json_rpc_
     if (request.method == "set_group_member_mute" || request.method == "set_group_mute" || request.method == "dissolve_group" ||
         request.method == "set_group_admin" || request.method == "rename_group" || request.method == "invite_group_members" ||
         request.method == "leave_group" || request.method == "transfer_group_owner" || request.method == "remove_group_member" ||
-        request.method == "pin_group_message" || request.method == "unpin_group_message" || request.method == "set_group_announcement")
+        request.method == "pin_group_message" || request.method == "unpin_group_message" || request.method == "set_group_announcement" ||
+        request.method == "set_group_description")
     {
         co_return co_await handle_group_management(request, response);
     }

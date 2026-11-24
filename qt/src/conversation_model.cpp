@@ -15,7 +15,7 @@ conversation_model::conversation_model(QObject* parent, avatar_cache* avatars) :
                     for (int row = 0; row < conversations_.size(); ++row)
                     {
                         auto const& item = conversations_[row];
-                        if (item.user == user && !item.group)
+                        if (item.avatar_key() == user)
                         {
                             auto ix = index_for_conversation(item.id);
                             emit dataChanged(ix, ix, {Qt::DecorationRole});
@@ -101,7 +101,7 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
         case pinned_role:
             return item->pinned;
         case Qt::DecorationRole:
-            return avatars_ ? QVariant::fromValue(avatars_->image(item->user)) : QVariant{};
+            return avatars_ ? QVariant::fromValue(avatars_->image(item->avatar_key())) : QVariant{};
         default:
             return {};
     }
@@ -157,10 +157,7 @@ void conversation_model::set_conversations(QList<conversation_data> conversation
     {
         for (auto const& item : conversations)
         {
-            if (!item.group)
-            {
-                avatars_->observe(item.user, item.avatar);
-            }
+            avatars_->observe(item.avatar_key(), item.avatar);
         }
     }
     beginResetModel();

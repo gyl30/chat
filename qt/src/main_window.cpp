@@ -1094,6 +1094,14 @@ void main_window::show_group_details(qint64 conversation, qint64 self_user, QStr
             this,
             [this, conversation](QString title) { client_->rename_group(conversation, std::move(title)); });
     connect(&dialog,
+            &group_dialog::description_requested,
+            this,
+            [this, conversation](QString text) { client_->set_group_description(conversation, std::move(text)); });
+    connect(&dialog,
+            &group_dialog::group_avatar_requested,
+            this,
+            [this, conversation](QByteArray data) { client_->set_group_avatar(conversation, std::move(data)); });
+    connect(&dialog,
             &group_dialog::announcement_requested,
             this,
             [this, conversation](QString text) { client_->set_group_announcement(conversation, std::move(text)); });
@@ -1373,6 +1381,7 @@ void main_window::connect_group_actions()
         {
             if (removed)
             {
+                chat_page_->avatars().forget_group(conversation);
                 pending_notifications_.removeIf([conversation](auto const& message) { return message.conversation == conversation; });
                 chat_page_->close_conversation(conversation);
             }

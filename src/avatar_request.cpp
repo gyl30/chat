@@ -12,6 +12,7 @@
 #include "avatar_image.hpp"
 #include "database.hpp"
 #include "user_store.hpp"
+#include "conversation_store.hpp"
 
 boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_request& request, std::string& response)
 {
@@ -33,22 +34,69 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
     {
         co_return co_await get_avatar_chunk(document, request, response);
     }
-    if (request.method == "begin_avatar_upload" || request.method == "upload_avatar_chunk" || request.method == "cancel_avatar_upload")
+    if (request.method == "begin_avatar_upload")
+    {
+        struct[[= simdjson::deny_unknown_fields]] begin_avatar_params
+        {
+            std::int64_t size = 0;
+            std::optional<std::int64_t> conversation;
+        };
+        begin_avatar_params params;
+        if (document.get(params) || !document.at_end() || params.conversation.value_or(1) <= 0 || params.size <= 0 ||
+            params.size > static_cast<std::int64_t>(chat::max_avatar_size))
+        {
+            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+        }
+        if (params.conversation)
+        {
+            auto role = co_await run_db([&, user = *user_id_](sqlite_database& db) { return read_group_role(db, *params.conversation, user); });
+            if (!role)
+            {
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            if (!*role || **role == chat::member_role::member)
+            {
+                co_return serialize_json_rpc_error(-32006, "Group unavailable", std::move(request.id), response);
+            }
+        }
+        if (avatar_upload_)
+        {
+            co_return serialize_json_rpc_error(-32011, "Avatar upload in progress", std::move(request.id), response);
+        }
+        std::uint64_t random = 0;
+        if (RAND_bytes(reinterpret_cast<unsigned char*>(&random), sizeof(random)) != 1)
+        {
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        auto const id = static_cast<std::int64_t>((random & 0x7fffffffffffffffULL) | 1);
+        avatar_upload_.emplace(id, params.size, std::string{}, params.conversation.value_or(0));
+        co_return serialize_json_rpc_success("{\"upload\":" + std::to_string(id) + "}", std::move(request.id), response);
+    }
+    if (request.method == "upload_avatar_chunk" || request.method == "cancel_avatar_upload")
     {
         co_return update_avatar_upload(document, request, response);
     }
 
     auto const clearing = request.method == "clear_avatar";
+    std::int64_t group = 0;
     std::string content;
     std::string media_type;
     if (clearing)
     {
-        simdjson::ondemand::object params;
-        if (document.get_object().get(params) || params.begin() != params.end() || !document.at_end())
+        struct[[= simdjson::deny_unknown_fields]] clear_params
+        {
+            std::optional<std::int64_t> conversation;
+        };
+        clear_params params;
+        if (document.get(params) || !document.at_end() || params.conversation.value_or(1) <= 0)
         {
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
-        avatar_upload_.reset();
+        group = params.conversation.value_or(0);
+        if (avatar_upload_ && group == avatar_upload_->group)
+        {
+            avatar_upload_.reset();
+        }
     }
     else
     {
@@ -66,6 +114,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
         {
             co_return serialize_json_rpc_error(-32011, "Avatar upload unavailable or incomplete", std::move(request.id), response);
         }
+        group = avatar_upload_->group;
         content = std::move(avatar_upload_->content);
         avatar_upload_.reset();
         media_type = avatar_media_type(content);
@@ -74,15 +123,23 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
     }
-    auto changed = co_await run_db([&, user = *user_id_](sqlite_database& db)
-                                   { return clearing ? clear_avatar(db, user) : save_avatar(db, user, media_type, content); });
+    auto changed = co_await run_db([&, user = *user_id_](sqlite_database& db) { return write_avatar(db, user, group, media_type, content); });
     if (!changed)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
+    if (!*changed)
+    {
+        co_return serialize_json_rpc_error(-32006, "Group unavailable", std::move(request.id), response);
+    }
+    auto const& change = **changed;
     std::string state =
-        "{\"avatar_revision\":" + std::to_string(changed->state.revision) + ",\"has_avatar\":" + (changed->state.present ? "true}" : "false}");
-    if (changed->changed)
+        "{\"avatar_revision\":" + std::to_string(change.state.revision) + ",\"has_avatar\":" + (change.state.present ? "true}" : "false}");
+    if (group && change.changed)
+    {
+        co_await publish_conversation(group, R"({"jsonrpc":"2.0","method":"conversation","params":{"conversation":)" + std::to_string(group) + "}}");
+    }
+    else if (!group && change.changed)
     {
         std::string notification =
             "{\"jsonrpc\":\"2.0\",\"method\":\"avatar\",\"params\":{\"user\":" + std::to_string(*user_id_) + "," + state.substr(1) + "}";
@@ -111,17 +168,20 @@ boost::capy::task<simdjson::error_code> chat_session::get_avatar_chunk(simdjson:
 {
     struct[[= simdjson::deny_unknown_fields]] get_avatar_params
     {
-        std::int64_t user = 0;
+        std::optional<std::int64_t> user, conversation;
         std::int64_t revision = -1;
         std::int64_t offset = -1;
     };
     get_avatar_params params;
-    if (document.get(params) || !document.at_end() || params.user <= 0 || params.revision < 0 || params.offset < 0 ||
+    if (document.get(params) || !document.at_end() || params.user.has_value() == params.conversation.has_value() || params.user.value_or(1) <= 0 ||
+        params.conversation.value_or(1) <= 0 || params.revision < 0 || params.offset < 0 ||
         params.offset > static_cast<std::int64_t>(chat::max_avatar_size))
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
-    auto image = co_await run_db([&](sqlite_database& db) { return read_avatar_chunk(db, params.user, params.revision, params.offset); });
+    auto image = co_await run_db(
+        [&, viewer = *user_id_](sqlite_database& db)
+        { return read_avatar_chunk(db, params.user.value_or(0), params.conversation.value_or(0), viewer, params.revision, params.offset); });
     if (!image)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -132,14 +192,15 @@ boost::capy::task<simdjson::error_code> chat_session::get_avatar_chunk(simdjson:
     }
     struct avatar_result
     {
-        std::int64_t user, avatar_revision;
+        std::int64_t user, conversation, avatar_revision;
         bool has_avatar;
         std::int64_t offset, size;
         std::string media_type, data;
         bool has_more;
     };
     auto const& chunk = **image;
-    avatar_result value{params.user,
+    avatar_result value{params.user.value_or(0),
+                        params.conversation.value_or(0),
                         chunk.state.revision,
                         chunk.state.present,
                         chunk.offset,
@@ -157,30 +218,6 @@ boost::capy::task<simdjson::error_code> chat_session::get_avatar_chunk(simdjson:
 
 simdjson::error_code chat_session::update_avatar_upload(simdjson::ondemand::document& document, json_rpc_request& request, std::string& response)
 {
-    if (request.method == "begin_avatar_upload")
-    {
-        struct[[= simdjson::deny_unknown_fields]] begin_avatar_params
-        {
-            std::int64_t size = 0;
-        };
-        begin_avatar_params params;
-        if (document.get(params) || !document.at_end() || params.size <= 0 || params.size > static_cast<std::int64_t>(chat::max_avatar_size))
-        {
-            return serialize_json_rpc_invalid_params(std::move(request.id), response);
-        }
-        if (avatar_upload_)
-        {
-            return serialize_json_rpc_error(-32011, "Avatar upload in progress", std::move(request.id), response);
-        }
-        std::uint64_t random = 0;
-        if (RAND_bytes(reinterpret_cast<unsigned char*>(&random), sizeof(random)) != 1)
-        {
-            return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        auto const id = static_cast<std::int64_t>((random & 0x7fffffffffffffffULL) | 1);
-        avatar_upload_.emplace(id, params.size, std::string{});
-        return serialize_json_rpc_success("{\"upload\":" + std::to_string(id) + "}", std::move(request.id), response);
-    }
     if (request.method == "upload_avatar_chunk")
     {
         struct[[= simdjson::deny_unknown_fields]] avatar_chunk_params

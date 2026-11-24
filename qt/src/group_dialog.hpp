@@ -50,6 +50,8 @@ class group_dialog final : public QDialog
     void user_requested(qint64 user, QString username);
     void admin_requested(qint64 user, bool admin);
     void rename_requested(QString title);
+    void description_requested(QString text);
+    void group_avatar_requested(QByteArray data);
     void announcement_requested(QString text);
     void invite_requested(QList<qint64> members);
     void invite_link_requested(std::optional<bool> create);
@@ -75,6 +77,7 @@ class group_dialog final : public QDialog
     void connect_approval_actions();
     void connect_group_settings();
 
+    void filter_members();
     void refresh_speech();
     void update_actions();
 
@@ -126,6 +129,11 @@ class group_dialog final : public QDialog
     QLabel* overview_title_;
     QLabel* overview_avatar_;
     QLabel* overview_count_;
+    QLabel* description_;
+    QPushButton* edit_description_;
+    QPushButton* change_avatar_;
+    QPushButton* clear_avatar_;
+    QLineEdit* member_search_;
     QLabel* overview_announcement_;
     QPushButton* read_announcement_button_;
     QLabel* overview_pin_;

@@ -39,6 +39,8 @@ struct conversation_data
     bool pinned = false;
     quoted_message_data pinned_message;
     QString announcement;
+    QString description;
+    qint64 avatar_key() const { return group ? -id : user; }
     bool join_approval = false;
     chat::member_role speech_role = chat::member_role::member;
     bool group_muted = false;

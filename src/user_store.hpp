@@ -37,10 +37,8 @@ struct avatar_chunk
     bool has_more = false;
 };
 
-std::expected<std::optional<avatar_chunk>, sqlite_error> read_avatar_chunk(sqlite_database& db,
-                                                                           std::int64_t user,
-                                                                           std::int64_t revision,
-                                                                           std::int64_t offset);
+std::expected<std::optional<avatar_chunk>, sqlite_error> read_avatar_chunk(
+    sqlite_database& db, std::int64_t target_user, std::int64_t group, std::int64_t viewer, std::int64_t revision, std::int64_t offset);
 
 struct avatar_change
 {
@@ -48,9 +46,8 @@ struct avatar_change
     bool changed = false;
 };
 
-// Callers validate the image and authorization before storing it.
-std::expected<avatar_change, sqlite_error> save_avatar(sqlite_database& db, std::int64_t user, std::string_view media_type, std::string_view bytes);
-std::expected<avatar_change, sqlite_error> clear_avatar(sqlite_database& db, std::int64_t user);
+std::expected<std::optional<avatar_change>, sqlite_error> write_avatar(
+    sqlite_database& db, std::int64_t user, std::int64_t group, std::string_view media_type, std::string_view bytes);
 
 std::expected<std::vector<std::int64_t>, sqlite_error> read_avatar_recipients(sqlite_database& db, std::int64_t user);
 

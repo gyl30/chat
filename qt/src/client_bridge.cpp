@@ -379,6 +379,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                                value.pinned = item.pinned;
                                                value.pinned_message = to_reply_data(item.pinned_message);
                                                value.announcement = from_utf8(item.announcement);
+                                               value.description = from_utf8(item.description);
                                                value.join_approval = item.join_approval;
                                                value.speech_role = item.speech_role;
                                                value.group_muted = item.group_muted;
@@ -710,6 +711,23 @@ void client_bridge::rename_group(qint64 conversation, QString title)
     client_->rename_group(conversation, to_utf8(title), group_action_result(conversation));
 }
 
+void client_bridge::set_group_description(qint64 conversation, QString text)
+{
+    client_->set_group_description(conversation, to_utf8(text), group_action_result(conversation));
+}
+void client_bridge::set_group_avatar(qint64 group, QByteArray data)
+{
+    auto done = [this, group, g = connection_generation_.load()](auto r)
+    { post_result(g, [this, group, r = std::move(r)] { emit group_action_finished(group, false, r ? QString{} : display_error(r.error())); }); };
+    if (data.isEmpty())
+    {
+        client_->clear_avatar(std::move(done), group);
+    }
+    else
+    {
+        client_->set_avatar(std::string(data.constData(), data.size()), std::move(done), group);
+    }
+}
 void client_bridge::set_group_announcement(qint64 conversation, QString text)
 {
     client_->set_group_announcement(conversation, to_utf8(text), group_action_result(conversation));
@@ -1717,21 +1735,27 @@ void client_bridge::mark_read(qint64 user, qint64 message)
 void client_bridge::get_avatar(qint64 user, qint64 revision)
 {
     auto const generation = connection_generation_.load();
-    client_->get_avatar(user,
-                        revision,
-                        [this, generation, user, revision](auto result)
+    auto done = [this, generation, user, revision](auto result)
+    {
+        post_result(generation,
+                    [this, user, revision, result = std::move(result)]
+                    {
+                        if (!result)
                         {
-                            post_result(generation,
-                                        [this, user, revision, result = std::move(result)]
-                                        {
-                                            if (!result)
-                                            {
-                                                emit avatar_received(user, {revision, true}, {});
-                                                return;
-                                            }
-                                            emit avatar_received(user, result->state, QByteArray(result->data.data(), result->data.size()));
-                                        });
-                        });
+                            emit avatar_received(user, {revision, true}, {});
+                            return;
+                        }
+                        emit avatar_received(user, result->state, QByteArray(result->data.data(), result->data.size()));
+                    });
+    };
+    if (user < 0)
+    {
+        client_->get_group_avatar(-user, revision, std::move(done));
+    }
+    else
+    {
+        client_->get_avatar(user, revision, std::move(done));
+    }
 }
 
 void client_bridge::set_avatar(QByteArray data)

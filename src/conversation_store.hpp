@@ -74,7 +74,8 @@ std::expected<std::optional<chat::member_role>, sqlite_error> read_group_role(sq
 enum class group_text_field
 {
     title,
-    announcement
+    announcement,
+    description
 };
 std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_group_text(
     sqlite_database& db, std::int64_t group, std::int64_t actor, group_text_field field, std::string_view text);

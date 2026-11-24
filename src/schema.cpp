@@ -80,6 +80,8 @@ CREATE TABLE IF NOT EXISTS conversations (
     activity INTEGER NOT NULL,
     pinned_message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
     announcement TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '' CHECK(length(description)<=256),
+    avatar_revision INTEGER NOT NULL DEFAULT 0 CHECK(avatar_revision>=0),
     invite_token TEXT UNIQUE,
     join_approval INTEGER NOT NULL DEFAULT 0 CHECK (join_approval IN (0, 1)),
     CHECK (
@@ -94,6 +96,14 @@ CREATE TABLE IF NOT EXISTS conversations (
     CHECK (length(CAST(announcement AS BLOB)) <= 4096),
     FOREIGN KEY (id, owner_id) REFERENCES conversation_members(conversation_id, user_id)
         DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE TABLE IF NOT EXISTS group_avatars (
+    conversation_id INTEGER PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE,
+    media_type TEXT NOT NULL CHECK (media_type IN ('image/png', 'image/jpeg')),
+    size INTEGER NOT NULL CHECK (size BETWEEN 1 AND 1048576),
+    data BLOB NOT NULL CHECK (length(data) = size),
+    updated_at INTEGER NOT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS conversations_direct_pair_idx

@@ -21,6 +21,9 @@ QColor avatar_background(QString const& username);
 void paint_avatar(QPainter& painter, QRect const& rect, QString const& username, int font_size = 0, QPixmap const& image = {});
 QIcon avatar_icon(QString const& username, int size, QPixmap const& image = {});
 
+#include <expected>
+std::expected<QByteArray, QString> choose_avatar(QWidget* parent);
+
 QImage decode_avatar(QByteArray const& bytes);
 
 class avatar_cache final : public QObject
@@ -32,6 +35,7 @@ class avatar_cache final : public QObject
     void receive(qint64 user, chat::avatar_state state, QByteArray const& bytes);
     QPixmap image(qint64 user) const;
     chat::avatar_state state(qint64 user) const;
+    void forget_group(qint64 conversation) { entries_.remove(-conversation); }
     void retry();
     void clear();
    signals:

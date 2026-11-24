@@ -277,8 +277,9 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_grou
     {
         return group_member_rejection::permission_denied;
     }
-    auto const query = field == group_text_field::title ? "UPDATE conversations SET title=?2 WHERE id=?1 AND title<>?2"
-                                                        : "UPDATE conversations SET announcement=?2 WHERE id=?1 AND announcement<>?2";
+    auto const query = field == group_text_field::title         ? "UPDATE conversations SET title=?2 WHERE id=?1 AND title<>?2"
+                       : field == group_text_field::description ? "UPDATE conversations SET description=?2 WHERE id=?1 AND description<>?2"
+                                                                : "UPDATE conversations SET announcement=?2 WHERE id=?1 AND announcement<>?2";
     if (auto error = db.exec(query, group, text); error)
     {
         return std::unexpected(std::move(error));

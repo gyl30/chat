@@ -162,6 +162,7 @@ class chat_session
         std::int64_t id;
         std::int64_t size;
         std::string content;
+        std::int64_t group = 0;
     };
     std::optional<avatar_upload> avatar_upload_;
 };

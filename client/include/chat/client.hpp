@@ -174,6 +174,7 @@ class client
     void dissolve_group(std::int64_t conversation, group_action_handler handler);
     void remove_group_member(std::int64_t conversation, std::int64_t user, group_action_handler handler);
     void rename_group(std::int64_t conversation, std::string title, group_action_handler handler);
+    void set_group_description(std::int64_t conversation, std::string text, group_action_handler handler);
     void set_group_announcement(std::int64_t conversation, std::string text, group_action_handler handler);
     void get_group_invite(std::int64_t conversation, group_invite_handler handler);
     void create_group_invite(std::int64_t conversation, group_invite_handler handler);
@@ -264,9 +265,10 @@ class client
     void remove_contact(std::int64_t user, remove_contact_handler handler);
     void mark_read(std::int64_t conversation, std::int64_t message, mark_read_handler handler);
     void set_typing(std::int64_t conversation, bool typing, typing_result_handler handler);
-    void set_avatar(std::string data, avatar_state_handler handler);
+    void set_avatar(std::string data, avatar_state_handler handler, std::int64_t group = 0);
+    void get_group_avatar(std::int64_t conversation, std::int64_t revision, avatar_handler handler);
     void get_avatar(std::int64_t user, std::int64_t revision, avatar_handler handler);
-    void clear_avatar(avatar_state_handler handler);
+    void clear_avatar(avatar_state_handler handler, std::int64_t group = 0);
 
    private:
     struct impl;

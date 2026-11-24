@@ -6,6 +6,8 @@
 #include <algorithm>
 
 #include <QFont>
+#include <QFileDialog>
+#include <QFile>
 #include <QPainter>
 #include <QPixmap>
 #include <QBuffer>
@@ -77,9 +79,29 @@ QImage decode_avatar(QByteArray const& bytes)
     return reader.read();
 }
 
+std::expected<QByteArray, QString> choose_avatar(QWidget* parent)
+{
+    auto path = QFileDialog::getOpenFileName(parent, QStringLiteral("更换头像"), {}, QStringLiteral("图片 (*.png *.jpg *.jpeg)"));
+    if (path.isEmpty())
+    {
+        return QByteArray{};
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly) || file.size() > static_cast<qint64>(chat::max_avatar_size))
+    {
+        return std::unexpected(QStringLiteral("无法读取图片，头像文件不得超过 1 MiB。"));
+    }
+    auto bytes = file.read(chat::max_avatar_size + 1);
+    if (bytes.size() > static_cast<qsizetype>(chat::max_avatar_size) || decode_avatar(bytes).isNull())
+    {
+        return std::unexpected(QStringLiteral("请选择完整的 PNG 或 JPEG 图片，最多 1600 万像素。"));
+    }
+    return bytes;
+}
+
 void avatar_cache::observe(qint64 user, chat::avatar_state state)
 {
-    if (user <= 0)
+    if (user == 0)
     {
         return;
     }

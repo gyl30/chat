@@ -22,6 +22,7 @@ struct avatar_state
 struct avatar
 {
     std::int64_t user = 0;
+    std::int64_t conversation = 0;
     avatar_state state;
     std::string media_type;
     std::string data;

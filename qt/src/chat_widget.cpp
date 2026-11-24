@@ -2055,7 +2055,7 @@ void chat_widget::connect_chat_controls()
                 {
                     self_profile_action_->setIcon(avatar_icon(self_username_, 24, avatars_.image(user)));
                 }
-                if (!active_group_ && user == active_peer_)
+                if (user == (active_group_ ? -active_conversation_ : active_peer_))
                 {
                     update_chat_header(active_username_);
                 }
@@ -5171,28 +5171,20 @@ void chat_widget::setup_profile_avatar(QDialog& dialog, QVBoxLayout* info_layout
             &dialog,
             [this, &dialog, status, update]
             {
-                auto const path = QFileDialog::getOpenFileName(&dialog, QStringLiteral("更换头像"), {}, QStringLiteral("图片 (*.png *.jpg *.jpeg)"));
-                if (path.isEmpty())
+                auto bytes = choose_avatar(&dialog);
+                if (!bytes)
                 {
-                    return;
-                }
-                QFile file(path);
-                if (!file.open(QIODevice::ReadOnly) || file.size() > static_cast<qint64>(chat::max_avatar_size))
-                {
-                    status->setText(QStringLiteral("无法读取图片，头像文件不得超过 1 MiB。"));
+                    status->setText(bytes.error());
                     status->show();
                     return;
                 }
-                auto bytes = file.readAll();
-                if (decode_avatar(bytes).isNull())
+                if (bytes->isEmpty())
                 {
-                    status->setText(QStringLiteral("请选择完整的 PNG 或 JPEG 图片，最多 1600 万像素。"));
-                    status->show();
                     return;
                 }
                 avatar_updating_ = true;
                 update();
-                emit avatar_set_requested(std::move(bytes));
+                emit avatar_set_requested(std::move(*bytes));
             });
     connect(remove,
             &QPushButton::clicked,
@@ -5216,7 +5208,7 @@ void chat_widget::update_chat_header(QString const& username)
     auto const item = conversation(active_conversation_);
     chat_title_->setText(item ? item->display_name() : username);
     chat_title_->setToolTip(chat_title_->text());
-    chat_title_->setIcon(avatar_icon(username, 38, active_group_ ? QPixmap{} : avatars_.image(active_peer_)));
+    chat_title_->setIcon(avatar_icon(username, 38, avatars_.image(active_group_ ? -active_conversation_ : active_peer_)));
     chat_title_->setEnabled(true);
     update_chat_presence();
 }

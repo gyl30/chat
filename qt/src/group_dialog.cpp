@@ -125,6 +125,25 @@ void group_dialog::setup_overview()
     identity_text->addWidget(overview_count_);
     identity->addLayout(identity_text, 1);
     overview_layout->addLayout(identity);
+    description_ = new QLabel(overview);
+    description_->setObjectName(QStringLiteral("groupDescription"));
+    description_->setTextFormat(Qt::PlainText);
+    description_->setWordWrap(true);
+    overview_layout->addWidget(new QLabel(QStringLiteral("群简介"), overview));
+    overview_layout->addWidget(description_);
+    if (avatars_)
+    {
+        connect(avatars_,
+                &avatar_cache::changed,
+                this,
+                [this](qint64 key)
+                {
+                    if (key == -conversation_)
+                    {
+                        overview_avatar_->setPixmap(avatar_icon(title_, 64, avatars_->image(key)).pixmap(64));
+                    }
+                });
+    }
     auto* announcement_heading = new QLabel(QStringLiteral("群公告"), overview);
     announcement_heading->setObjectName(QStringLiteral("groupSectionHeading"));
     overview_layout->addWidget(announcement_heading);
@@ -236,6 +255,47 @@ void group_dialog::setup_management(bool join_approval)
     rename_button_->setAutoDefault(false);
     name_row->addWidget(rename_button_);
     layout->addLayout(name_row);
+    auto* profile_actions = new QHBoxLayout;
+    edit_description_ = new QPushButton(QStringLiteral("编辑简介"), management);
+    change_avatar_ = new QPushButton(QStringLiteral("更换群头像"), management);
+    clear_avatar_ = new QPushButton(QStringLiteral("清除群头像"), management);
+    change_avatar_->setObjectName(QStringLiteral("changeGroupAvatar"));
+    clear_avatar_->setObjectName(QStringLiteral("clearGroupAvatar"));
+    edit_description_->setObjectName(QStringLiteral("editGroupDescription"));
+    for (auto* button : {edit_description_, change_avatar_, clear_avatar_})
+    {
+        profile_actions->addWidget(button);
+    }
+    layout->addLayout(profile_actions);
+    connect(edit_description_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                bool ok = false;
+                auto text =
+                    QInputDialog::getMultiLineText(this, QStringLiteral("群简介"), QStringLiteral("最多 256 个字符"), description_->text(), &ok);
+                if (ok)
+                {
+                    emit description_requested(std::move(text));
+                }
+            });
+    connect(change_avatar_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                auto image = choose_avatar(this);
+                if (!image)
+                {
+                    status_->setText(image.error());
+                }
+                else if (!image->isEmpty())
+                {
+                    emit group_avatar_requested(std::move(*image));
+                }
+            });
+    connect(clear_avatar_, &QPushButton::clicked, this, [this] { emit group_avatar_requested({}); });
     auto* edit_announcement_heading = new QLabel(QStringLiteral("群公告 · 纯文本，最多 4 KiB"), management);
     edit_announcement_heading->setObjectName(QStringLiteral("groupSectionHeading"));
     layout->addWidget(edit_announcement_heading);
@@ -363,6 +423,11 @@ void group_dialog::setup_members(QVBoxLayout* outer)
     member_hint->setContentsMargins(chat_theme::dialog_padding, 16, chat_theme::dialog_padding, 8);
     member_hint->setWordWrap(true);
     members_layout->addWidget(member_hint);
+    member_search_ = new QLineEdit(members_page);
+    member_search_->setPlaceholderText(QStringLiteral("搜索用户名、昵称或备注"));
+    member_search_->setObjectName(QStringLiteral("groupMemberSearch"));
+    members_layout->addWidget(member_search_);
+    connect(member_search_, &QLineEdit::textChanged, this, &group_dialog::filter_members);
     members_layout->addWidget(list_, 1);
     status_ = new QLabel(QStringLiteral("正在加载成员…"), this);
     status_->setObjectName(QStringLiteral("groupStatus"));
@@ -890,6 +955,7 @@ void group_dialog::set_members(qint64 conversation, QList<member_data> members, 
             list_->setCurrentItem(item);
         }
     }
+    filter_members();
     preview_->setFixedHeight(preview_->count() * chat_theme::dialog_row_height);
     available_ = true;
     status_->clear();
@@ -919,10 +985,51 @@ void group_dialog::finish_action(qint64 conversation, bool left, QString const& 
     update_actions();
 }
 
+void group_dialog::filter_members()
+{
+    auto const query = member_search_->text().trimmed();
+    for (int i = 0; i < members_.size(); ++i)
+    {
+        auto const& m = members_[i];
+        auto* row = list_->item(i);
+
+        row->setHidden(!query.isEmpty() && !m.username.contains(query, Qt::CaseInsensitive) && !m.nickname.contains(query, Qt::CaseInsensitive) &&
+                       !m.remark.contains(query, Qt::CaseInsensitive));
+        if (row->isHidden() && row == list_->currentItem())
+        {
+            list_->setCurrentRow(-1);
+        }
+    }
+    update_actions();
+}
+
 void group_dialog::set_contacts(QList<user_data> contacts, QString const& error)
 {
     contacts_ready_ = error.isEmpty();
     contacts_ = std::move(contacts);
+    if (contacts_ready_)
+    {
+        for (int i = 0; i < members_.size(); ++i)
+        {
+            auto& m = members_[i];
+            auto friend_it = std::ranges::find(contacts_, m.id, &user_data::id);
+            auto remark = friend_it == contacts_.end() ? QString{} : friend_it->remark;
+            if (remark == m.remark)
+            {
+                continue;
+            }
+            m.remark = std::move(remark);
+            list_->item(i)->setText(m.display_name());
+            list_->item(i)->setStatusTip({});
+            if (auto* entry = preview_->item(i))
+            {
+                entry->setText(m.display_name());
+                entry->setStatusTip({});
+            }
+        }
+        filter_members();
+        refresh_speech();
+    }
     if (!error.isEmpty())
     {
         status_->setText(error);
@@ -942,6 +1049,12 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
         reject();
         return;
     }
+    description_->setText(found->description);
+    if (avatars_)
+    {
+        avatars_->observe(-conversation_, found->avatar);
+    }
+    overview_avatar_->setPixmap(avatar_icon(found->username, 64, avatars_ ? avatars_->image(-conversation_) : QPixmap{}).pixmap(64));
     if (title_ != found->username)
     {
         auto const modified = title_edit_->text() != title_;
@@ -951,7 +1064,7 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
             title_edit_->setText(title_);
         }
         overview_title_->setText(title_);
-        overview_avatar_->setPixmap(avatar_icon(title_, 64).pixmap(64));
+
         setWindowTitle(title_ + QStringLiteral(" · 群资料"));
     }
     if (announcement_ != found->announcement)
@@ -1144,6 +1257,10 @@ void group_dialog::refresh_speech()
                                    .arg(QDateTime::fromMSecsSinceEpoch(member.speech_until).toString(QStringLiteral("MM-dd HH:mm:ss")));
             }
         }
+        if (member.display_name() != member.username)
+        {
+            description += QStringLiteral(" · ") + member.username;
+        }
         describe(list_->item(row), description);
         if (auto* item = preview_->item(row))
         {
@@ -1225,6 +1342,9 @@ void group_dialog::update_actions()
     create_invite_button_->setEnabled(enabled && manager && invite_edit_->text().isEmpty());
     copy_invite_button_->setEnabled(enabled && manager && !invite_edit_->text().isEmpty());
     revoke_invite_button_->setEnabled(enabled && manager && !invite_edit_->text().isEmpty());
+    edit_description_->setEnabled(enabled && manager);
+    change_avatar_->setEnabled(enabled && manager);
+    clear_avatar_->setEnabled(enabled && manager && avatars_ && avatars_->state(-conversation_).present);
     title_edit_->setEnabled(enabled && manager);
     if (!manager && announcement_edit_->toPlainText() != announcement_)
     {
