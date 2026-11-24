@@ -1372,12 +1372,12 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
             this,
             [this]
             {
-                QList<qint64> ids;
+                QList<QPersistentModelIndex> rows;
                 for (auto const& ix : selected_messages())
                 {
-                    ids.append(ix.data(message_model::id_role).toLongLong());
+                    rows.emplaceBack(ix);
                 }
-                choose_forward_target(std::move(ids));
+                choose_forward_target(rows);
             });
     connect(cancel, &QPushButton::clicked, this, [this] { set_message_selection(false); });
     update_message_selection();
@@ -1613,9 +1613,9 @@ void chat_widget::copy_selected_messages()
         QApplication::clipboard()->setText(lines.join(u'\n'));
     }
 }
-void chat_widget::choose_forward_target(QList<qint64> messages)
+void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows)
 {
-    if (!connection_available_ || messages.isEmpty())
+    if (!connection_available_ || rows.isEmpty())
     {
         return;
     }
@@ -1643,31 +1643,35 @@ void chat_widget::choose_forward_target(QList<qint64> messages)
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
     auto const owner = self_user_;
-    auto const source = active_conversation_;
-    connect(this,
-            &chat_widget::history_discarded,
-            &dialog,
-            [&dialog, &messages, source](qint64 id, qint64 through)
-            {
-                if (id == source)
-                {
-                    messages.removeIf([through](qint64 message) { return message <= through; });
-                    if (messages.isEmpty())
-                    {
-                        dialog.reject();
-                    }
-                }
-            });
-    if (dialog.exec() == QDialog::Accepted && targets->currentItem() && connection_available_ && owner == self_user_ &&
-        source == active_conversation_)
+    auto const visit = conversation_visit_;
+    if (dialog.exec() != QDialog::Accepted || !targets->currentItem() || !connection_available_ || owner != self_user_ ||
+        visit != conversation_visit_)
     {
-        auto const target = targets->currentItem()->data(Qt::UserRole).toLongLong();
-        if (auto room = conversation(target); room && !room->speech_blocked())
+        return;
+    }
+    auto const target = targets->currentItem()->data(Qt::UserRole).toLongLong();
+    if (auto room = conversation(target); !room || room->speech_blocked())
+    {
+        set_error(QStringLiteral("转发目标当前不可用"));
+        return;
+    }
+
+    // Cleared rows lose their persistent index; withdrawn rows lose selectability.
+    QList<qint64> messages;
+    for (auto const& row : rows)
+    {
+        if (row.isValid() && row.flags().testFlag(Qt::ItemIsSelectable))
         {
-            emit forward_requested(target, std::move(messages));
-            set_message_selection(false);
+            messages.append(row.data(message_model::id_role).toLongLong());
         }
     }
+    if (messages.isEmpty())
+    {
+        set_error(QStringLiteral("所选消息已不可转发"));
+        return;
+    }
+    emit forward_requested(target, std::move(messages));
+    set_message_selection(false);
 }
 
 void chat_widget::show_message_menu(QPoint position)
@@ -1796,7 +1800,7 @@ void chat_widget::show_message_menu(QPoint position)
     }
     if (selected == forward)
     {
-        choose_forward_target({message_id});
+        choose_forward_target({target_index});
         return;
     }
     if (selected == multi)

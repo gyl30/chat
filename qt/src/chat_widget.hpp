@@ -203,7 +203,7 @@ class chat_widget final : public QWidget
     void set_message_selection(bool enabled);
     void update_message_selection();
     QModelIndexList selected_messages() const;
-    void choose_forward_target(QList<qint64> messages);
+    void choose_forward_target(QList<QPersistentModelIndex> const& rows);
     void copy_selected_messages();
     void show_message_menu(QPoint position);
     void connect_chat_controls();

@@ -222,19 +222,6 @@ async def cases(ui, gate, peer, db, group, target, seeded, mixed, image, file, t
         flush=True,
     )
 
-    await select(mixed, file)
-    await multi(forward=target)
-
-    async def forwarded():
-        with sqlite3.connect(db) as connection:
-            return connection.execute(
-                "SELECT forward_source FROM messages WHERE conversation_id=? AND forward_source IS NOT NULL ORDER BY id",
-                (target,),
-            ).fetchall() == [(mixed,), (file,)]
-
-    await until(forwarded, "batch forwarded in history order")
-    assert not (await multi())["mode"]
-
     await select(seeded[2], mixed)
     # Clear from a second authenticated device of the same user, not a Qt model injection.
     async with AsyncExitStack() as stack:
@@ -279,10 +266,11 @@ async def cases(ui, gate, peer, db, group, target, seeded, mixed, image, file, t
         flush=True,
     )
 
-    await select(mixed)
-    await peer.ok("remove_group_member", conversation=group, user=1)
-    await ui.wait("state", lambda s: s["conv"] != group)
-    assert not (await multi())["mode"] and not (await multi())["valid"]
+    async with AsyncExitStack() as stack:
+        a2 = await login(stack, gate.upstream, "a", "d")
+        await forwarding_cases(
+            ui, gate, peer, a2, db, group, target, mixed, image, file, select
+        )
 
     assert after_first["count"] == "已选 1 条" and not after_first["marked"], (
         after_first
@@ -303,6 +291,206 @@ async def cases(ui, gate, peer, db, group, target, seeded, mixed, image, file, t
     ), disconnected
     print(
         "PASS real Qt selection: range/toggle, remote withdrawal, pending/failed, paging, draft/cursor/reply, clipboard and forwarding",
+        flush=True,
+    )
+
+
+async def forwarding_cases(
+    ui, gate, peer, a2, db, group, target, mixed, image, file, select
+):
+    replies = {}
+    start = 0
+
+    def record(method, response):
+        if method in ("send_message", "set_typing") and "id" in response:
+            replies[response["id"]] = response
+
+    gate.transform = record
+
+    async def send(text, client_id):
+        return (
+            await peer.ok(
+                "send_message", conversation=group, text=text, client_id=client_id
+            )
+        )["id"]
+
+    def forwarded_to(destination):
+        with sqlite3.connect(db) as connection:
+            return [
+                source
+                for (source,) in connection.execute(
+                    "SELECT forward_source FROM messages "
+                    "WHERE conversation_id=? AND forward_source IS NOT NULL ORDER BY id",
+                    (destination,),
+                )
+            ]
+
+    async def open_picker(ids, *, single=False):
+        nonlocal start
+        start = len(gate.messages)
+        if single:
+            await ui.call("multi", key="esc")
+            await ui.call("message_menu", open=ids[0])
+            await ui.wait("message_menu", lambda r: r.get("open"))
+            await ui.call("message_menu", forward=True)
+        else:
+            await select(*ids)
+            assert (await ui.call("multi"))["valid"] == sorted(ids)
+            await ui.call("forward_picker", open=True)
+        await ui.wait("forward_picker", lambda r: r.get("open"))
+
+    async def finish(label, destination, expected, *, cancel=False, preserve=True):
+        before = await ui.call("multi")
+        prior = forwarded_to(destination)
+
+        def requests():
+            return [
+                rpc
+                for rpc in gate.messages[start:]
+                if rpc["method"] == "send_message" and "forward" in rpc["params"]
+            ]
+
+        if cancel:
+            await ui.call("forward_picker", cancel=True)
+        elif (await ui.call("forward_picker")).get("open"):
+            confirmed = await ui.call("forward_picker", target=destination)
+            assert confirmed.get("confirmed"), confirmed
+        await ui.wait("forward_picker", lambda r: not r.get("open"))
+        if expected:
+            await until(
+                lambda: any("error" in replies.get(r["id"], {}) for r in requests())
+                or (
+                    len(requests()) >= len(expected)
+                    and all(r["id"] in replies for r in requests())
+                ),
+                label,
+            )
+
+        # Order a harmless request after closing the modal, on the same SDK connection.
+        # Its response gives a barrier for cases that must send no forwarding RPC.
+        fence_start = len(gate.messages)
+        await ui.call("forward_picker", fence=group)
+        await until(
+            lambda: any(
+                rpc["method"] == "set_typing"
+                and rpc["params"]["conversation"] == group
+                and rpc["id"] in replies
+                for rpc in gate.messages[fence_start:]
+            ),
+            f"{label}: WebSocket fence",
+        )
+        actual = [
+            (r["params"]["conversation"], r["params"]["forward"]) for r in requests()
+        ]
+        errors = [
+            replies[r["id"]]["error"]["code"]
+            for r in requests()
+            if "error" in replies.get(r["id"], {})
+        ]
+        stored = forwarded_to(destination)[len(prior) :]
+        print(f"{label}: RPC={actual} errors={errors} SQLite={stored}", flush=True)
+        assert (actual, errors, stored) == (
+            [(destination, mid) for mid in expected],
+            [],
+            expected,
+        )
+        if preserve:
+            after = await ui.call("multi")
+            assert all(
+                after[key] == before[key] for key in ("draft", "cursor", "reply")
+            )
+            assert before["draft"] == "转发不影响我的草稿" and before["cursor"] == 4
+
+    anchor = await send("转发用的独立回复目标", 9950)
+    await ui.wait("state", lambda r: any(row["id"] == anchor for row in r["rows"]))
+    await ui.call("reply_to", id=anchor)
+    await ui.call("draft", text="转发不影响我的草稿")
+    assert (await ui.call("multi", cursor=4))["reply"] == anchor
+
+    await open_picker([file, mixed, image])
+    await finish("normal batch (text/image/file)", target, [mixed, image, file])
+    assert not (await ui.call("multi"))["mode"]
+
+    for index, (case, withdrawn) in enumerate(
+        (
+            ("first withdrawn", (0,)),
+            ("middle withdrawn", (1,)),
+            ("last withdrawn", (2,)),
+            ("all withdrawn", (0, 1, 2)),
+            ("single withdrawn", (0,)),
+        )
+    ):
+        single = case == "single withdrawn"
+        ids = [
+            await send(f"{case} {i}", 0x3000 + i + 10 * index)
+            for i in range(1 if single else 3)
+        ]
+        await ui.wait(
+            "state",
+            lambda r: all(mid in [row["id"] for row in r["rows"]] for mid in ids),
+        )
+        await open_picker(ids, single=single)
+        for pos in withdrawn:
+            await peer.ok("delete_message", conversation=group, message=ids[pos])
+            await ui.wait("multi", lambda r: r["deleted"], inspect=ids[pos])
+        assert (await ui.call("forward_picker")).get("open")
+        await finish(
+            case, target, [mid for pos, mid in enumerate(ids) if pos not in withdrawn]
+        )
+
+    await open_picker([mixed])
+    await finish("cancel picker", target, [], cancel=True)
+
+    unavailable = (await peer.ok("create_group", title="转发目标失权", members=[1]))[
+        "conversation"
+    ]
+    await ui.wait("forward_picker", lambda r: r["available"], available=unavailable)
+    await open_picker([mixed])
+    await peer.ok("dissolve_group", conversation=unavailable)
+    await ui.wait("forward_picker", lambda r: not r["available"], available=unavailable)
+    await finish("target dissolved", unavailable, [])
+
+    for count in (1, 2):
+        ids = [
+            await send(f"清空边界 {count}/{i}", 0x4000 + 10 * count + i)
+            for i in range(2)
+        ]
+        await ui.wait("state", lambda r: any(row["id"] == ids[-1] for row in r["rows"]))
+        # The reply anchor must be newer than this clear, not one of the forwarded messages.
+        anchor = await send(f"清空后保留回复 {count}", 0x4100 + count)
+        await ui.wait("state", lambda r: any(row["id"] == anchor for row in r["rows"]))
+        await ui.call("multi", key="esc")
+        await ui.call("reply_to", id=anchor)
+        assert (await ui.call("multi", cursor=4))["reply"] == anchor
+        await open_picker(ids)
+        await a2.ok("clear_history", conversation=group, through=ids[count - 1])
+        await ui.wait("multi", lambda r: r["valid"] == ids[count:])
+        await finish(f"clear {count}/2", target, ids[count:])
+
+    await open_picker([anchor])
+    await peer.ok("remove_group_member", conversation=group, user=1)
+    await ui.wait("state", lambda s: s["conv"] != group)
+    await finish("source membership revoked", target, [], preserve=False)
+    assert not (await ui.call("multi"))["mode"]
+
+    destination = (
+        await peer.ok("create_group", title="切换账号后仍可访问", members=[1])
+    )["conversation"]
+    await ui.wait("forward_picker", lambda r: r["available"], available=destination)
+    assert (await ui.call("select", conv=target))["ok"]
+    direct = await ui.wait("state", lambda r: r["conv"] == target and r["rows"])
+    await open_picker([direct["rows"][-1]["id"]])
+    await ui.call("logout")
+    await ui.wait("login_state", lambda r: r["user"] == 0)
+    replies.clear()
+    await ui.call("login", user="b")
+    await ui.wait("state", lambda r: r["user"] == 2)
+    await ui.wait("forward_picker", lambda r: r["available"], available=destination)
+    assert (await ui.call("select", conv=target))["ok"]
+    await ui.wait("state", lambda r: r["conv"] == target and r["rows"])
+    await finish("account switched", destination, [], preserve=False)
+    print(
+        "PASS forward picker: real Qt, WebSocket responses and SQLite in history order",
         flush=True,
     )
 

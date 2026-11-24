@@ -815,34 +815,6 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 QApplication::sendEvent(recipient, &key);
             }
         }
-        if (cmd.contains("forward"))
-        {
-            auto const target = cmd["forward"].toInteger();
-            QTimer::singleShot(0,
-                               view,
-                               [target]
-                               {
-                                   auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
-                                   if (!dialog)
-                                   {
-                                       return;
-                                   }
-                                   auto* list = dialog->findChild<QListWidget*>();
-                                   auto* buttons = dialog->findChild<QDialogButtonBox*>();
-                                   for (int i = 0; list && buttons && i < list->count(); ++i)
-                                   {
-                                       if (list->item(i)->data(Qt::UserRole).toLongLong() == target)
-                                       {
-                                           list->setCurrentRow(i);
-                                           buttons->button(QDialogButtonBox::Ok)->click();
-                                           return;
-                                       }
-                                   }
-                                   dialog->reject();
-                               });
-            forward->click();
-        }
-
         QJsonArray selected, valid;
         for (auto const& index : view->selectionModel()->selectedIndexes())
         {
@@ -873,6 +845,47 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             out["deleted"] = index.data(message_model::deleted_role).toBool();
         }
     }
+    else if (op == "forward_picker")
+    {
+        out["open"] = false;
+        if (cmd["open"].toBool())
+        {
+            QTimer::singleShot(0, chat->selection_forward_, &QPushButton::click);
+        }
+        if (auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+            dialog && dialog->isVisible() && dialog->windowTitle() == QStringLiteral("选择转发目标"))
+        {
+            out["open"] = true;
+            if (cmd.contains("target"))
+            {
+                auto* list = dialog->findChild<QListWidget*>();
+                for (int i = 0; i < list->count(); ++i)
+                {
+                    if (list->item(i)->data(Qt::UserRole).toLongLong() == cmd["target"].toInteger())
+                    {
+                        list->setCurrentRow(i);
+                        auto* confirm = dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok);
+                        out["confirmed"] = confirm->isEnabled();
+                        QTimer::singleShot(0, confirm, &QPushButton::click);
+                        break;
+                    }
+                }
+            }
+            if (cmd["cancel"].toBool())
+            {
+                dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Cancel)->click();
+            }
+        }
+        if (cmd.contains("available"))
+        {
+            auto* conversations = static_cast<conversation_model*>(conv->model());
+            out["available"] = conversations->index_for_conversation(cmd["available"].toInteger()).isValid();
+        }
+        if (cmd.contains("fence"))
+        {
+            window.client_->set_typing(cmd["fence"].toInteger(), false);
+        }
+    }
     else if (op == "message_menu")
     {
         if (cmd.contains("open"))
@@ -893,11 +906,11 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget()))
         {
             out["open"] = true;
-            if (cmd["copy"].toBool())
+            auto trigger = [menu](QString const& label)
             {
                 for (auto* action : menu->actions())
                 {
-                    if (action->text() == QStringLiteral("复制"))
+                    if (action->text() == label)
                     {
                         menu->setActiveAction(action);
                         QKeyEvent key(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
@@ -905,6 +918,14 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                         break;
                     }
                 }
+            };
+            if (cmd["forward"].toBool())
+            {
+                QTimer::singleShot(0, menu, [trigger] { trigger(QStringLiteral("转发")); });
+            }
+            else if (cmd["copy"].toBool())
+            {
+                trigger(QStringLiteral("复制"));
             }
         }
         out["clipboard"] = QApplication::clipboard()->text();

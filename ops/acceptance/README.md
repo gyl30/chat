@@ -35,7 +35,7 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 
 在独立虚拟桌面或离屏环境复用同一 Release 探针及本节的隔离服务端、SQLite、Silo：
 
-- `message_selection.py <probe>`：在真实 xcb 菜单打开期间由另一设备编辑或撤回，检查复制的是当前正文，已撤回项不覆盖剪贴板。
+- `message_selection.py <probe>`：在真实 xcb 菜单打开期间由另一设备编辑或撤回，检查复制的是当前正文，已撤回项不覆盖剪贴板。转发目标窗口保持打开时，分别撤回首条、中间、末条和全部选中项，并覆盖单条转发、个人清空、失权、账号切换和取消。探针核对真实 RPC 顺序、返回及目标会话 SQLite 中的 `forward_source`，无发送场景使用同连接请求作屏障。
 - `bookmarks.py --probe <probe>`：在已加载两页并选中末行时，未收藏消息的编辑不重置列表；未加载的收藏编辑后仍可新命中。
 - `desktop.py <probe> contacts`：好友申请、拒绝、接受、移除、备注与账户名搜索、资料和分组在第二设备变化时同步。单独使用新账号夹具，不与默认文件任务场景共享。
 - `downloads.py <probe>`：保存窗口打开后，用原有群文件操作移除所选对象并等待列表刷新，确认保存不再产生无效任务或下载授权请求。另用 `--stalls` 验证 TCP 取消和共享工作器。
