@@ -63,22 +63,8 @@ add_subdirectory(third/spdlog EXCLUDE_FROM_ALL)
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 add_subdirectory(third/sqlite EXCLUDE_FROM_ALL)
-
-if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third/miniocpp/CMakeLists.txt")
-    message(FATAL_ERROR "Missing miniocpp submodule: run git submodule update --init --recursive")
-endif()
-block()
-    # miniocpp's CMake policy floor predates the normal-variable overrides below.
-    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-    set(CMAKE_POLICY_DEFAULT_CMP0126 NEW)
-    set(BUILD_SHARED_LIBS OFF)
-    set(MINIO_CPP_TEST OFF)
-    set(MINIO_CPP_MAKE_DOC OFF)
-    set(MINIO_CPP_ENABLE_RDMA OFF)
-    set(MINIO_CPP_STD 17)
-    set(CMAKE_CXX_STANDARD 17)
-    add_subdirectory(third/miniocpp EXCLUDE_FROM_ALL)
-endblock()
+include(cmake/chat_curl.cmake)
+add_subdirectory(third/yxml EXCLUDE_FROM_ALL)
 
 add_library(chat_client STATIC
     client/src/attachment_files.cpp
@@ -87,7 +73,7 @@ add_library(chat_client STATIC
     client/src/websocket.cpp
 )
 
-target_include_directories(chat_client PUBLIC client/include)
+target_include_directories(chat_client PUBLIC client/include PRIVATE src)
 
 target_link_libraries(chat_client
     PRIVATE
@@ -101,7 +87,7 @@ target_link_libraries(chat_client
         Threads::Threads
         wslay
         chat_storage_support
-        miniocpp::miniocpp
+        CURL::libcurl_static
 )
 
 find_package(PNG REQUIRED)
@@ -200,8 +186,8 @@ target_include_directories(chat_sqlite_storage PUBLIC src client/include)
 target_link_libraries(chat_sqlite_storage PUBLIC chat_storage_support
     PRIVATE utf8proc OpenSSL::Crypto spdlog::spdlog_header_only)
 
-add_library(chat_attachment_storage STATIC src/attachment_io.cpp src/s3_objects.cpp)
+add_library(chat_attachment_storage STATIC src/attachment_io.cpp src/s3_objects.cpp src/s3_signer.cpp src/s3_xml.cpp)
 target_link_libraries(chat_attachment_storage
     PUBLIC chat_sqlite_storage
-    PRIVATE miniocpp::miniocpp
+    PRIVATE CURL::libcurl_static chat_yxml OpenSSL::Crypto spdlog::spdlog_header_only
 )

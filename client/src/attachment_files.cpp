@@ -1,12 +1,11 @@
 #include "attachment_files.hpp"
 #include <chat/attachment.hpp>
-#include <miniocpp/http.h>
-#include <miniocpp/utils.h>
-#include <httplib.h>
+#include "curl_handles.hpp"
 #include <openssl/evp.h>
 #include <filesystem>
 #include <fstream>
 #include <cstdlib>
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <memory>
@@ -48,6 +47,22 @@ struct digest
         return EVP_DigestFinal_ex(ctx.get(), hash.data(), nullptr) == 1 ? hex(hash.data(), hash.size()) : std::string{};
     }
 };
+
+// Presigned grants are opaque URLs. Keep the path and query unchanged.
+void configure_transfer(CURL* curl, std::string const& url)
+{
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_PATH_AS_IS, 1L);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_PROXY, "");
+    use_openssl_ca_file(curl);
+    curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1L);
+    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+}
+std::size_t discard_response(char*, std::size_t size, std::size_t count, void*) { return size * count; }
 }    // namespace
 
 file_result<std::pair<std::int64_t, std::int64_t>> file_snapshot(std::string const& path)
@@ -250,46 +265,88 @@ file_result<std::string> put_part(std::string const& url,
     {
         return failed("读取附件失败或原文件已变更");
     }
-    auto address = minio::http::Url::Parse(url);
-    httplib::Client http((address.https ? "https://" : "http://") + address.HostHeaderValue());
-    http.set_path_encode(false);
-    http.set_connection_timeout(5, 0);
-    http.set_write_timeout(60, 0);
-    http.set_read_timeout(60, 0);
-    httplib::Headers headers{{"Content-MD5", minio::utils::Md5sumHash(bytes)}};
-    std::stop_callback interrupt(stop, [&] { http.stop(); });
+    std::array<unsigned char, 16> hash;
+    std::array<unsigned char, 25> base64;
+    if (EVP_Digest(bytes.data(), bytes.size(), hash.data(), nullptr, EVP_md5(), nullptr) != 1)
+    {
+        return failed("无法校验附件分片");
+    }
+    EVP_EncodeBlock(base64.data(), hash.data(), hash.size());
+    curl_headers headers{nullptr, curl_slist_free_all};
+    auto curl = make_curl();
+    if (!curl || !add_header(headers, "Content-MD5: " + std::string(reinterpret_cast<char const*>(base64.data()))) ||
+        !add_header(headers, "Content-Type: application/octet-stream") || !add_header(headers, "Expect:"))
+    {
+        return failed("无法开始分片上传");
+    }
+    struct upload_transfer
+    {
+        std::string_view bytes;
+        std::stop_token stop;
+        client::progress_handler const& progress;
+        std::int64_t offset, total;
+        std::chrono::steady_clock::time_point last{};
+    } transfer{bytes, stop, progress, offset, snapshot.size};
+    configure_transfer(curl.get(), url);
+    curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers.get());
+    curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
+    curl_easy_setopt(curl.get(), CURLOPT_INFILESIZE_LARGE, static_cast<curl_off_t>(length));
+    curl_easy_setopt(curl.get(), CURLOPT_READDATA, &transfer);
+    curl_easy_setopt(
+        curl.get(),
+        CURLOPT_READFUNCTION,
+        +[](char* out, std::size_t size, std::size_t count, void* data) -> std::size_t
+        {
+            auto& t = *static_cast<upload_transfer*>(data);
+            if (t.stop.stop_requested())
+            {
+                return CURL_READFUNC_ABORT;
+            }
+            auto const n = std::min(size * count, t.bytes.size());
+            if (n)
+            {
+                t.bytes.copy(out, n);
+                t.bytes.remove_prefix(n);
+            }
+            return n;
+        });
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, &discard_response);
+    curl_easy_setopt(curl.get(), CURLOPT_XFERINFODATA, &transfer);
+    curl_easy_setopt(
+        curl.get(),
+        CURLOPT_XFERINFOFUNCTION,
+        +[](void* data, curl_off_t, curl_off_t, curl_off_t total, curl_off_t sent)
+        {
+            auto& t = *static_cast<upload_transfer*>(data);
+            if (t.stop.stop_requested())
+            {
+                return 1;
+            }
+            auto const now = std::chrono::steady_clock::now();
+            if (t.progress && total && (now - t.last >= std::chrono::milliseconds(120) || sent == total))
+            {
+                t.progress(t.offset + sent, t.total);
+                t.last = now;
+            }
+            return 0;
+        });
+    auto const rc = curl_easy_perform(curl.get());
     if (stop.stop_requested())
     {
         return failed("上传已暂停");
     }
-    auto last = std::chrono::steady_clock::time_point{};
-    auto result = http.Put("/" + address.path + "?" + address.query_string,
-                           headers,
-                           bytes,
-                           "application/octet-stream",
-                           [&](std::size_t bytes_sent, std::size_t part_bytes)
-                           {
-                               if (stop.stop_requested())
-                               {
-                                   return false;
-                               }
-                               auto now = std::chrono::steady_clock::now();
-                               if (progress && (now - last >= std::chrono::milliseconds(120) || bytes_sent == part_bytes))
-                               {
-                                   progress(offset + static_cast<std::int64_t>(bytes_sent), snapshot.size);
-                                   last = now;
-                               }
-                               return true;
-                           });
-    if (stop.stop_requested())
-    {
-        return failed("上传已暂停");
-    }
-    if (!result || result->status != 200)
+    long status = 0;
+    curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &status);
+    if (rc != CURLE_OK || status != 200)
     {
         return failed("分片上传失败，任务已暂停");
     }
-    auto etag = result->get_header_value("ETag");
+    curl_header* header = nullptr;
+    if (curl_easy_header(curl.get(), "ETag", 0, CURLH_HEADER, -1, &header) != CURLHE_OK)
+    {
+        return failed("S3 未返回 ETag");
+    }
+    std::string etag = header->value;
     if (etag.size() > 1 && etag.front() == '"' && etag.back() == '"')
     {
         etag = etag.substr(1, etag.size() - 2);
@@ -337,6 +394,11 @@ file_result<std::string> download_file(std::string const& url,
     {
         return failed("下载已取消或连接已断开");
     }
+    auto curl = make_curl();
+    if (!curl)
+    {
+        return failed("无法开始下载");
+    }
     // Create exclusively in the destination directory so the final rename is atomic.
     std::array<unsigned char, 16> random;
     if (RAND_bytes(random.data(), random.size()) != 1)
@@ -358,50 +420,53 @@ file_result<std::string> download_file(std::string const& url,
     {
         options.progress(0, size);
     }
-    auto const address = minio::http::Url::Parse(url);
-    httplib::Client http((address.https ? "https://" : "http://") + address.HostHeaderValue());
-    http.set_path_encode(false);
-    http.set_connection_timeout(5, 0);
-    http.set_read_timeout(60, 0);
-    http.set_write_timeout(60, 0);
-    auto path = "/" + address.path;
-    if (!address.query_string.empty())
+    struct download_transfer
     {
-        path += "?" + address.query_string;
-    }
-    auto interrupt = [&] { http.stop(); };
-    auto const task_stop = options.control ? options.control->token() : std::stop_token{};
-    auto res = [&]() -> httplib::Result
-    {
-        std::stop_callback session_interrupt(stop, interrupt);
-        std::stop_callback task_interrupt(task_stop, interrupt);
-        if (stopped())
+        decltype(stopped)& cancelled;
+        decltype(options.progress) const& progress;
+        digest& hash;
+        std::ofstream& output;
+        std::int64_t size, &count;
+        std::chrono::steady_clock::time_point last;
+        bool& valid;
+    } transfer{stopped, options.progress, d, out, size, count, last_progress, valid};
+    configure_transfer(curl.get(), url);
+    curl_easy_setopt(curl.get(), CURLOPT_FAILONERROR, 1L);
+    curl_easy_setopt(curl.get(), CURLOPT_XFERINFODATA, &transfer);
+    curl_easy_setopt(
+        curl.get(),
+        CURLOPT_XFERINFOFUNCTION,
+        +[](void* data, curl_off_t, curl_off_t, curl_off_t, curl_off_t) { return static_cast<download_transfer*>(data)->cancelled() ? 1 : 0; });
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &transfer);
+    curl_easy_setopt(
+        curl.get(),
+        CURLOPT_WRITEFUNCTION,
+        +[](char* data, std::size_t size, std::size_t count, void* state) -> std::size_t
         {
-            return {nullptr, httplib::Error::Canceled};
-        }
-        return http.Get(
-            path,
-            [&](httplib::Response const& response) { return !stopped() && response.status >= 200 && response.status < 300; },
-            [&](char const* data, std::size_t length)
+            auto& t = *static_cast<download_transfer*>(state);
+            auto const length = size * count;
+            t.valid = t.valid && !t.cancelled() && length <= static_cast<std::uint64_t>(t.size - t.count) && t.hash.add({data, length}) &&
+                      static_cast<bool>(t.output.write(data, static_cast<std::streamsize>(length)));
+            if (!t.valid)
             {
-                valid = valid && !stopped() && length <= static_cast<std::uint64_t>(size - count) && d.add({data, length}) &&
-                        static_cast<bool>(out.write(data, static_cast<std::streamsize>(length)));
-                if (valid)
-                {
-                    count += static_cast<std::int64_t>(length);
-                    auto const now = std::chrono::steady_clock::now();
-                    if (options.progress && now - last_progress >= std::chrono::milliseconds(100))
-                    {
-                        options.progress(count, size);
-                        last_progress = now;
-                    }
-                }
-                return valid;
-            });
-    }();
+                return CURL_WRITEFUNC_ERROR;
+            }
+            t.count += static_cast<std::int64_t>(length);
+            auto const now = std::chrono::steady_clock::now();
+            if (t.progress && now - t.last >= std::chrono::milliseconds(100))
+            {
+                t.progress(t.count, t.size);
+                t.last = now;
+            }
+            return length;
+        });
+    auto const rc = curl_easy_perform(curl.get());
+    long status = 0;
+    curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &status);
     out.close();
     std::error_code ec;
-    if (res && !stopped() && valid && out && count == size && d.finish() == checksum && (!options.control || options.control->begin_finalize()))
+    if (rc == CURLE_OK && status >= 200 && status < 300 && !stopped() && valid && out && count == size && d.finish() == checksum &&
+        (!options.control || options.control->begin_finalize()))
     {
         if (options.replace_existing)
         {

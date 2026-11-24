@@ -9,8 +9,7 @@ C++ 聊天服务器、共享客户端 SDK 和 Qt Widgets 桌面客户端。
 以 Debian/Ubuntu 系为例，配置上述工具链和 Boost 后，系统开发包为：
 
 ```sh
-sudo apt install pkg-config libssl-dev zlib1g-dev libpng-dev libjpeg-dev \
-    nlohmann-json3-dev libpugixml-dev
+sudo apt install pkg-config libssl-dev zlib1g-dev libpng-dev libjpeg-dev
 ```
 
 Qt 客户端另需 Qt 6.5+ Widgets/Svg（通常为 `qt6-base-dev qt6-svg-dev`，发行版版本不足时安装满足版本的 Qt SDK），Linux 另需 `libdbus-1-dev` 及 Qt 本身要求的图形开发依赖。可选依赖包括 Brotli/Zstd 和 liburing 2.5+；它们不阻止缺省构建。
@@ -30,7 +29,7 @@ cmake -S . -B build-qt -G Ninja -DCMAKE_BUILD_TYPE=Release \
 cmake --build build-qt --target chat_server chat_client chat_qt
 ```
 
-按实际安装路径调整 Boost、Qt；在默认搜索路径中时可省略对应参数。不需要安装 SQLite 开发库或 miniocpp SDK，也不需要指定它们的 CMake 路径。[SQLite 3.51.3](third/sqlite/README.md) 静态链接，miniocpp v1.0.1 由子模块构建。C++ 构建不需要 Python。首次配置的下载、重复配置的联网行为见[依赖说明](cmake/README.md#minio-c-sdk)。管理 SQLite 的 Python 需[单独使用同源私有库](ops/sqlite-runtime.md)。隔离验收和搜索测量见[验收入口](ops/acceptance/README.md)。
+按实际安装路径调整 Boost、Qt；在默认搜索路径中时可省略对应参数。不需要安装 SQLite、libcurl 或 S3 SDK 的开发包。[SQLite 3.51.3](third/sqlite/README.md)、libcurl 8.23.0 和 Yxml 都从仓库内静态构建。首次配置的下载见[依赖说明](cmake/README.md#附件传输和-s3)。C++ 构建不需要 Python。管理 SQLite 的 Python 需[单独使用同源私有库](ops/sqlite-runtime.md)。隔离验收和搜索测量见[验收入口](ops/acceptance/README.md)。
 
 ## 本地运行
 
@@ -68,7 +67,7 @@ SQLite 使用 WAL、`synchronous=FULL` 和外键约束。部署时确保数据�
     --tls-cert /path/fullchain.pem --tls-key /path/key.pem
 ```
 
-`GET /health` 提供 HTTP 健康检查；它不代表 S3 服务一定可用。
+`GET /health` 提供 HTTP 健康检查；它不代表 S3 服务一定可用。附件 HTTPS 校验系统 CA 和端点名称。若使用私有 CA，可在服务端和桌面客户端进程中设置 `SSL_CERT_FILE=/path/to/ca.pem`，不必替换系统证书。
 
 ## WebSocket 协议约束
 

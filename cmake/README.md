@@ -30,20 +30,22 @@ while preserving the source hash checks. The Unicode/emoji data inputs are
 not loaded into the server's runtime process.
 
 
-## MinIO C++ SDK
+## 附件传输和 S3
 
-`third/miniocpp` 以子模块固定官方 v1.0.1（`5d39de018b81ac45fa0645cfc61b275d869ceea1`）。Chat 构建其 C++17 头文件接口和静态库，不启用测试／示例、文档、RDMA 或 C++20 模块；Chat 自身仍用 C++26 Reflection。TL expected 已在 SDK 中。
+[libcurl 8.23.0](../third/curl/README.chat.md) 和 [Yxml](../third/yxml/README.chat.md)
+直接由仓库内源码静态构建，无系统 libcurl 回退、预编译前缀或配置阶段下载。libcurl 仅保留
+HTTP/1.1 和 HTTPS，使用 OpenSSL、线程 DNS、IPv4/IPv6 与 AWS SigV4；Yxml 只链接服务端。
+Qt 或 libpng 所需的 zlib 仍由系统提供。独立的 utf8proc 和 emoji-segmenter 下载规则不变，已取到的源码可在原构建目录重用。
 
-OpenSSL、zlib、nlohmann_json、pugixml 由系统开发包提供。SDK 先查合适的 cpp-httplib（0.51+）和 INIReader 包；没有时，按上游逻辑克隆到构建目录下的 `third/miniocpp/_deps/`，使用 cpp-httplib v0.53.1（`b8fe69e4e892ec394ca8de27ab2fe219008690b6`）和 inih r58（`5cc5e2c24642513aaa5b19126aad42d0e4e0923e`）。
+服务端使用现有 S3 工作器执行带 SigV4 请求头的 S3 请求；分片 PUT 和下载 GET 的查询签名
+由服务端 OpenSSL 单独生成。SDK 传输这些 URL 时不重新编码。HTTPS 不关闭证书或主机名校验。
 
-cpp-httplib 走源码回退时，上游每次重新配置都会 `git fetch --tags origin`，**即使该目录已经存在**。inih 回退在本地源码存在时只 checkout，不重新下载。系统同时有合适的 cpp-httplib 和 INIReader 包时，这两条 Git 回退均不走；`FETCHCONTENT_FULLY_DISCONNECTED` 不会禁止上游自己执行的 Git。已有的 utf8proc/emoji-segmenter 首次下载由 FetchContent 完成，在原构建目录重用；离线可提供校验匹配的源码，使用 `FETCHCONTENT_SOURCE_DIR_UTF8PROC` 或 `FETCHCONTENT_SOURCE_DIR_CHAT_EMOJI_SEGMENTER`。
+### 历史记录：miniocpp 与 AWS SDK 对照（Linux Release）
 
-### S3 SDK 取舍（Linux Release）
-
-继续使用 miniocpp。以下是同一台 Ubuntu 22.04、GCC 16.0.1、Release、Ninja `-j5`
+以下是替换前的历史选型证据，不代表当前构建。比较使用 miniocpp v1.0.1（`5d39de0`）。测试为同一台 Ubuntu 22.04、GCC 16.0.1、Release、Ninja `-j5`
 的独立对照。AWS 固定 [1.11.935（1d07b20）](https://github.com/aws/aws-sdk-cpp/releases/tag/1.11.935)，
 仅构建 `BUILD_ONLY=s3`、静态、关闭 SDK 测试、保持默认 unity 并用系统 libcurl；
-miniocpp 使用本节的固定版本与同一批本地依赖。构建计时从已取得源码开始，不含下载。
+miniocpp 使用上述固定版本与同一批本地依赖。构建计时从已取得源码开始，不含下载。
 程序体积为两个独立对照程序去除符号后的大小，不是 Chat 服务端整体体积。
 
 | 指标 | miniocpp | AWS SDK for C++ |
@@ -64,4 +66,4 @@ AWS 的 typed List/Abort/HEAD 可以减少适配层自解析 XML，但 S3-only �
 静态组件，当前 libcurl 配置也带来更多动态传递依赖。消费端使用 Outcome，不需要第一方
 异常，测试程序加 `-fno-exceptions` 亦成功编译、链接；这不代表 SDK 自身在该开关下构建通过。
 迁移还涉及全局 Init/Shutdown 生命周期、现有工作器上的重试和超时边界、分片签名参数、
-错误映射，以及 SDK 客户端仍用到的 HTTP URL/MD5 辅助接口。在没有实测收益前不维护第二套。
+错误映射，以及 SDK 客户端仍用到的 HTTP URL/MD5 辅助接口。此次对照未引入 AWS SDK，也不维护第二套。

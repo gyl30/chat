@@ -1,70 +1,151 @@
 #include "s3_objects.hpp"
-#include <miniocpp/baseclient.h>
-#include <pugixml.hpp>
+#include "curl_handles.hpp"
+#include "s3_signer.hpp"
+#include "s3_xml.hpp"
+#include <spdlog/spdlog.h>
 
 namespace
 {
-using minio::http::Method;
-using minio::utils::Multimap;
+using chat::detail::add_header;
+using chat::detail::curl_headers;
+using chat::detail::make_curl;
+using chat::detail::use_openssl_ca_file;
 s3_error queue_error(blocking_worker::unavailable) { return {0, "S3 worker unavailable"}; }
+
+struct response
+{
+    std::string body, checksum;
+    curl_off_t length = -1;
+};
+
 struct bucket_client
 {
-    minio::s3::BaseUrl url;
-    minio::creds::StaticProvider credentials;
-    minio::s3::BaseClient client;
     s3_settings const& settings;
-    explicit bucket_client(s3_settings const& s)
-        : url(s.endpoint, s.https, s.region), credentials(s.access_key, s.secret_key), client(url, &credentials), settings(s)
+
+    object_result<response> request(std::string_view method,
+                                    std::string const& key,
+                                    s3::parameters const& params = {},
+                                    std::string_view body = {},
+                                    std::initializer_list<std::string> fields = {}) const
     {
-    }
-    template <class A>
-    A args(std::string const& key) const
-    {
-        A a;
-        a.bucket = settings.bucket;
-        a.object = key;
-        a.region = settings.region;
-        return a;
-    }
-    object_result<minio::http::Response> request(Method method, std::string const& key, Multimap query = {})
-    {
-        minio::s3::Request req(method, settings.region, url, {}, std::move(query));
-        req.bucket_name = settings.bucket;
-        req.object_name = key;
-        auto http = req.ToHttpRequest(&credentials);
-        http.connect_timeout_secs = 4;
-        http.timeout_secs = 30;
-        auto r = http.Execute();
-        if (!r)
+        curl_headers headers{nullptr, curl_slist_free_all};
+        auto curl = make_curl();
+        if (!curl)
         {
-            return std::unexpected(s3_error{r.status_code, "S3 request failed"});
+            return std::unexpected(s3_error{0, "S3 request setup failed"});
         }
-        return r;
-    }
-    // Recover an initiation whose response or SQLite update was interrupted.
-    object_result<std::string> find_multipart(std::string const& key)
-    {
-        Multimap query;
-        query.Add("uploads", "");
-        query.Add("prefix", key);
-        auto r = request(Method::kGet, "", std::move(query));
-        if (!r)
+        for (auto const& field : fields)
         {
-            return std::unexpected(r.error());
-        }
-        pugi::xml_document doc;
-        if (!doc.load_string(r->body.c_str()) || !doc.child("ListMultipartUploadsResult"))
-        {
-            return std::unexpected(s3_error{0, "invalid S3 upload list"});
-        }
-        for (auto item : doc.document_element().children("Upload"))
-        {
-            if (key == item.child_value("Key"))
+            if (!add_header(headers, field))
             {
-                return item.child_value("UploadId");
+                return std::unexpected(s3_error{0, "S3 request setup failed"});
             }
         }
-        return std::string{};
+        response result;
+        auto const query = s3::query(params);
+        auto const url = s3::origin(settings) + s3::path(settings.bucket, key) + (query.empty() ? "" : "?" + query);
+        auto const sig = "aws:amz:" + settings.region + ":s3";
+        curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+        // curl 8.23 rejects PATH_AS_IS together with AWS_SIGV4. Internal
+        // bucket/object paths have no dot segments; presigned transfers differ.
+        curl_easy_setopt(curl.get(), CURLOPT_NOSIGNAL, 1L);
+        curl_easy_setopt(curl.get(), CURLOPT_PROXY, "");
+        use_openssl_ca_file(curl.get());
+        curl_easy_setopt(curl.get(), CURLOPT_CONNECTTIMEOUT, 4L);
+        curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, 30L);
+        curl_easy_setopt(curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+        curl_easy_setopt(curl.get(), CURLOPT_AWS_SIGV4, sig.c_str());
+        curl_easy_setopt(curl.get(), CURLOPT_USERNAME, settings.access_key.c_str());
+        curl_easy_setopt(curl.get(), CURLOPT_PASSWORD, settings.secret_key.c_str());
+        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers.get());
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &result.body);
+        curl_easy_setopt(
+            curl.get(),
+            CURLOPT_WRITEFUNCTION,
+            +[](char* data, std::size_t size, std::size_t count, void* target) -> std::size_t
+            {
+                auto& buffer = *static_cast<std::string*>(target);
+                auto const length = size * count;
+                // No Chat operation requests an unbounded listing.
+                if (length > 2 * 1024 * 1024 - buffer.size())
+                {
+                    return CURL_WRITEFUNC_ERROR;
+                }
+                buffer.append(data, length);
+                return length;
+            });
+        if (method == "HEAD")
+        {
+            curl_easy_setopt(curl.get(), CURLOPT_NOBODY, 1L);
+        }
+        else if (method == "POST")
+        {
+            curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, body.empty() ? "" : body.data());
+            curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(body.size()));
+        }
+        else if (method == "DELETE")
+        {
+            curl_easy_setopt(curl.get(), CURLOPT_CUSTOMREQUEST, "DELETE");
+        }
+        if (auto const rc = curl_easy_perform(curl.get()); rc != CURLE_OK)
+        {
+            // libcurl's fixed error description never includes the URL or credentials.
+            spdlog::warn("S3 {} failed: {}", method, curl_easy_strerror(rc));
+            return std::unexpected(s3_error{0, curl_easy_strerror(rc)});
+        }
+        long status = 0;
+        curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &status);
+        if (status < 200 || status >= 300)
+        {
+            return std::unexpected(s3_error{static_cast<int>(status), "S3 request failed"});
+        }
+        if (method == "HEAD")
+        {
+            curl_easy_getinfo(curl.get(), CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &result.length);
+            curl_header* header = nullptr;
+            if (curl_easy_header(curl.get(), "x-amz-meta-sha256", 0, CURLH_HEADER, -1, &header) == CURLHE_OK)
+            {
+                result.checksum = header->value;
+            }
+        }
+        return result;
+    }
+
+    // Recover an initiation whose response or SQLite update was interrupted.
+    object_result<std::string> find_multipart(std::string const& key) const
+    {
+        s3::parameters params{{"uploads", ""}, {"prefix", key}};
+        for (;;)
+        {
+            auto r = request("GET", "", params);
+            if (!r)
+            {
+                return std::unexpected(r.error());
+            }
+            auto list = s3::read_multipart_xml(r->body);
+            if (!list || list->root != "ListMultipartUploadsResult")
+            {
+                return std::unexpected(s3_error{0, "invalid S3 upload list"});
+            }
+            for (auto& [name, id] : list->uploads)
+            {
+                if (name == key && !id.empty())
+                {
+                    return std::move(id);
+                }
+            }
+            if (!list->truncated)
+            {
+                return std::string{};
+            }
+            if (list->next_key.empty() || (params.size() == 4 && params[2].second == list->next_key && params[3].second == list->next_upload))
+            {
+                return std::unexpected(s3_error{0, "invalid S3 upload list markers"});
+            }
+            params.resize(2);
+            params.emplace_back("key-marker", std::move(list->next_key));
+            params.emplace_back("upload-id-marker", std::move(list->next_upload));
+        }
     }
 };
 // Cleanup must not release a reservation while an already-started request can
@@ -102,15 +183,17 @@ boost::capy::task<object_result<std::string>> s3_objects::initiate(multipart_upl
             {
                 return existing;
             }
-            auto a = b.args<minio::s3::CreateMultipartUploadArgs>(task.key);
-            a.headers.Add("Content-Type", task.media_type);
-            a.headers.Add("x-amz-meta-sha256", task.checksum);
-            auto r = b.client.CreateMultipartUpload(std::move(a));
-            if (!r || r->upload_id.empty())
+            auto r = b.request("POST", task.key, {{"uploads", ""}}, {}, {"Content-Type: " + task.media_type, "x-amz-meta-sha256: " + task.checksum});
+            if (!r)
             {
-                return std::unexpected(s3_error{0, "multipart creation failed"});
+                return std::unexpected(r.error());
             }
-            return r->upload_id;
+            auto parsed = s3::read_multipart_xml(r->body);
+            if (!parsed || parsed->root != "InitiateMultipartUploadResult" || parsed->upload_id.empty())
+            {
+                return std::unexpected(s3_error{0, "invalid S3 initiation result"});
+            }
+            return std::move(parsed->upload_id);
         },
         queue_error);
 }
@@ -119,21 +202,18 @@ boost::capy::task<object_result<std::string>> s3_objects::signed_url(std::string
     return worker_.run(
         [this, key = std::move(key), multipart = std::move(multipart), part]() -> object_result<std::string>
         {
-            bucket_client b(settings_);
-            auto a = b.args<minio::s3::GetPresignedObjectUrlArgs>(key);
-            a.method = part ? Method::kPut : Method::kGet;
-            a.expiry_seconds = part ? 900 : 120;
+            s3::parameters params;
             if (part)
             {
-                a.extra_query_params.Add("uploadId", multipart);
-                a.extra_query_params.Add("partNumber", std::to_string(part));
+                params = {{"uploadId", multipart}, {"partNumber", std::to_string(part)}};
             }
-            auto r = b.client.GetPresignedObjectUrl(std::move(a));
-            if (!r)
+            auto url = s3::presign(
+                settings_, s3::path(settings_.bucket, key), part ? "PUT" : "GET", std::move(params), part ? 900 : 120, std::time(nullptr));
+            if (url.empty())
             {
                 return std::unexpected(s3_error{0, "could not sign URL"});
             }
-            return r->url;
+            return url;
         },
         queue_error);
 }
@@ -144,31 +224,27 @@ boost::capy::task<object_result<std::optional<std::pair<std::int64_t, std::strin
         [this, &task, number]() -> object_result<std::optional<std::pair<std::int64_t, std::string>>>
         {
             bucket_client b(settings_);
-            Multimap q;
-            q.Add("uploadId", task.multipart);
-            q.Add("part-number-marker", std::to_string(number - 1));
-            q.Add("max-parts", "1");
-            auto r = b.request(Method::kGet, task.key, std::move(q));
+            auto r =
+                b.request("GET", task.key, {{"uploadId", task.multipart}, {"part-number-marker", std::to_string(number - 1)}, {"max-parts", "1"}});
             if (!r)
             {
                 return std::unexpected(r.error());
             }
-            pugi::xml_document doc;
-            if (!doc.load_string(r->body.c_str()) || !doc.child("ListPartsResult"))
+            auto list = s3::read_multipart_xml(r->body);
+            if (!list || list->root != "ListPartsResult")
             {
-                return std::unexpected(s3_error{0, "invalid part list"});
+                return std::unexpected(s3_error{0, "invalid S3 part list"});
             }
-            auto p = doc.document_element().child("Part");
-            if (!p || p.child("PartNumber").text().as_int() != number)
+            if (list->parts.empty() || list->parts.front().number != number)
             {
                 return std::nullopt;
             }
-            std::string tag = p.child_value("ETag");
-            if (tag.size() > 1 && tag.front() == '"' && tag.back() == '"')
+            auto& p = list->parts.front();
+            if (p.size < 0 || p.etag.empty())
             {
-                tag = tag.substr(1, tag.size() - 2);
+                return std::unexpected(s3_error{0, "invalid S3 part metadata"});
             }
-            return std::pair{static_cast<std::int64_t>(p.child("Size").text().as_llong(-1)), std::move(tag)};
+            return std::pair{p.size, std::move(p.etag)};
         },
         queue_error);
 }
@@ -180,28 +256,32 @@ boost::capy::task<object_result<void>> s3_objects::complete(multipart_upload con
         {
             bucket_client b(settings_);
             // Complete may have succeeded before a disconnect. Only this reserved key can be published.
-            auto head = b.request(Method::kHead, task.key);
+            auto head = b.request("HEAD", task.key);
             if (!head)
             {
                 if (head.error().status != 404)
                 {
                     return std::unexpected(head.error());
                 }
-                auto a = b.args<minio::s3::CompleteMultipartUploadArgs>(task.key);
-                a.upload_id = task.multipart;
+                std::string body = "<CompleteMultipartUpload>";
                 for (auto const& p : task.parts)
                 {
-                    a.parts.emplace_back(p.number, p.etag);
+                    body += "<Part><PartNumber>" + std::to_string(p.number) + "</PartNumber><ETag>\"" + s3::xml_text(p.etag) + "\"</ETag></Part>";
                 }
-                auto done = b.client.CompleteMultipartUpload(std::move(a));
+                body += "</CompleteMultipartUpload>";
+                auto done = b.request("POST", task.key, {{"uploadId", task.multipart}}, body, {"Content-Type: application/xml"});
                 if (!done)
+                {
+                    return std::unexpected(done.error());
+                }
+                auto parsed = s3::read_multipart_xml(done->body);
+                if (!parsed || parsed->root != "CompleteMultipartUploadResult")
                 {
                     return std::unexpected(s3_error{0, "multipart completion failed"});
                 }
-                head = b.request(Method::kHead, task.key);
+                head = b.request("HEAD", task.key);
             }
-            if (!head || head->headers.GetFront("content-length") != std::to_string(task.size) ||
-                head->headers.GetFront("x-amz-meta-sha256") != task.checksum)
+            if (!head || head->length != task.size || head->checksum != task.checksum)
             {
                 return std::unexpected(s3_error{0, "completed object metadata mismatch"});
             }
@@ -226,9 +306,7 @@ boost::capy::task<object_result<void>> s3_objects::abort(std::string key, std::s
             }
             if (!multipart.empty())
             {
-                Multimap q;
-                q.Add("uploadId", multipart);
-                auto r = b.request(Method::kDelete, key, std::move(q));
+                auto r = b.request("DELETE", key, {{"uploadId", multipart}});
                 if (!r && r.error().status != 404)
                 {
                     return std::unexpected(r.error());
@@ -244,7 +322,7 @@ boost::capy::task<object_result<void>> s3_objects::remove(std::string key)
         [this, key = std::move(key)]() -> object_result<void>
         {
             bucket_client b(settings_);
-            auto r = b.request(Method::kDelete, key);
+            auto r = b.request("DELETE", key);
             if (!r)
             {
                 return std::unexpected(r.error());
