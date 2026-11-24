@@ -15,6 +15,7 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 | `folder_interaction.py <probe>` | 脚本单独启动 Xvfb 和私有 D-Bus；通过 libXtst 实际拖放，检查右键归组、三个标读菜单、草稿和重启后的折叠状态。需要 xvfb-run、xauth 和 libXtst |
 | `bulk_read.py` | 检查真实 SQLite 水位、手工标记、并发新消息、跨设备事件、其他成员回执和客户端第一页以外的会话 |
 | `user_profiles.py <probe>` | 昵称与签名边界、隐私、重复昵称、实际 Qt 编辑，消息、回复、转发的作者实时变化及结构化提及 |
+| `avatars.py <probe>` | 真实头像 RPC 的格式、CRC／Adler32、解压边界及失败不覆盖；实际 Qt 选择、裁切、旧头像读取、多端刷新及 PNG／JPEG 附件回归 |
 | `group_profiles.py <probe>` | 实际头像选择与上传、用户和群同 ID 隔离、上传期间管理员降级、群简介、公告与成员过滤 |
 | `clear.py` | 重试相同 H 后，后续未读消息与手工标记保留，实际已读位置保持，已提交任务得到无正文确认 |
 | `login_sessions.py [Qt 驱动]` | 真实登录凭证及安装绑定、同会话多连接、并发改密、服务端重启和已撤销 token 拒绝；真实 Silo 完成回包被扣住时撤销，拒绝后续数据库发布；Qt 设备列表与确认、无密码重连、撤销通知／确认延迟、草稿保存窗口、Outbox 对账和原安装续传 |

@@ -12,7 +12,7 @@ from desktop import Desktop
 from fixture import fixture
 
 
-def png(rgb):
+def png(rgb, extent=256):
     def chunk(kind, data):
         return (
             struct.pack(">I", len(data))
@@ -23,20 +23,21 @@ def png(rgb):
 
     return (
         b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", struct.pack(">2I5B", 4, 4, 8, 2, 0, 0, 0))
-        + chunk(b"IDAT", zlib.compress((b"\0" + bytes(rgb) * 4) * 4))
+        + chunk(b"IHDR", struct.pack(">2I5B", extent, extent, 8, 2, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress((b"\0" + bytes(rgb) * extent) * extent))
         + chunk(b"IEND", b"")
     )
 
 
 async def prepare_avatar(client, data, **scope):
     key = (await client.ok("begin_avatar_upload", size=len(data), **scope))["upload"]
-    await client.ok(
-        "upload_avatar_chunk",
-        upload=key,
-        offset=0,
-        data=base64.b64encode(data).decode(),
-    )
+    for offset in range(0, len(data), 32768):
+        await client.ok(
+            "upload_avatar_chunk",
+            upload=key,
+            offset=offset,
+            data=base64.b64encode(data[offset : offset + 32768]).decode(),
+        )
     return key
 
 
@@ -67,7 +68,7 @@ async def main(probe):
         with tempfile.TemporaryDirectory() as home:
             root = Path(home)
             path = root / "group.png"
-            path.write_bytes(blue)
+            path.write_bytes(png((0, 0, 255), 4))
             gui = Desktop()
             await gui.start(probe, root, f"ws://127.0.0.1:{a.ws.remote_address[1]}/ws")
             try:
@@ -98,7 +99,10 @@ async def main(probe):
                 await a.ok("set_friend_remark", user=2, remark="")
                 await gui.wait("group_profile", lambda r: r["members"] == ["项目经理"])
                 rec = await b.ok("get_avatar", conversation=g, revision=1, offset=0)
-                assert base64.b64decode(rec["data"]) == blue
+                stored = base64.b64decode(rec["data"])
+                assert rec["media_type"] == "image/png" and struct.unpack_from(
+                    ">2I", stored, 16
+                ) == (256, 256)
                 await a.ok("set_group_admin", conversation=g, user=2, admin=True)
                 await b.ok("set_group_description", conversation=g, text="")
                 await b.ok(

@@ -296,6 +296,49 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                                    });
                 editor->click();
             }
+            if (auto* avatar = profile->findChild<QPushButton*>("changeAvatarButton"))
+            {
+                auto* clear = profile->findChild<QPushButton*>("removeAvatarButton");
+                out["avatarEditable"] = avatar->isEnabled();
+                out["avatarStatus"] = profile->findChild<QLabel*>("avatarUploadStatus")->text();
+                if (cmd.contains("avatar") && avatar->isEnabled())
+                {
+                    QTimer::singleShot(0,
+                                       profile,
+                                       [avatar, path = cmd["avatar"].toString()]
+                                       {
+                                           QTimer::singleShot(80,
+                                                              avatar,
+                                                              [path]
+                                                              {
+                                                                  if (auto* chooser = qobject_cast<QFileDialog*>(QApplication::activeModalWidget()))
+                                                                  {
+                                                                      if (path.isEmpty())
+                                                                      {
+                                                                          chooser->reject();
+                                                                          return;
+                                                                      }
+                                                                      chooser->findChild<QLineEdit*>("fileNameEdit")->setText(path);
+                                                                      QMetaObject::invokeMethod(chooser, "accept");
+                                                                  }
+                                                              });
+                                           avatar->click();
+                                       });
+                }
+                if (cmd["clearAvatar"].toBool() && clear->isEnabled())
+                {
+                    clear->click();
+                }
+            }
+            if (auto const key = cmd["avatarUser"].toInteger(); key > 0)
+            {
+                auto pixmap = chat->avatars().image(key);
+                if (!pixmap.isNull())
+                {
+                    auto image = pixmap.toImage();
+                    out["avatarPixel"] = image.pixelColor(image.width() / 2, image.height() / 2).name(QColor::HexArgb);
+                }
+            }
             auto* remove = profile->findChild<QPushButton*>("removeContactButton");
             out["friend"] = remove && remove->isVisible();
             if (cmd["closeProfile"].toBool())
