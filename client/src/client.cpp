@@ -65,31 +65,16 @@ error make_error(error_kind kind, std::string message, int code = 0)
     return value;
 }
 
-std::optional<std::int64_t> parse_int64(dom::element value)
+std::optional<std::int64_t> integer_field(auto object, std::string_view key)
 {
-    std::int64_t number;
-    if (value.get(number))
-    {
-        return std::nullopt;
-    }
-    return number;
-}
-
-std::optional<std::uint64_t> parse_uint64(dom::element value)
-{
-    std::uint64_t number;
-    if (value.get(number))
-    {
-        return std::nullopt;
-    }
-    return number;
+    auto value = find_field(object, key);
+    return value ? read_payload<std::int64_t>(*value) : std::nullopt;
 }
 
 bool parse_avatar_state(dom::object object, avatar_state& value)
 {
-    auto revision = find_field(object, "avatar_revision");
+    auto parsed = integer_field(object, "avatar_revision");
     auto present = find_field(object, "has_avatar");
-    auto parsed = revision ? parse_int64(*revision) : std::nullopt;
     if (!parsed || *parsed < 0 || !present || !present->is_bool() || (present->get_bool().value_unsafe() && *parsed == 0))
     {
         return false;
@@ -113,7 +98,7 @@ bool parse_user(dom::object object, user& value)
         return false;
     }
 
-    auto id = parse_int64(*id_value);
+    auto id = read_payload<std::int64_t>(*id_value);
     if (!id || *id <= 0)
     {
         return false;
@@ -173,7 +158,7 @@ bool parse_edited_at(dom::object object, std::optional<std::int64_t>& edited_at)
     {
         return true;
     }
-    edited_at = parse_int64(*value);
+    edited_at = read_payload<std::int64_t>(*value);
     return edited_at && *edited_at > 0;
 }
 
@@ -197,8 +182,8 @@ bool parse_quote(dom::object object, std::string_view key, std::optional<quoted_
     {
         return false;
     }
-    auto parsed_id = parse_int64(*id);
-    auto parsed_from = parse_int64(*from);
+    auto parsed_id = read_payload<std::int64_t>(*id);
+    auto parsed_from = read_payload<std::int64_t>(*from);
     if (!parsed_id || *parsed_id <= 0 || !parsed_from || *parsed_from <= 0)
     {
         return false;
@@ -211,9 +196,8 @@ bool parse_quote(dom::object object, std::string_view key, std::optional<quoted_
 
 bool parse_reactions(dom::object object, std::int64_t& revision, std::vector<reaction>& reactions)
 {
-    auto revision_value = find_field(object, "reaction_revision");
+    auto parsed_revision = integer_field(object, "reaction_revision");
     auto list = find_field(object, "reactions");
-    auto parsed_revision = revision_value ? parse_int64(*revision_value) : std::nullopt;
     if (!parsed_revision || *parsed_revision < 0 || !list || !list->is_array() ||
         (*parsed_revision == 0 && list->get_array().value_unsafe().size() != 0))
     {
@@ -242,7 +226,7 @@ bool parse_reactions(dom::object object, std::int64_t& revision, std::vector<rea
         reaction value{std::string(emoji), {}};
         for (auto user_value : users->get_array().value_unsafe())
         {
-            auto user = parse_int64(user_value);
+            auto user = read_payload<std::int64_t>(user_value);
             if (!user || *user <= 0 || !seen_users.insert(*user).second)
             {
                 return false;
@@ -256,10 +240,8 @@ bool parse_reactions(dom::object object, std::int64_t& revision, std::vector<rea
 
 bool parse_reaction_update(dom::object object, reaction_update& value)
 {
-    auto conversation_value = find_field(object, "conversation");
-    auto message_value = find_field(object, "message");
-    auto conversation = conversation_value ? parse_int64(*conversation_value) : std::nullopt;
-    auto message = message_value ? parse_int64(*message_value) : std::nullopt;
+    auto conversation = integer_field(object, "conversation");
+    auto message = integer_field(object, "message");
     if (!conversation || *conversation <= 0 || !message || *message <= 0 || !parse_reactions(object, value.revision, value.reactions))
     {
         return false;
@@ -283,9 +265,8 @@ bool parse_mentions(dom::object object, std::vector<mention>& result)
         {
             return false;
         }
-        auto user_value = find_field(value, "user");
+        auto user = integer_field(value, "user");
         auto username = find_field(value, "username");
-        auto user = user_value ? parse_int64(*user_value) : std::nullopt;
         if (!user || *user <= 0 || !username || !username->is_string() || username->get_string().value_unsafe().empty() || !seen.insert(*user).second)
         {
             return false;
@@ -318,10 +299,10 @@ bool parse_message(dom::object object, message& value)
         return false;
     }
 
-    auto id = parse_int64(*id_value);
-    auto from = parse_int64(*from_value);
-    auto timestamp = parse_int64(*timestamp_value);
-    auto conversation = parse_int64(*conversation_value);
+    auto id = read_payload<std::int64_t>(*id_value);
+    auto from = read_payload<std::int64_t>(*from_value);
+    auto timestamp = read_payload<std::int64_t>(*timestamp_value);
+    auto conversation = read_payload<std::int64_t>(*conversation_value);
     if (!conversation || *conversation <= 0 || !id || *id <= 0 || !from || *from <= 0 || !timestamp || *timestamp <= 0)
     {
         return false;
@@ -343,8 +324,7 @@ bool parse_message(dom::object object, message& value)
         auto fields = attachment->get_object().value_unsafe();
         auto filename = find_field(fields, "filename");
         auto media_type = find_field(fields, "media_type");
-        auto size_value = find_field(fields, "size");
-        auto size = size_value ? parse_int64(*size_value) : std::nullopt;
+        auto size = integer_field(fields, "size");
         if (!filename || !filename->is_string() || filename->get_string().value_unsafe().empty() ||
             filename->get_string().value_unsafe().size() > 255 || !media_type || !media_type->is_string() || !size || *size < 0 ||
             *size > static_cast<std::int64_t>(max_attachment_size))
@@ -367,7 +347,7 @@ bool parse_message(dom::object object, message& value)
     auto client_id = find_field(object, "client_id");
     if (client_id && !client_id->is_null())
     {
-        value.client_id = parse_int64(*client_id);
+        value.client_id = read_payload<std::int64_t>(*client_id);
         if (!value.client_id || *value.client_id <= 0)
         {
             return false;
@@ -378,6 +358,63 @@ bool parse_message(dom::object object, message& value)
            parse_mentions(object, value.mentions) && (!value.deleted || (value.reactions.empty() && value.mentions.empty()));
 }
 
+std::expected<messages_result, error> parse_message_page(dom::element response, std::int64_t conversation)
+{
+    if (!response.is_object())
+    {
+        return std::unexpected(make_error(error_kind::protocol, "Invalid get_messages result"));
+    }
+
+    auto messages_value = find_field(response, "messages");
+    auto read_value = find_field(response, "read_positions");
+    auto more_value = find_field(response, "has_more");
+    if (!messages_value || !messages_value->is_array() || !read_value || !read_value->is_array() || !more_value || !more_value->is_bool())
+    {
+        return std::unexpected(make_error(error_kind::protocol, "Invalid get_messages result"));
+    }
+
+    messages_result result;
+    result.has_more = more_value->get_bool().value_unsafe();
+    auto floor = integer_field(response, "visible_after");
+    auto hidden = find_field(response, "hidden");
+    if (!floor || !hidden || !hidden->is_bool())
+    {
+        return std::unexpected(make_error(error_kind::protocol, "Invalid history visibility"));
+    }
+    result.visible_after = *floor;
+    result.hidden = hidden->get_bool().value_unsafe();
+    if (auto first = find_field(response, "first_unread"))
+    {
+        result.first_unread = read_payload<std::int64_t>(*first);
+    }
+    for (auto position : read_value->get_array().value_unsafe())
+    {
+        auto user = integer_field(position, "user");
+        auto message = integer_field(position, "message");
+        if (!user || *user <= 0 || !message || *message < 0)
+        {
+            return std::unexpected(make_error(error_kind::protocol, "Invalid read position"));
+        }
+        result.read_positions.push_back(read_position{*user, *message});
+    }
+    result.messages.reserve(messages_value->get_array().value_unsafe().size());
+    for (auto value : messages_value->get_array().value_unsafe())
+    {
+        if (!value.is_object())
+        {
+            return std::unexpected(make_error(error_kind::protocol, "Invalid message"));
+        }
+
+        message item;
+        if (!parse_message(value.get_object().value_unsafe(), item) || item.conversation != conversation)
+        {
+            return std::unexpected(make_error(error_kind::protocol, "Invalid message"));
+        }
+        result.messages.push_back(std::move(item));
+    }
+    return result;
+}
+
 bool parse_receipt(dom::object fields, message& value)
 {
     auto hidden = find_field(fields, "hidden");
@@ -385,11 +422,7 @@ bool parse_receipt(dom::object fields, message& value)
     {
         return parse_message(fields, value);
     }
-    auto number = [&](char const* key)
-    {
-        auto v = find_field(fields, key);
-        return v ? parse_int64(*v).value_or(0) : 0;
-    };
+    auto number = [&](char const* key) { return integer_field(fields, key).value_or(0); };
     value.id = number("id");
     value.conversation = number("conversation");
     value.from = number("from");
@@ -408,8 +441,8 @@ bool parse_presence(dom::object object, presence& value)
         return false;
     }
 
-    auto user = parse_int64(*user_value);
-    auto last_seen = parse_int64(*last_seen_value);
+    auto user = read_payload<std::int64_t>(*user_value);
+    auto last_seen = read_payload<std::int64_t>(*last_seen_value);
     if (!user || *user <= 0 || !last_seen || *last_seen < 0)
     {
         return false;
@@ -428,7 +461,7 @@ std::expected<conversation, error> parse_conversation(dom::element const& value)
         return std::unexpected(make_error(error_kind::protocol, "Invalid conversation"));
     }
     auto object = value.get_object().value_unsafe();
-    auto id_value = find_field(object, "id");
+    auto id = integer_field(object, "id");
     auto kind = find_field(object, "kind");
     auto user_value = find_field(object, "user");
     auto name = find_field(object, "username");
@@ -442,9 +475,8 @@ std::expected<conversation, error> parse_conversation(dom::element const& value)
     auto pinned_message = find_field(object, "pinned_message");
     auto announcement = find_field(object, "announcement");
     auto approval = find_field(object, "join_approval");
-    auto id = id_value ? parse_int64(*id_value) : std::nullopt;
-    auto unread = unread_value ? parse_uint64(*unread_value) : std::nullopt;
-    auto count = count_value ? parse_uint64(*count_value) : std::nullopt;
+    auto unread = unread_value ? read_payload<std::uint64_t>(*unread_value) : std::nullopt;
+    auto count = count_value ? read_payload<std::uint64_t>(*count_value) : std::nullopt;
     if (!id || *id <= 0 || !kind || !kind->is_string() || !user_value || !name || !name->is_string() || !last || !unread || !count || *count == 0 ||
         !level || !level->is_int64() || level->get_int64().value_unsafe() < 0 || level->get_int64().value_unsafe() > 2 || !until ||
         !until->is_int64() || !marked || !marked->is_bool() || !pinned || !pinned->is_bool() || !pinned_message || !announcement ||
@@ -494,7 +526,7 @@ std::expected<conversation, error> parse_conversation(dom::element const& value)
     }
     if (kind->get_string().value_unsafe() == "direct")
     {
-        auto peer = parse_int64(*user_value);
+        auto peer = read_payload<std::int64_t>(*user_value);
         if (!peer || *peer <= 0)
         {
             return std::unexpected(make_error(error_kind::protocol, "Invalid direct conversation"));
@@ -557,113 +589,22 @@ struct client::impl
         network_thread_.join();
     }
 
-    void report_error(error value)
+    // Handlers may replace themselves or submit another request.
+    template <class Handler, class... Args>
+    void notify(Handler const& registered, Args&&... args)
     {
-        if (suppress_callbacks_.load())
-        {
-            return;
-        }
-
-        error_handler handler;
+        Handler handler;
         {
             std::lock_guard lock(handler_mutex_);
-            handler = error_handler_;
+            handler = registered;
         }
-        if (handler)
+        if (handler && !suppress_callbacks_.load())
         {
-            handler(value);
+            handler(std::forward<Args>(args)...);
         }
     }
 
-    void notify_connected()
-    {
-        if (suppress_callbacks_.load())
-        {
-            return;
-        }
-
-        connection_handler handler;
-        {
-            std::lock_guard lock(handler_mutex_);
-            handler = connected_handler_;
-        }
-        if (handler)
-        {
-            handler();
-        }
-    }
-
-    void notify_disconnected()
-    {
-        if (suppress_callbacks_.load())
-        {
-            return;
-        }
-
-        connection_handler handler;
-        {
-            std::lock_guard lock(handler_mutex_);
-            handler = disconnected_handler_;
-        }
-        if (handler)
-        {
-            handler();
-        }
-    }
-
-    void notify_message(message value, bool updated)
-    {
-        if (suppress_callbacks_.load())
-        {
-            return;
-        }
-
-        message_handler handler;
-        {
-            std::lock_guard lock(handler_mutex_);
-            handler = updated ? message_updated_handler_ : message_handler_;
-        }
-        if (handler)
-        {
-            handler(std::move(value));
-        }
-    }
-
-    void notify_read(std::int64_t conversation, std::int64_t user, std::int64_t message)
-    {
-        if (suppress_callbacks_.load())
-        {
-            return;
-        }
-
-        read_handler handler;
-        {
-            std::lock_guard lock(handler_mutex_);
-            handler = read_handler_;
-        }
-        if (handler)
-        {
-            handler(conversation, user, message);
-        }
-    }
-
-    void notify_presence(presence value)
-    {
-        if (suppress_callbacks_.load())
-        {
-            return;
-        }
-
-        presence_handler handler;
-        {
-            std::lock_guard lock(handler_mutex_);
-            handler = presence_handler_;
-        }
-        if (handler)
-        {
-            handler(std::move(value));
-        }
-    }
+    void report_error(error const& value) { notify(error_handler_, value); }
 
     void fail_pending(error value)
     {
@@ -752,15 +693,7 @@ struct client::impl
                 websocket_.cancel();
                 stop_file_transfers();
             }
-            connection_handler handler;
-            {
-                std::lock_guard lock(handler_mutex_);
-                handler = revoked ? login_revoked_handler_ : login_sessions_changed_handler_;
-            }
-            if (handler && !suppress_callbacks_.load())
-            {
-                handler();
-            }
+            notify(revoked ? login_revoked_handler_ : login_sessions_changed_handler_);
             return;
         }
 
@@ -772,7 +705,7 @@ struct client::impl
                 report_error(make_error(error_kind::protocol, "Invalid message notification"));
                 return;
             }
-            notify_message(std::move(notification), method_name == "message_updated");
+            notify(method_name == "message_updated" ? message_updated_handler_ : message_handler_, std::move(notification));
             return;
         }
 
@@ -784,15 +717,7 @@ struct client::impl
                 report_error(make_error(error_kind::protocol, "Invalid bookmark notification"));
                 return;
             }
-            bookmark_changed_handler handler;
-            {
-                std::lock_guard lock(handler_mutex_);
-                handler = bookmark_changed_handler_;
-            }
-            if (handler && !suppress_callbacks_.load())
-            {
-                handler(value->get_int64().value_unsafe());
-            }
+            notify(bookmark_changed_handler_, value->get_int64().value_unsafe());
             return;
         }
 
@@ -804,15 +729,7 @@ struct client::impl
                 report_error(make_error(error_kind::protocol, "Invalid reaction notification"));
                 return;
             }
-            reaction_handler handler;
-            {
-                std::lock_guard lock(handler_mutex_);
-                handler = reaction_handler_;
-            }
-            if (handler && !suppress_callbacks_.load())
-            {
-                handler(std::move(notification));
-            }
+            notify(reaction_handler_, std::move(notification));
             return;
         }
 
@@ -826,42 +743,33 @@ struct client::impl
                 report_error(make_error(error_kind::protocol, "Invalid read notification"));
                 return;
             }
-            auto conversation = parse_int64(*conversation_value);
-            auto user = parse_int64(*user_value);
-            auto read_message = parse_int64(*message_value);
+            auto conversation = read_payload<std::int64_t>(*conversation_value);
+            auto user = read_payload<std::int64_t>(*user_value);
+            auto read_message = read_payload<std::int64_t>(*message_value);
             if (!conversation || *conversation <= 0 || !user || *user <= 0 || !read_message || *read_message <= 0)
             {
                 report_error(make_error(error_kind::protocol, "Invalid read notification"));
                 return;
             }
-            notify_read(*conversation, *user, *read_message);
+            notify(read_handler_, *conversation, *user, *read_message);
             return;
         }
 
         if (method_name == "typing")
         {
             auto fields = params->get_object().value_unsafe();
-            auto conversation_field = find_field(fields, "conversation");
-            auto user_field = find_field(fields, "user");
+            auto conversation = integer_field(fields, "conversation");
+            auto user = integer_field(fields, "user");
             auto username = find_field(fields, "username");
             auto typing = find_field(fields, "typing");
-            auto conversation = conversation_field ? parse_int64(*conversation_field) : std::nullopt;
-            auto user = user_field ? parse_int64(*user_field) : std::nullopt;
             if (!conversation || *conversation <= 0 || !user || *user <= 0 || !username || !username->is_string() ||
                 username->get_string().value_unsafe().empty() || !typing || !typing->is_bool())
             {
                 report_error(make_error(error_kind::protocol, "Invalid typing notification"));
                 return;
             }
-            typing_handler handler;
-            {
-                std::lock_guard lock(handler_mutex_);
-                handler = typing_handler_;
-            }
-            if (handler && !suppress_callbacks_.load())
-            {
-                handler({*conversation, *user, std::string(username->get_string().value_unsafe()), typing->get_bool().value_unsafe()});
-            }
+            notify(typing_handler_,
+                   typing_event{*conversation, *user, std::string(username->get_string().value_unsafe()), typing->get_bool().value_unsafe()});
             return;
         }
 
@@ -873,41 +781,24 @@ struct client::impl
                 report_error(make_error(error_kind::protocol, "Invalid presence notification"));
                 return;
             }
-            notify_presence(std::move(notification));
+            notify(presence_handler_, std::move(notification));
             return;
         }
 
         if (method_name == "contacts_changed")
         {
-            connection_handler handler;
-            {
-                std::lock_guard lock(handler_mutex_);
-                handler = contacts_changed_handler_;
-            }
-            if (handler && !suppress_callbacks_.load())
-            {
-                handler();
-            }
+            notify(contacts_changed_handler_);
             return;
         }
         if (method_name == "friendship" || method_name == "profile_changed")
         {
-            auto field = find_field(*params, "user");
-            auto user = field ? parse_int64(*field) : std::nullopt;
+            auto user = integer_field(*params, "user");
             if (!user || *user <= 0)
             {
                 report_error(make_error(error_kind::protocol, "Invalid friendship notification"));
                 return;
             }
-            friendship_changed_handler handler;
-            {
-                std::lock_guard lock(handler_mutex_);
-                handler = method_name == "friendship" ? friendship_handler_ : profile_handler_;
-            }
-            if (handler && !suppress_callbacks_.load())
-            {
-                handler(*user);
-            }
+            notify(method_name == "friendship" ? friendship_handler_ : profile_handler_, *user);
             return;
         }
 
@@ -920,22 +811,13 @@ struct client::impl
                 report_error(make_error(error_kind::protocol, "Invalid personal conversation state"));
                 return;
             }
-            conversation_view_handler handler;
-            {
-                std::lock_guard lock(handler_mutex_);
-                handler = view_handler_;
-            }
-            if (handler && !suppress_callbacks_.load())
-            {
-                handler(std::move(*view));
-            }
+            notify(view_handler_, std::move(*view));
             return;
         }
         if (method_name == "conversation")
         {
-            auto value = find_field(*params, "conversation");
+            auto id = integer_field(*params, "conversation");
             auto removed = find_field(*params, "removed");
-            auto id = value ? parse_int64(*value) : std::nullopt;
             if (!id || *id <= 0 || (removed && !removed->is_bool()))
             {
                 report_error(make_error(error_kind::protocol, "Invalid conversation notification"));
@@ -958,31 +840,21 @@ struct client::impl
                     {
                         if (item.conversation == *id)
                         {
-                            notify_outbox(std::move(item));
+                            notify(outbox_handler_, std::move(item));
                         }
                     }
                 }
             }
-            conversation_changed_handler handler;
-            {
-                std::lock_guard lock(handler_mutex_);
-                handler = conversation_handler_;
-            }
-            if (handler && !suppress_callbacks_.load())
-            {
-                handler(*id, unavailable);
-            }
+            notify(conversation_handler_, *id, unavailable);
             return;
         }
 
         if (method_name == "join_request")
         {
             auto object = params->get_object().value_unsafe();
-            auto conversation = find_field(object, "conversation");
-            auto user = find_field(object, "user");
+            auto id = integer_field(object, "conversation");
+            auto applicant = integer_field(object, "user");
             auto state = find_field(object, "state");
-            auto id = conversation ? parse_int64(*conversation) : std::nullopt;
-            auto applicant = user ? parse_int64(*user) : std::nullopt;
             if (!id || *id <= 0 || !applicant || *applicant <= 0 || !state || !state->is_string() ||
                 (state->get_string().value_unsafe() != "pending" && state->get_string().value_unsafe() != "accepted" &&
                  state->get_string().value_unsafe() != "rejected"))
@@ -990,41 +862,25 @@ struct client::impl
                 report_error(make_error(error_kind::protocol, "Invalid join request notification"));
                 return;
             }
-            group_join_request_handler handler;
-            {
-                std::lock_guard lock(handler_mutex_);
-                handler = join_request_handler_;
-            }
-            if (handler && !suppress_callbacks_.load())
-            {
-                handler({*id,
-                         *applicant,
-                         state->get_string().value_unsafe() == "pending"    ? group_join_request_state::pending
-                         : state->get_string().value_unsafe() == "accepted" ? group_join_request_state::accepted
-                                                                            : group_join_request_state::rejected});
-            }
+            notify(join_request_handler_,
+                   group_join_request_event{*id,
+                                            *applicant,
+                                            state->get_string().value_unsafe() == "pending"    ? group_join_request_state::pending
+                                            : state->get_string().value_unsafe() == "accepted" ? group_join_request_state::accepted
+                                                                                               : group_join_request_state::rejected});
             return;
         }
 
         if (method_name == "avatar")
         {
-            auto field = find_field(*params, "user");
-            auto user = field ? parse_int64(*field) : std::nullopt;
+            auto user = integer_field(*params, "user");
             avatar_state state;
             if (!user || *user <= 0 || !parse_avatar_state(params->get_object().value_unsafe(), state))
             {
                 report_error(make_error(error_kind::protocol, "Invalid avatar notification"));
                 return;
             }
-            avatar_changed_handler handler;
-            {
-                std::lock_guard lock(handler_mutex_);
-                handler = avatar_handler_;
-            }
-            if (handler && !suppress_callbacks_.load())
-            {
-                handler(*user, state);
-            }
+            notify(avatar_handler_, *user, state);
             return;
         }
         report_error(make_error(error_kind::protocol, "Invalid JSON-RPC notification"));
@@ -1032,7 +888,7 @@ struct client::impl
 
     void receive_response(dom::object object, dom::element const& id_value)
     {
-        auto id = parse_int64(id_value);
+        auto id = read_payload<std::int64_t>(id_value);
         if (!id)
         {
             report_error(make_error(error_kind::protocol, "Invalid JSON-RPC response id"));
@@ -1127,7 +983,7 @@ struct client::impl
         }
 
         state_ = connection_state::connected;
-        notify_connected();
+        notify(connected_handler_);
 
         std::optional<std::error_code> connection_error;
         for (;;)
@@ -1196,7 +1052,7 @@ struct client::impl
             report_error(make_error(error_kind::transport, connection_error->message()));
         }
         closing_ = false;
-        notify_disconnected();
+        notify(disconnected_handler_);
     }
 
     boost::capy::task<> close(bool keep_local_account)
@@ -1307,7 +1163,7 @@ struct client::impl
                          auto object = object_of(*response);
                          auto authenticated = object ? find_field(*object, "authenticated") : std::nullopt;
                          auto user_value = object ? find_field(*object, "user") : std::nullopt;
-                         auto user = user_value ? parse_int64(*user_value) : std::nullopt;
+                         auto user = user_value ? read_payload<std::int64_t>(*user_value) : std::nullopt;
                          if (!authenticated || !authenticated->is_bool() || !user)
                          {
                              handler(std::unexpected(make_error(error_kind::protocol, "Invalid authenticate result")));
@@ -1423,7 +1279,7 @@ struct client::impl
                              return;
                          }
 
-                         auto user = parse_int64(*user_value);
+                         auto user = read_payload<std::int64_t>(*user_value);
                          if (!user || *user <= 0)
                          {
                              handler(std::unexpected(make_error(error_kind::protocol, "Invalid register result")));
@@ -1494,11 +1350,9 @@ struct client::impl
                                  handler(std::unexpected(make_error(error_kind::protocol, "Invalid cursor")));
                                  return;
                              }
-                             auto activity = find_field(*next, "activity");
-                             auto id = find_field(*next, "id");
+                             auto a = integer_field(*next, "activity");
+                             auto i = integer_field(*next, "id");
                              auto pinned = find_field(*next, "pinned");
-                             auto a = activity ? parse_int64(*activity) : std::nullopt;
-                             auto i = id ? parse_int64(*id) : std::nullopt;
                              if (!a || *a <= 0 || !i || *i <= 0 || !pinned || !pinned->is_bool())
                              {
                                  handler(std::unexpected(make_error(error_kind::protocol, "Invalid cursor")));
@@ -1522,8 +1376,7 @@ struct client::impl
                              handler(std::unexpected(std::move(response.error())));
                              return;
                          }
-                         auto id_value = find_field(*response, "conversation");
-                         auto id = id_value ? parse_int64(*id_value) : std::nullopt;
+                         auto id = integer_field(*response, "conversation");
                          if (!id || *id <= 0)
                          {
                              handler(std::unexpected(make_error(error_kind::protocol, "Invalid direct conversation result")));
@@ -1545,8 +1398,7 @@ struct client::impl
                              handler(std::unexpected(std::move(response.error())));
                              return;
                          }
-                         auto value = find_field(*response, "conversation");
-                         auto id = value ? parse_int64(*value) : std::nullopt;
+                         auto id = integer_field(*response, "conversation");
                          if (!id || *id <= 0)
                          {
                              handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation result")));
@@ -1655,12 +1507,11 @@ struct client::impl
                              return;
                          }
                          auto object = response->get_object().value_unsafe();
-                         auto conversation = find_field(object, "conversation");
+                         auto id = integer_field(object, "conversation");
                          auto title = find_field(object, "title");
                          auto count = find_field(object, "member_count");
                          auto state = find_field(object, "state");
-                         auto id = conversation ? parse_int64(*conversation) : std::nullopt;
-                         auto members = count ? parse_uint64(*count) : std::nullopt;
+                         auto members = count ? read_payload<std::uint64_t>(*count) : std::nullopt;
                          if (!id || *id <= 0 || !title || !title->is_string() || title->get_string().value_unsafe().empty() ||
                              title->get_string().value_unsafe().size() > 256 ||
                              title->get_string().value_unsafe().find('\0') != std::string_view::npos || !members || *members == 0 || !state ||
@@ -1708,8 +1559,7 @@ struct client::impl
                          for (auto value : requests->get_array().value_unsafe())
                          {
                              group_join_request item;
-                             auto created = find_field(value, "created_at");
-                             auto time = created ? parse_int64(*created) : std::nullopt;
+                             auto time = integer_field(value, "created_at");
                              if (!value.is_object() || !parse_user(value.get_object().value_unsafe(), item.applicant) || !time || *time <= 0 ||
                                  (before && item.applicant.id >= *before) ||
                                  (!result.requests.empty() && item.applicant.id >= result.requests.back().applicant.id))
@@ -1722,7 +1572,7 @@ struct client::impl
                          }
                          if (!next->is_null())
                          {
-                             auto cursor = parse_int64(*next);
+                             auto cursor = read_payload<std::int64_t>(*next);
                              if (!cursor || *cursor <= 0 || result.requests.size() != 50 || *cursor != result.requests.back().applicant.id)
                              {
                                  handler(std::unexpected(make_error(error_kind::protocol, "Invalid join request cursor")));
@@ -1873,78 +1723,17 @@ struct client::impl
         {
             params.add("capture_unread", true);
         }
-        send_request(
-            query && !category ? "search_messages" : "get_messages",
-            std::move(params),
-            [conversation, handler = std::move(handler)](auto response) mutable
-            {
-                if (!response)
-                {
-                    handler(std::unexpected(std::move(response.error())));
-                    return;
-                }
-                if (!response->is_object())
-                {
-                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_messages result")));
-                    return;
-                }
-
-                auto messages_value = find_field(*response, "messages");
-                auto read_value = find_field(*response, "read_positions");
-                auto more_value = find_field(*response, "has_more");
-                if (!messages_value || !messages_value->is_array() || !read_value || !read_value->is_array() || !more_value || !more_value->is_bool())
-                {
-                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_messages result")));
-                    return;
-                }
-
-                messages_result result;
-                result.has_more = more_value->get_bool().value_unsafe();
-                auto floor = find_field(*response, "visible_after");
-                auto hidden = find_field(*response, "hidden");
-                if (!floor || !parse_int64(*floor) || !hidden || !hidden->is_bool())
-                {
-                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid history visibility")));
-                    return;
-                }
-                result.visible_after = *parse_int64(*floor);
-                result.hidden = hidden->get_bool().value_unsafe();
-                if (auto first = find_field(*response, "first_unread"))
-                {
-                    result.first_unread = parse_int64(*first);
-                }
-                for (auto position : read_value->get_array().value_unsafe())
-                {
-                    auto user_value = find_field(position, "user");
-                    auto message_value = find_field(position, "message");
-                    auto user = user_value ? parse_int64(*user_value) : std::nullopt;
-                    auto message = message_value ? parse_int64(*message_value) : std::nullopt;
-                    if (!user || *user <= 0 || !message || *message < 0)
-                    {
-                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid read position")));
-                        return;
-                    }
-                    result.read_positions.push_back(read_position{*user, *message});
-                }
-                result.messages.reserve(messages_value->get_array().value_unsafe().size());
-                for (auto value : messages_value->get_array().value_unsafe())
-                {
-                    if (!value.is_object())
-                    {
-                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid message")));
-                        return;
-                    }
-
-                    message item;
-                    if (!parse_message(value.get_object().value_unsafe(), item) || item.conversation != conversation)
-                    {
-                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid message")));
-                        return;
-                    }
-                    result.messages.push_back(std::move(item));
-                }
-                handler(std::move(result));
-            });
+        send_request(query && !category ? "search_messages" : "get_messages",
+                     std::move(params),
+                     [conversation, handler = std::move(handler)](auto response) mutable
+                     {
+                         if (!response)
+                         {
+                             handler(std::unexpected(std::move(response.error())));
+                             return;
+                         }
+                         handler(parse_message_page(*response, conversation));
+                     });
 
         co_return;
     }
@@ -2003,19 +1792,6 @@ struct client::impl
         }
     }
 
-    void notify_outbox(pending_text item)
-    {
-        outbox_handler handler;
-        {
-            std::scoped_lock const lock(handler_mutex_);
-            handler = outbox_handler_;
-        }
-        if (handler && !suppress_callbacks_.load())
-        {
-            handler(std::move(item));
-        }
-    }
-
     void send_next_text()
     {
         if (account_ == 0 || account_ != outbox_account_ || !journal_.is_open() || closing_ || state_ != connection_state::connected ||
@@ -2043,7 +1819,7 @@ struct client::impl
     void send_pending_text(pending_text item)
     {
         item.state = outbox_state::sending;
-        notify_outbox(item);
+        notify(outbox_handler_, item);
         auto params = text_params(item);
         send_request("send_message",
                      std::move(params),
@@ -2056,7 +1832,7 @@ struct client::impl
                          {
                              if (!journal_.exec("DELETE FROM text_outbox WHERE user=? AND client=?", user, item.client_id))
                              {
-                                 notify_message(std::move(value), false);
+                                 notify(message_handler_, std::move(value));
                                  send_next_text();
                                  return;
                              }
@@ -2084,7 +1860,7 @@ struct client::impl
                                      {
                                          if (row.conversation == item.conversation && row.rejection == code)
                                          {
-                                             notify_outbox(std::move(row));
+                                             notify(outbox_handler_, std::move(row));
                                          }
                                      }
                                  }
@@ -2100,7 +1876,7 @@ struct client::impl
                          // An ambiguous outcome must not overtake an earlier message in this conversation.
                          deferred_text_conversations_.emplace(item.conversation, item.client_id);
                          item.state = outbox_state::queued;
-                         notify_outbox(std::move(item));
+                         notify(outbox_handler_, std::move(item));
                          send_next_text();
                      });
     }
@@ -2197,7 +1973,7 @@ struct client::impl
         }
 
         handler({});
-        notify_outbox(std::move(item));
+        notify(outbox_handler_, std::move(item));
         send_next_text();
     }
 
@@ -2421,7 +2197,7 @@ struct client::impl
         auto integer = [&](char const* key)
         {
             auto v = obj ? find_field(*obj, key) : std::nullopt;
-            return v ? parse_int64(*v).value_or(-1) : -1;
+            return v ? read_payload<std::int64_t>(*v).value_or(-1) : -1;
         };
         auto n = integer("number"), offset = integer("offset"), length = integer("length"), part_size = integer("part_size"),
              count = integer("part_count");
@@ -2734,7 +2510,7 @@ struct client::impl
                 }
                 auto obj = object_of(*r);
                 auto v = obj ? find_field(*obj, "size") : std::nullopt;
-                auto size = v ? parse_int64(*v) : std::nullopt;
+                auto size = v ? read_payload<std::int64_t>(*v) : std::nullopt;
                 auto url = obj ? find_field(*obj, "url") : std::nullopt;
                 auto hash = obj ? find_field(*obj, "checksum") : std::nullopt;
                 if (!size || *size < 0 || *size > limit || !url || !url->is_string() || !hash || !hash->is_string())
@@ -2915,8 +2691,7 @@ struct client::impl
                              for (auto entry : list->get_array().value_unsafe())
                              {
                                  auto user = find_field(entry, "user");
-                                 auto time = find_field(entry, "created_at");
-                                 auto created = time ? parse_int64(*time) : std::nullopt;
+                                 auto created = integer_field(entry, "created_at");
                                  friend_request request;
                                  if (!user || !user->is_object() || !created || *created < 0 ||
                                      !parse_user(user->get_object().value_unsafe(), request.user) || !seen.insert(request.user.id).second)
@@ -2957,8 +2732,7 @@ struct client::impl
                              handler(std::unexpected(r.error()));
                              return;
                          }
-                         auto field = find_field(*r, "through");
-                         auto actual = field ? parse_int64(*field) : std::nullopt;
+                         auto actual = integer_field(*r, "through");
                          if (!actual || *actual < through)
                          {
                              handler(std::unexpected(make_error(error_kind::protocol, "Invalid history boundary")));
@@ -2980,8 +2754,7 @@ struct client::impl
                              handler(std::unexpected(std::move(response.error())));
                              return;
                          }
-                         auto message_value = find_field(*response, "message");
-                         auto read_message = message_value ? parse_int64(*message_value) : std::nullopt;
+                         auto read_message = integer_field(*response, "message");
                          if (!read_message || *read_message <= 0)
                          {
                              handler(std::unexpected(make_error(error_kind::protocol, "Invalid mark_read result")));
@@ -3046,8 +2819,7 @@ struct client::impl
                     fail_avatar_upload(job, std::move(response.error()));
                     return;
                 }
-                auto field = find_field(*response, "offset");
-                auto offset = field ? parse_int64(*field) : std::nullopt;
+                auto offset = integer_field(*response, "offset");
                 if (!offset || *offset != static_cast<std::int64_t>(job->offset + count))
                 {
                     fail_avatar_upload(job, make_error(error_kind::protocol, "Invalid avatar upload offset"));
@@ -3086,8 +2858,7 @@ struct client::impl
                              fail_avatar_upload(job, std::move(response.error()));
                              return;
                          }
-                         auto field = find_field(*response, "upload");
-                         auto upload = field ? parse_int64(*field) : std::nullopt;
+                         auto upload = integer_field(*response, "upload");
                          if (!upload || *upload <= 0)
                          {
                              fail_avatar_upload(job, make_error(error_kind::protocol, "Invalid avatar upload identity"));
@@ -3130,9 +2901,9 @@ struct client::impl
                          auto data_field = fields ? find_field(*fields, "data") : std::nullopt;
                          auto type_field = fields ? find_field(*fields, "media_type") : std::nullopt;
                          auto more_field = fields ? find_field(*fields, "has_more") : std::nullopt;
-                         auto user = user_field ? parse_int64(*user_field) : std::nullopt;
-                         auto size = size_field ? parse_int64(*size_field) : std::nullopt;
-                         auto offset = offset_field ? parse_int64(*offset_field) : std::nullopt;
+                         auto user = user_field ? read_payload<std::int64_t>(*user_field) : std::nullopt;
+                         auto size = size_field ? read_payload<std::int64_t>(*size_field) : std::nullopt;
+                         auto offset = offset_field ? read_payload<std::int64_t>(*offset_field) : std::nullopt;
                          if (!fields || !parse_avatar_state(*fields, state) || !user ||
                              *user != (job->value.conversation ? job->value.conversation : job->value.user) || !size || *size < 0 ||
                              *size > static_cast<std::int64_t>(max_avatar_size) || !offset || *offset < 0 || !data_field ||
