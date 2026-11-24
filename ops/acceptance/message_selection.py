@@ -109,7 +109,7 @@ async def cases(ui, gate, peer, db, group, target, seeded, mixed, image, file, t
         for mid in ids[1:]:
             await multi(click=mid, modifier="ctrl")
 
-    assert (await ui.call("select", conv=group))["ok"]
+    await ui.wait("select", lambda result: result["ok"], conv=group)
     await ui.wait("state", lambda s: file in [row["id"] for row in s["rows"]])
     await ui.call("reply_to", id=seeded[-1])
     await ui.call("draft", text="给回复的草稿\n未发送")
