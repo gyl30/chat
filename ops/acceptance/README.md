@@ -1,6 +1,6 @@
 # Linux 隔离验收
 
-在专用测试环境运行。使用项目要求的 GCC 16、C++26 Reflection、CMake、Qt 和[系统开发包](../../README.md#构建)，另需 Ninja、Python 3.10+、websockets 15、boto3、dbus-python、PyGObject、dbus-run-session、Silo 与 mc。把 Boost、Qt 等必要前缀加入 CMake 搜索路径，不使用 SQLite 或 miniocpp 安装前缀。若 Silo 不在 PATH 中，用 SILO_BIN 指定可执行文件。
+在专用测试环境运行。使用项目要求的 GCC 16、C++26 Reflection、CMake、Qt 和[系统开发包](../../README.md#构建)，另需 Ninja、Python 3.10+、websockets 15、boto3、dbus-python、PyGObject、dbus-run-session、Silo 与 mc。把 Boost、Qt 等必要前缀加入 CMake 搜索路径，不使用 SQLite 或 libcurl 安装前缀。若 Silo 不在 PATH 中，用 SILO_BIN 指定可执行文件。
 
 ```sh
 ops/build-sqlite-runtime.sh "$SQLITE_PREFIX"
@@ -34,7 +34,7 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 | `history_filter_perf.py` | 对照两个 Release 服务端的稀疏历史、全局搜索及其他连接的发送确认；输出原始端到端样本 |
 | `search_bench.py` | 在独立磁盘 WAL 库测量真实搜索与发送 RPC，输出每组延迟、CPU、内存、归档读取次数和被动 checkpoint |
 
-默认项目构建不运行上述验收。查询 GitHub 时，仓库有 0 个注册的自托管 runner 和 0 个已有 workflow；本次 GCC 16、Boost 1.92 和 miniocpp 环境的执行证据来自本机。
+默认项目构建不运行上述验收。查询 GitHub 时，仓库有 0 个注册的自托管 runner 和 0 个已有 workflow；本次 GCC 16、Boost 1.92 环境的执行证据来自本机。
 
 ## 消息菜单、联系人与群文件定向回归
 
@@ -44,6 +44,36 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 - `bookmarks.py --probe <probe>`：在已加载两页并选中末行时，未收藏消息的编辑不重置列表；未加载的收藏编辑后仍可新命中。
 - `desktop.py <probe> contacts`：好友申请、拒绝、接受、移除、备注与账户名搜索、资料和分组在第二设备变化时同步。单独使用新账号夹具，不与默认文件任务场景共享。
 - `downloads.py <probe>`：保存窗口打开后，用原有群文件操作移除所选对象并等待列表刷新，确认保存不再产生无效任务或下载授权请求。另用 `--stalls` 验证 TCP 取消和共享工作器。
+
+## S3 与附件定向回归
+
+从 `CMAKE_EXPORT_COMPILE_COMMANDS=ON` 的 Release/Ninja 目录构建两个探针。服务端、Qt
+驱动和探针使用同一批产物。运行 Python 场景前设置 `CHAT_TEST_SERVER`、`SILO_BIN`，并沿用
+私有 SQLite 和独立 Qt 应用数据。无需操作登录桌面。
+
+```sh
+work=$(mktemp -d)
+export CHAT_TEST_SERVER="$BUILD/chat_server"
+python3 ops/acceptance/build_probe.py "$BUILD" "$work/qt-probe"
+python3 ops/acceptance/build_s3_probe.py "$BUILD" "$work/s3-probe"
+"$work/s3-probe"
+ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/s3_transport.py "$work/qt-probe"
+ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/large_attachment.py "$work/qt-probe"
+ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/downloads.py "$work/qt-probe" --stalls
+ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/recovery.py "$work/qt-probe" \
+    --source-server "$OLD_BUILD/chat_server" --source-probe "$OLD_PROBE"
+```
+
+- `s3-probe` 验证静态 curl 的版本、TLS/DNS/IPv6、实际协议、AWS 固定时间签名样例、查询编码及 Yxml。
+- `s3_transport.py` 转发到环回 Silo，覆盖实际请求、非默认 region、自定义桶和端口、Content-MD5、
+  授权时长、Initiate／Complete 回包丢失、真实 PUT 无确认、HTTP 200 内嵌错误、清理、
+  临时 CA 信任、未知 CA 与主机名拒绝、连接拒绝、TLS PUT 停顿后暂停并续传，以及 TLS GET 停顿时退出。
+- `large_attachment.py` 用真实 Qt/SDK 上传并下载 4 GiB，核对 256 片确认、Silo 元数据、完整
+  SHA-256 和最终文件。临时目录须有至少 12 GiB 可用空间。
+- `recovery.py` 的两项 `--source-*` 选项必须配对，用于在旧版暂停、新版恢复。Qt 数据目录、
+  恢复的 Silo 分片和上传 ID 不变，首个确认仍应是第 2 片。去掉两项可做同版本恢复。
+
+[2026-11-24 依赖替换验收与构建对照](results/s3-curl-20261124.md)。
 
 ## 阅读导航的原生桌面验收
 

@@ -1,5 +1,6 @@
 """Quiescent, paired Chat/Silo backup, cold restore and business-level verification."""
 
+import argparse
 import asyncio
 from contextlib import AsyncExitStack
 from datetime import datetime, timezone
@@ -27,7 +28,7 @@ def admin(*args, env=None):
     )
 
 
-async def drill(root, gate, entry, probe):
+async def drill(root, gate, entry, probe, *, source_probe=None, source_server=None):
     ui = Desktop()
     store = Store()
     db = root / "source.sqlite"
@@ -36,7 +37,7 @@ async def drill(root, gate, entry, probe):
     large = b"R" * (17 * 1024 * 1024)
     with store.node(root / "source-silo") as (s3, env):
         s3.create_bucket(Bucket=store.bucket)
-        with chat(db, env) as url:
+        with chat(db, env, server=source_server) as url:
             async with AsyncExitStack() as stack:
                 a = await login(stack, url, "a", "a", True)
                 b = await login(stack, url, "b", "b", True)
@@ -66,7 +67,7 @@ async def drill(root, gate, entry, probe):
                 await a.ok("add_conversation_file", conversation_id=g, object_key=key)
                 gate.upstream = url
                 gate.hold.add("confirm_attachment")
-                await ui.start(probe, root, entry)
+                await ui.start(source_probe or probe, root, entry)
                 stack.push_async_callback(ui.stop)
                 await ui.wait("select", lambda r: r["ok"], conv=g)
                 source_path = root / "原设备续传.bin"
@@ -200,12 +201,22 @@ async def drill(root, gate, entry, probe):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("probe")
+    parser.add_argument("--source-server")
+    parser.add_argument("--source-probe")
+    args = parser.parse_args()
+    if bool(args.source_server) != bool(args.source_probe):
+        parser.error("--source-server and --source-probe must be supplied together")
     with tempfile.TemporaryDirectory() as directory:
 
         async def run():
             gate = Gate(None)
             async with serve(gate.handle, "127.0.0.1", 0) as proxy:
                 entry = f"ws://127.0.0.1:{proxy.sockets[0].getsockname()[1]}/ws"
-                await drill(Path(directory), gate, entry, sys.argv[1])
+                await drill(
+                    Path(directory), gate, entry, args.probe,
+                    source_probe=args.source_probe, source_server=args.source_server,
+                )
 
         asyncio.run(run())

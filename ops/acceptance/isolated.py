@@ -42,7 +42,8 @@ def process(command, env, health):
 
 
 class Store:
-    def __init__(self):
+    def __init__(self, *, region="us-east-1"):
+        self.region = region
         self.secret = secrets.token_hex(24)
         self.bucket = "chat-acceptance"
 
@@ -55,6 +56,7 @@ class Store:
             MINIO_ROOT_USER="chat-accept",
             SILO_ROOT_PASSWORD=self.secret,
             MINIO_ROOT_PASSWORD=self.secret,
+            MINIO_SITE_REGION=self.region,
         )
         # Only the explicit test knobs may override the isolated node's defaults.
         for name, value in (
@@ -82,7 +84,7 @@ class Store:
                 endpoint_url=url,
                 aws_access_key_id="chat-accept",
                 aws_secret_access_key=self.secret,
-                region_name="us-east-1",
+                region_name=self.region,
             )
             yield (
                 api,
@@ -92,16 +94,17 @@ class Store:
                     CHAT_S3_ACCESS_KEY="chat-accept",
                     CHAT_S3_SECRET_KEY=self.secret,
                     CHAT_S3_HTTPS="0",
+                    CHAT_S3_REGION=self.region,
                 ),
             )
 
 
 @contextmanager
-def chat(db, storage):
+def chat(db, storage, *, server=None):
     listen = port()
     url = f"127.0.0.1:{listen}"
     with process(
-        [os.getenv("CHAT_TEST_SERVER", "build/chat_server"), str(listen), "8", str(db)],
+        [server or os.getenv("CHAT_TEST_SERVER", "build/chat_server"), str(listen), "8", str(db)],
         dict(os.environ, **storage),
         "http://" + url + "/health",
     ):
