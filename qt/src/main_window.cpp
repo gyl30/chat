@@ -1434,11 +1434,7 @@ void main_window::connect_messages()
             });
     connect(chat_page_, &chat_widget::older_messages_requested, this, [this](qint64 user, qint64 before) { client_->get_messages(user, before); });
 
-    connect(chat_page_,
-            &chat_widget::send_message_requested,
-            this,
-            [this](qint64 conversation, QString text, qint64 reply, qint64 client_id, qint64 revision)
-            { client_->send_message(conversation, std::move(text), reply, client_id, revision); });
+    connect(chat_page_, &chat_widget::send_message_requested, client_.get(), &client_bridge::send_message);
     connect(chat_page_, &chat_widget::draft_save_requested, client_.get(), &client_bridge::save_draft);
     connect(chat_page_, &chat_widget::draft_reply_requested, client_.get(), &client_bridge::validate_draft_reply);
     connect(client_.get(), &client_bridge::draft_reply_validated, chat_page_, &chat_widget::validate_draft_reply);

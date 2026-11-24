@@ -49,6 +49,7 @@ struct compose_draft
     std::int64_t revision;
     std::int64_t reply;
     std::string text;
+    text_options options{};
 };
 
 struct pending_text
@@ -57,6 +58,7 @@ struct pending_text
     std::string text;
     outbox_state state = outbox_state::queued;
     int rejection = 0;
+    text_options options{};
 };
 
 class client
@@ -218,7 +220,8 @@ class client
                       outbox_operation_handler queued,
                       std::optional<std::int64_t> reply_to = {},
                       std::optional<std::int64_t> client_id = {},
-                      std::int64_t draft_revision = 0);
+                      std::int64_t draft_revision = 0,
+                      text_options options = {});
     using drafts_handler = std::function<void(std::expected<std::vector<compose_draft>, error>)>;
     void save_draft(std::int64_t user, compose_draft draft, outbox_operation_handler handler);
     void load_drafts(std::int64_t user, drafts_handler handler);

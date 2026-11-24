@@ -363,7 +363,7 @@ QWidget* chat_widget::create_sidebar()
                             [this, id]
                             {
                                 drafts_.remove(id);
-                                emit draft_save_requested(self_user_, id, chat::client::new_client_id(), 0, {});
+                                emit draft_save_requested(self_user_, id, chat::client::new_client_id(), 0, {}, {});
                             });
                 }
                 for (auto const& item : outgoing_)
@@ -1727,6 +1727,13 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
                             });
                 }
             });
+    markdown_button_ = new QToolButton(input_bar);
+    markdown_button_->setObjectName(QStringLiteral("markdownButton"));
+    markdown_button_->setText(QStringLiteral("MD"));
+    markdown_button_->setToolTip(QStringLiteral("使用 Markdown 格式发送"));
+    markdown_button_->setCheckable(true);
+    input_layout->addWidget(markdown_button_, 0, Qt::AlignBottom);
+    connect(markdown_button_, &QToolButton::toggled, this, &chat_widget::draft_edited);
     emoji_button_ = make_composer_button(QStringLiteral("emojiButton"), u"emoji", QStringLiteral("表情"));
     history_button_ = make_composer_button(QStringLiteral("chatHistoryButton"), u"history", QStringLiteral("聊天记录"));
     input_layout->addWidget(emoji_button_, 0, Qt::AlignBottom);
@@ -1869,6 +1876,8 @@ void chat_widget::show_message_menu(QPoint position)
     option.rect = messages_view_->visualRect(index);
     auto const url =
         messages_view_->selectionMode() == QAbstractItemView::ExtendedSelection ? QUrl{} : message_delegate::link_at(option, index, position);
+    auto const code = message_delegate::code_at(option, index, position);
+    auto* copy_code = code.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制代码"));
     auto* open_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("打开链接"));
     auto* copy_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制链接"));
     auto* forward = menu.addAction(QStringLiteral("转发"));
@@ -1959,6 +1968,15 @@ void chat_widget::show_message_menu(QPoint position)
     if (conversation != active_conversation_ || message_id <= history_floor(conversation) || !target_index.isValid() ||
         target_index.data(message_model::deleted_role).toBool())
     {
+        return;
+    }
+    if (copy_code && selected == copy_code)
+    {
+        option.rect = messages_view_->visualRect(target_index);
+        if (message_delegate::code_at(option, target_index, position) == code)
+        {
+            QGuiApplication::clipboard()->setText(code);
+        }
         return;
     }
     if (selected && (selected == open_link || selected == copy_link))
@@ -4376,14 +4394,15 @@ void chat_widget::send_current_message()
     auto const revision = drafts_.value(active_conversation_).revision;
     saving_text_ = text_save{id, active_conversation_, revision};
     update_compose_state();
-    emit send_message_requested(active_conversation_, std::move(text), reply_to_, id, revision);
+    emit send_message_requested(active_conversation_, std::move(text), reply_to_, id, revision, drafts_.value(active_conversation_).options);
 }
 
 void chat_widget::draft_edited()
 {
     if (active_conversation_ > 0 && self_user_ > 0)
     {
-        drafts_.insert(active_conversation_, {message_edit_->toPlainText(), reply_to_, chat::client::new_client_id()});
+        drafts_.insert(active_conversation_,
+                       {message_edit_->toPlainText(), reply_to_, chat::client::new_client_id(), {markdown_button_->isChecked()}});
         draft_timer_->start();
     }
 }
@@ -4403,13 +4422,15 @@ void chat_widget::save_active_draft()
     auto const value = drafts_.value(active_conversation_);
     if (value.revision && active_conversation_ > 0 && self_user_ > 0)
     {
-        emit draft_save_requested(self_user_, active_conversation_, value.revision, value.reply, value.text);
+        emit draft_save_requested(self_user_, active_conversation_, value.revision, value.reply, value.text, value.options);
     }
 }
 
 void chat_widget::apply_draft()
 {
     auto const value = drafts_.value(active_conversation_);
+    QSignalBlocker format_blocker(markdown_button_);
+    markdown_button_->setChecked(value.options.markdown);
     reset_reply(value.reply);
     QSignalBlocker const blocker(message_edit_);
     message_edit_->setPlainText(value.text);
@@ -4426,7 +4447,7 @@ void chat_widget::restore_drafts(qint64 user, std::vector<chat::compose_draft> c
     {
         if (!drafts_.contains(value.conversation))
         {
-            drafts_.insert(value.conversation, {QString::fromStdString(value.text), value.reply, value.revision});
+            drafts_.insert(value.conversation, {QString::fromStdString(value.text), value.reply, value.revision, value.options});
             if (value.conversation == active_conversation_)
             {
                 apply_draft();
@@ -4516,7 +4537,7 @@ void chat_widget::discard_draft_reply(qint64 conversation, qint64 through, bool 
         draft_timer_->stop();
         update_compose_state();
     }
-    emit draft_save_requested(self_user_, conversation, value->revision, 0, value->text);
+    emit draft_save_requested(self_user_, conversation, value->revision, 0, value->text, value->options);
 }
 
 void chat_widget::finish_text_save(qint64 client_id, QString error)
@@ -4543,8 +4564,15 @@ void chat_widget::finish_text_save(qint64 client_id, QString error)
     update_compose_state();
 }
 
-void chat_widget::update_pending_text(
-    qint64 conversation, qint64 client_id, QString text, qint64 reply, qint64 created, bool sending, QString rejection, bool unavailable)
+void chat_widget::update_pending_text(qint64 conversation,
+                                      qint64 client_id,
+                                      QString text,
+                                      qint64 reply,
+                                      qint64 created,
+                                      bool sending,
+                                      QString rejection,
+                                      bool unavailable,
+                                      chat::text_options options)
 {
     auto item = std::ranges::find(outgoing_, client_id, &outgoing::client_id);
     bool const added = item == outgoing_.end();
@@ -4554,6 +4582,7 @@ void chat_widget::update_pending_text(
         entry.client_id = client_id;
         entry.conversation = conversation;
         entry.text = std::move(text);
+        entry.options = options;
         entry.created = created;
         entry.reply = conversation == active_conversation_ ? quote(reply) : quoted_message_data{};
         entry.reply.id = reply;
@@ -4720,6 +4749,7 @@ void chat_widget::show_outgoing()
         message.username = self_username_;
         message.timestamp = item.created;
         message.text = item.text;
+        message.markdown = item.options.markdown;
         message.reply = item.path.isEmpty() && item.reply.id > 0 ? quote(item.reply.id) : item.reply;
         message.client_id = item.client_id;
         if (!item.filename.isEmpty())

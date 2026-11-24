@@ -1,6 +1,8 @@
 #include "message_delegate.hpp"
 #include "theme_manager.hpp"
 #include "message_links.hpp"
+#include "message_markdown.hpp"
+#include <QAbstractTextDocumentLayout>
 #include <QHelpEvent>
 #include <QToolTip>
 #include <QDesktopServices>
@@ -164,6 +166,8 @@ struct message_layout
     int image_width = 0;
     int image_height = 0;
     std::unique_ptr<QTextLayout> text_layout;
+    std::unique_ptr<message_markdown> markdown;
+    int prefix_height = 0;
 
     QPoint text_origin(QRect const& row) const
     {
@@ -173,9 +177,17 @@ struct message_layout
                 row.top() + day_height + top_margin + chat_theme::message_padding_vertical + name_height + image_height};
     }
 
-    QUrl link_at(QRect const& row, QPoint point) const
+    QUrl link_at(QRect const& row, QPoint point, QModelIndex const& index) const
     {
+        if (index.data(message_model::send_state_role).toInt() != message_model::sent)
+        {
+            return {};
+        }
         auto local = point - text_origin(row);
+        if (markdown)
+        {
+            return http_message_url(markdown->documentLayout()->anchorAt(local - QPoint(0, prefix_height)));
+        }
         for (int i = 0; i < text_layout->lineCount(); ++i)
         {
             auto line = text_layout->lineAt(i);
@@ -270,14 +282,22 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     result.receipt_width = result.outgoing ? 17 : 0;
     auto const metadata_width = result.time_width + ((result.time_width > 0 && result.receipt_width > 0) ? 3 : 0) + result.receipt_width;
 
+    auto const mentions = index.data(message_model::mentions_role).value<QList<mention_data>>();
     auto text = result.text;
+    if (index.data(message_model::markdown_role).toBool())
+    {
+        auto body = index.data(message_model::text_role).toString();
+        result.markdown = std::make_unique<message_markdown>(body, option.font, inner_max, mentions);
+        text.chop(body.size());
+    }
     text.replace(QLatin1Char('\n'), QChar::LineSeparator);
     result.text_layout = std::make_unique<QTextLayout>(text, option.font);
     QTextOption text_option;
     text_option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
     result.text_layout->setTextOption(text_option);
     auto formats = emoji_formats(text, option.font);
-    if (!index.data(message_model::deleted_role).toBool() && index.data(message_model::send_state_role).toInt() == message_model::sent &&
+    if (!result.markdown && !index.data(message_model::deleted_role).toBool() &&
+        index.data(message_model::send_state_role).toInt() == message_model::sent &&
         index.data(message_model::attachment_name_role).toString().isEmpty())
     {
         auto body = index.data(message_model::text_role).toString();
@@ -287,8 +307,7 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
             formats.push_back(range);
         }
     }
-    auto const mentions = index.data(message_model::mentions_role).value<QList<mention_data>>();
-    if (!mentions.isEmpty())
+    if (!result.markdown && !mentions.isEmpty())
     {
         auto const body_start = result.text.size() - index.data(message_model::text_role).toString().size();
         for (auto const& mention : mentions)
@@ -321,7 +340,13 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         result.text_width = std::max(result.text_width, qCeil(line.naturalTextWidth()));
     }
     result.text_layout->endLayout();
-    auto const single_line = !result.text.contains(QLatin1Char('\n')) && result.text_layout->lineCount() <= 1;
+    if (result.markdown)
+    {
+        result.prefix_height = text.isEmpty() ? 0 : result.text_height;
+        result.text_width = std::max(result.text_width, qCeil(result.markdown->size().width()));
+        result.text_height = result.prefix_height + qCeil(result.markdown->size().height());
+    }
+    auto const single_line = !result.markdown && !result.text.contains(QLatin1Char('\n')) && result.text_layout->lineCount() <= 1;
     result.time_on_text_line = single_line && (metadata_width == 0 || result.text_width + chat_theme::message_time_gap + metadata_width <= inner_max);
 
     auto content_width = result.text_width;
@@ -566,7 +591,18 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     }
     painter->setPen(themed("text"));
     auto const metadata_width = layout.time_width + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0) + layout.receipt_width;
-    layout.text_layout->draw(painter, layout.text_origin(option.rect));
+    auto origin = layout.text_origin(option.rect);
+    layout.text_layout->draw(painter, origin);
+    if (layout.markdown)
+    {
+        painter->save();
+        painter->translate(origin + QPoint(0, layout.prefix_height));
+        QAbstractTextDocumentLayout::PaintContext context;
+        context.palette.setColor(QPalette::Text, themed("text"));
+        context.palette.setColor(QPalette::Link, themed("link"));
+        layout.markdown->documentLayout()->draw(painter, context);
+        painter->restore();
+    }
 
     if (metadata_width > 0)
     {
@@ -634,7 +670,17 @@ QSize message_delegate::sizeHint(QStyleOptionViewItem const& option, QModelIndex
 
 QUrl message_delegate::link_at(QStyleOptionViewItem const& option, QModelIndex const& index, QPoint position)
 {
-    return calculate_layout(option, index).link_at(option.rect, position);
+    return calculate_layout(option, index).link_at(option.rect, position, index);
+}
+
+QString message_delegate::code_at(QStyleOptionViewItem const& option, QModelIndex const& index, QPoint point)
+{
+    if (!index.data(message_model::markdown_role).toBool())
+    {
+        return {};
+    }
+    auto layout = calculate_layout(option, index);
+    return layout.markdown->code_at(point - layout.text_origin(option.rect) - QPoint(0, layout.prefix_height));
 }
 
 bool message_delegate::helpEvent(QHelpEvent* event, QAbstractItemView* view, QStyleOptionViewItem const& option, QModelIndex const& index)
@@ -671,7 +717,7 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QSt
     }
 
     auto const layout = calculate_layout(option, index);
-    if (auto url = layout.link_at(option.rect, mouse->position().toPoint()); !url.isEmpty())
+    if (auto url = layout.link_at(option.rect, mouse->position().toPoint(), index); !url.isEmpty())
     {
         QDesktopServices::openUrl(url);
         return true;

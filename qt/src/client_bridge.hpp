@@ -97,8 +97,8 @@ class client_bridge final : public QObject
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {}, bool capture_unread = false);
     void forward_messages(qint64 target, QList<qint64> messages);
-    void send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision);
-    void save_draft(qint64 user, qint64 conversation, qint64 revision, qint64 reply, QString text);
+    void send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision, chat::text_options options);
+    void save_draft(qint64 user, qint64 conversation, qint64 revision, qint64 reply, QString text, chat::text_options options);
     void restore_drafts(qint64 user);
     void validate_draft_reply(qint64 conversation, qint64 anchor, qint64 revision);
     void restore_texts();
@@ -198,8 +198,15 @@ class client_bridge final : public QObject
     void drafts_restored(qint64 user, std::vector<chat::compose_draft> drafts);
     void draft_reply_validated(qint64 conversation, qint64 anchor, qint64 revision, message_data message, bool unavailable);
     void text_saved(qint64 client_id, QString error);
-    void pending_text_changed(
-        qint64 conversation, qint64 client_id, QString text, qint64 reply, qint64 created, bool sending, QString rejection, bool unavailable);
+    void pending_text_changed(qint64 conversation,
+                              qint64 client_id,
+                              QString text,
+                              qint64 reply,
+                              qint64 created,
+                              bool sending,
+                              QString rejection,
+                              bool unavailable,
+                              chat::text_options options);
     void pending_text_discarded(qint64 client_id);
     void pending_texts_restored(QList<qint64> client_ids);
     void send_finished(qint64 conversation, qint64 client_id, message_data message, QString error_message, send_status status);

@@ -112,6 +112,7 @@ message_data client_bridge::to_message_data(chat::message const& value)
     message.mentions = to_mentions(value.mentions);
     message.timestamp = value.timestamp;
     message.text = from_utf8(value.text);
+    message.markdown = value.markdown;
     message.edited_at = value.edited_at.value_or(0);
     message.deleted = value.deleted;
     message.reply = to_reply_data(value.reply);
@@ -991,7 +992,7 @@ void client_bridge::forward_messages(qint64 target, QList<qint64> messages)
         });
 }
 
-void client_bridge::send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision)
+void client_bridge::send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision, chat::text_options options)
 {
     client_->send_message(
         conversation,
@@ -1003,13 +1004,14 @@ void client_bridge::send_message(qint64 conversation, QString text, qint64 reply
         },
         reply_to > 0 ? std::optional<std::int64_t>(reply_to) : std::nullopt,
         client_id,
-        revision);
+        revision,
+        options);
 }
 
-void client_bridge::save_draft(qint64 user, qint64 conversation, qint64 revision, qint64 reply, QString text)
+void client_bridge::save_draft(qint64 user, qint64 conversation, qint64 revision, qint64 reply, QString text, chat::text_options options)
 {
     client_->save_draft(user,
-                        {conversation, revision, reply, to_utf8(text)},
+                        {conversation, revision, reply, to_utf8(text), options},
                         [this, g = connection_generation_.load()](auto result)
                         {
                             if (!result)
@@ -1112,7 +1114,8 @@ void client_bridge::publish_pending_text(chat::pending_text const& item)
                               item.created,
                               item.state == chat::outbox_state::sending,
                               std::move(rejection),
-                              item.rejection == chat::conversation_unavailable);
+                              item.rejection == chat::conversation_unavailable,
+                              item.options);
 }
 
 void client_bridge::restore_texts()

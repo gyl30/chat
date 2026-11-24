@@ -101,12 +101,13 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
 
     std::string body;
     std::string source_key;
+    bool markdown = message.markdown;
     std::optional<std::int64_t> original_sender;
     if (message.forward_source)
     {
         // Read the original and establish the new reference in the same write transaction.
         auto source = db.prepare(R"SQL(
-            SELECT m.body,coalesce(m.original_sender,m.sender_id),ref.object_key FROM readable_messages m
+            SELECT m.body,coalesce(m.original_sender,m.sender_id),ref.object_key,m.markdown FROM readable_messages m
             JOIN conversation_members own ON own.conversation_id=m.conversation_id AND own.user_id=?2
             LEFT JOIN message_attachments ref ON ref.message_id=m.id
             WHERE m.id=?1 AND m.id>own.visible_after AND NOT m.deleted
@@ -129,6 +130,7 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
         body = source->column_text(0);
         original_sender = source->column_int64(1);
         source_key = source->column_text(2);
+        markdown = source->column_int64(3) != 0;
         object_key = source_key;
     }
     else if (!object_key.empty())
@@ -154,8 +156,8 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
     }
     auto const now = epoch_milliseconds();
     if (auto error = db.exec(R"SQL(
-        INSERT INTO messages(sender_id,conversation_id,client_id,body,reply_to_id,created_at,forward_source,original_sender)
-        VALUES(?1,?2,?3,?4,?5,?6,?7,?8)
+        INSERT INTO messages(sender_id,conversation_id,client_id,body,reply_to_id,created_at,forward_source,original_sender,markdown)
+        VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)
     )SQL",
                              message.sender,
                              message.conversation,
@@ -164,7 +166,8 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
                              message.reply_to,
                              now,
                              message.forward_source,
-                             original_sender);
+                             original_sender,
+                             int(markdown));
         error)
     {
         return std::unexpected(std::move(error));

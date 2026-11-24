@@ -148,10 +148,10 @@ file_result<sqlite_database> open_transfer_journal(std::string const& directory,
         FOREIGN KEY(user,client) REFERENCES tasks(user,client) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS text_outbox(
         user INTEGER NOT NULL,client INTEGER NOT NULL,conversation INTEGER NOT NULL,body TEXT NOT NULL,
-        reply INTEGER,created INTEGER NOT NULL,rejection INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(user,client));
+        reply INTEGER,created INTEGER NOT NULL,rejection INTEGER NOT NULL DEFAULT 0,markdown INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(user,client));
     CREATE TABLE IF NOT EXISTS compose_drafts(
         user INTEGER NOT NULL,conversation INTEGER NOT NULL,revision INTEGER NOT NULL,reply INTEGER NOT NULL,
-        body TEXT NOT NULL,updated INTEGER NOT NULL,PRIMARY KEY(user,conversation));)SQL"))
+        body TEXT NOT NULL,updated INTEGER NOT NULL,markdown INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(user,conversation));)SQL"))
     {
         return failed("无法初始化上传记录");
     }

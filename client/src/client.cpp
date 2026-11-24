@@ -278,6 +278,10 @@ bool parse_mentions(dom::object object, std::vector<mention>& result)
 
 bool parse_message(dom::object object, message& value)
 {
+    if (auto flag = find_field(object, "markdown"); flag && flag->get(value.markdown))
+    {
+        return false;
+    }
     value.nickname = string_field(object, "nickname");
     if (auto sender = find_field(object, "forwarded_user"); sender && sender->is_int64())
     {
@@ -1741,6 +1745,10 @@ struct client::impl
     static request_params text_params(pending_text const& item)
     {
         request_params params = make_params("conversation", item.conversation, "text", item.text, "client_id", item.client_id);
+        if (item.options.markdown)
+        {
+            params.add("markdown", true);
+        }
         if (item.reply_to > 0)
         {
             params.add("reply_to", item.reply_to);
@@ -1753,7 +1761,8 @@ struct client::impl
     std::expected<std::vector<pending_text>, error> read_pending_texts()
     {
         auto query = journal_.prepare(
-            "SELECT client,conversation,COALESCE(reply,0),created,body,rejection FROM text_outbox WHERE user=? ORDER BY rowid", outbox_account_);
+            "SELECT client,conversation,COALESCE(reply,0),created,body,rejection,markdown FROM text_outbox WHERE user=? ORDER BY rowid",
+            outbox_account_);
         if (!query)
         {
             return std::unexpected(outbox_error("无法读取本地待发送消息"));
@@ -1788,6 +1797,7 @@ struct client::impl
                 .text = std::string(query->column_text(4)),
                 .state = state,
                 .rejection = rejection,
+                .options = {query->column_int64(6) != 0},
             });
         }
     }
@@ -1888,19 +1898,20 @@ struct client::impl
             done(std::unexpected(outbox_error("无法保存草稿")));
             co_return;
         }
-        auto const error = value.text.empty() && !value.reply
+        auto const error = value.text.empty() && !value.reply && !value.options.markdown
                                ? journal_.exec("DELETE FROM compose_drafts WHERE user=? AND conversation=?", user, value.conversation)
                                : journal_.exec(R"SQL(
-                INSERT INTO compose_drafts(user,conversation,revision,reply,body,updated)
-                VALUES(?,?,?,?,?,unixepoch())
+                INSERT INTO compose_drafts(user,conversation,revision,reply,body,updated,markdown)
+                VALUES(?,?,?,?,?,unixepoch(),?)
                 ON CONFLICT(user,conversation) DO UPDATE SET revision=excluded.revision,reply=excluded.reply,
-                  body=excluded.body,updated=excluded.updated
+                  body=excluded.body,updated=excluded.updated,markdown=excluded.markdown
               )SQL",
                                                user,
                                                value.conversation,
                                                value.revision,
                                                value.reply,
-                                               std::string_view(value.text));
+                                               std::string_view(value.text),
+                                               int(value.options.markdown));
         done(error ? std::unexpected(outbox_error("无法保存草稿，请检查本地存储")) : std::expected<void, chat::error>{});
     }
 
@@ -1911,7 +1922,7 @@ struct client::impl
             done(std::unexpected(outbox_error("无法读取草稿")));
             co_return;
         }
-        auto query = journal_.prepare("SELECT conversation,revision,reply,body FROM compose_drafts WHERE user=?", user);
+        auto query = journal_.prepare("SELECT conversation,revision,reply,body,markdown FROM compose_drafts WHERE user=?", user);
         if (!query)
         {
             done(std::unexpected(outbox_error("无法读取草稿")));
@@ -1931,7 +1942,11 @@ struct client::impl
                 done(std::move(drafts));
                 co_return;
             }
-            drafts.push_back({query->column_int64(0), query->column_int64(1), query->column_int64(2), std::string(query->column_text(3))});
+            drafts.push_back({query->column_int64(0),
+                              query->column_int64(1),
+                              query->column_int64(2),
+                              std::string(query->column_text(3)),
+                              {query->column_int64(4) != 0}});
         }
     }
 
@@ -1956,13 +1971,14 @@ struct client::impl
         item.created = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         auto transaction = sqlite_transaction::begin_immediate(journal_);
         if (!transaction ||
-            journal_.exec("INSERT INTO text_outbox(user,client,conversation,body,reply,created) VALUES(?,?,?,?,NULLIF(?,0),?)",
+            journal_.exec("INSERT INTO text_outbox(user,client,conversation,body,reply,created,markdown) VALUES(?,?,?,?,NULLIF(?,0),?,?)",
                           outbox_account_,
                           item.client_id,
                           item.conversation,
                           item.text,
                           item.reply_to,
-                          item.created) ||
+                          item.created,
+                          int(item.options.markdown)) ||
             (draft_revision &&
              journal_.exec(
                  "DELETE FROM compose_drafts WHERE user=? AND conversation=? AND revision=?", outbox_account_, item.conversation, draft_revision)) ||
@@ -3561,7 +3577,8 @@ void client::send_message(std::int64_t conversation,
                           outbox_operation_handler queued,
                           std::optional<std::int64_t> reply_to,
                           std::optional<std::int64_t> client_id,
-                          std::int64_t draft_revision)
+                          std::int64_t draft_revision,
+                          text_options options)
 {
     pending_text item{
         .client_id = client_id ? *client_id : new_client_id(),
@@ -3569,6 +3586,7 @@ void client::send_message(std::int64_t conversation,
         .reply_to = reply_to.value_or(0),
         .created = 0,
         .text = std::move(text),
+        .options = options,
     };
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->queue_text(std::move(item), draft_revision, std::move(queued)));
 }

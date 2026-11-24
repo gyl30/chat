@@ -2,6 +2,9 @@
 #include "chat_widget.hpp"
 #include "message_delegate.hpp"
 #include "message_links.hpp"
+#include "message_markdown.hpp"
+#include <QAbstractTextDocumentLayout>
+#include <QTextBlock>
 #include "message_model.hpp"
 #include "theme_manager.hpp"
 #include <QApplication>
@@ -105,6 +108,39 @@ int main(int argc, char** argv)
         chat.show_message_menu(target);
         assert(QApplication::clipboard()->text() == long_url);
     }
+    message_markdown doc(
+        QStringLiteral(
+            "# 题目\n\n**粗体** *斜体* ~~删除~~ 😀\n\n[网页](https://example.test) [本地](file:///tmp/test)\n\n![远程](https://example.test/img.png) "
+            "![本地图片](file:///tmp/image.png)\n\n<b>HTML</b>\n\n```cpp\nreturn 7;\n// 中文\n```"),
+        view->font(),
+        240,
+        {});
+    assert(doc.toPlainText().contains("粗体") && doc.toPlainText().contains("<b>HTML</b>"));
+    bool bold = false, code = false, link = false;
+    for (auto block = doc.begin(); block.isValid(); block = block.next())
+    {
+        if (block.text() == "return 7;")
+        {
+            auto rect = doc.documentLayout()->blockBoundingRect(block);
+            assert(doc.code_at(rect.topLeft() + QPointF(3, 5)) == QStringLiteral("return 7;\n// 中文"));
+            code = true;
+        }
+        for (auto it = block.begin(); !it.atEnd(); ++it)
+        {
+            auto f = it.fragment();
+            assert(!f.charFormat().isImageFormat());
+            if (f.text() == "粗体")
+            {
+                bold = f.charFormat().fontWeight() > QFont::Normal;
+            }
+            if (f.charFormat().isAnchor())
+            {
+                assert(f.charFormat().anchorHref() == "https://example.test");
+                link = true;
+            }
+        }
+    }
+    assert(bold && code && link);
     QDesktopServices::unsetUrlHandler("http");
     QDesktopServices::unsetUrlHandler("https");
     std::cout

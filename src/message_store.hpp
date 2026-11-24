@@ -17,6 +17,7 @@ struct message_to_write
     std::string_view text;
     std::optional<std::int64_t> reply_to;
     std::optional<std::int64_t> forward_source{};
+    bool markdown = false;
 };
 
 enum class message_write_rejection

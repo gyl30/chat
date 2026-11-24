@@ -986,6 +986,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         out["clipboard"] = QApplication::clipboard()->text();
         out["cursor"] = edit->textCursor().position();
         out["draft"] = edit->toPlainText();
+        out["markdown"] = button("markdownButton")->isChecked();
         out["reply"] = chat->reply_to_;
         out["first"] = chat->messages_->first_message_id();
         out["pending"] = model->index(model->rowCount() - 1, 0).data(message_model::send_state_role).toInt();
@@ -1453,6 +1454,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     }
     else if (op == "draft")
     {
+        if (cmd.contains("markdown"))
+        {
+            button("markdownButton")->setChecked(cmd["markdown"].toBool());
+        }
         edit->setPlainText(cmd["text"].toString());
     }
     else if (op == "desktop_environment")
@@ -1619,6 +1624,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         out["speech"] = notice->isVisible() ? notice->text() : QString{};
         out["notice"] = window.findChild<QLabel*>("sidebarNotice")->text();
         out["draft"] = edit->toPlainText();
+        out["markdown"] = button("markdownButton")->isChecked();
         out["reply"] = button("cancelReplyButton")->isVisible();
         out["preview"] = window.findChild<QLabel*>("replyPreview")->text();
         QJsonArray rows;

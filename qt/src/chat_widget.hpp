@@ -102,8 +102,15 @@ class chat_widget final : public QWidget
     void flush_draft();
     void restore_drafts(qint64 user, std::vector<chat::compose_draft> const& drafts);
     void validate_draft_reply(qint64 conversation, qint64 anchor, qint64 revision, message_data const& message, bool unavailable);
-    void update_pending_text(
-        qint64 conversation, qint64 client_id, QString text, qint64 reply, qint64 created, bool sending, QString rejection, bool unavailable);
+    void update_pending_text(qint64 conversation,
+                             qint64 client_id,
+                             QString text,
+                             qint64 reply,
+                             qint64 created,
+                             bool sending,
+                             QString rejection,
+                             bool unavailable,
+                             chat::text_options options);
     void discard_pending_text(qint64 client_id);
     void reconcile_pending_texts(QList<qint64> client_ids);
     void choose_attachment(qint64 conversation, bool group_only, QWidget* parent);
@@ -140,8 +147,8 @@ class chat_widget final : public QWidget
     void conversation_selected(qint64 user, bool group);
     void older_messages_requested(qint64 user, qint64 before);
     void latest_messages_requested(qint64 conversation);
-    void send_message_requested(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision);
-    void draft_save_requested(qint64 user, qint64 conversation, qint64 revision, qint64 reply, QString text);
+    void send_message_requested(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision, chat::text_options options);
+    void draft_save_requested(qint64 user, qint64 conversation, qint64 revision, qint64 reply, QString text, chat::text_options options);
     void draft_reply_requested(qint64 conversation, qint64 anchor, qint64 revision);
     void pending_text_action_requested(qint64 client_id, bool discard);
     void delete_message_requested(qint64 conversation, qint64 message);
@@ -229,6 +236,7 @@ class chat_widget final : public QWidget
         qint64 conversation = 0;
         QString text;
         // The SDK reads the original file one part at a time.
+        chat::text_options options{};
         QString filename;
         QString path;
         qint64 size = 0;
@@ -342,6 +350,7 @@ class chat_widget final : public QWidget
     QToolButton* chat_more_button_ = nullptr;
     QToolButton* screenshot_button_ = nullptr;
     QToolButton* mention_button_ = nullptr;
+    QToolButton* markdown_button_ = nullptr;
     QToolButton* emoji_button_ = nullptr;
     QToolButton* history_button_ = nullptr;
     // The action awaiting its result per user, so the result can be reported in words.
@@ -391,6 +400,7 @@ class chat_widget final : public QWidget
         QString text;
         qint64 reply = 0;
         qint64 revision = 0;
+        chat::text_options options{};
     };
     QHash<qint64, draft> drafts_;
     QTimer* draft_timer_ = nullptr;
