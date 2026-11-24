@@ -56,6 +56,112 @@ std::expected<bool, sqlite_error> write_one(sqlite_database& db, std::string_vie
 }
 }    // namespace
 
+boost::capy::task<simdjson::error_code> chat_session::download_attachment(simdjson::ondemand::document& doc,
+                                                                          json_rpc_request& request,
+                                                                          std::string& response)
+{
+    auto fail = [&](int code, std::string_view msg) { return serialize_json_rpc_error(code, msg, std::move(request.id), response); };
+    auto invalid = [&] { return serialize_json_rpc_invalid_params(std::move(request.id), response); };
+    auto const user = *user_id_;
+    get_params p;
+    group_download group;
+    if (request.method == "get_conversation_file")
+    {
+        if (doc.get(group) || !doc.at_end() || group.conversation_id <= 0 || group.object_key.empty())
+        {
+            co_return invalid();
+        }
+        p.conversation = group.conversation_id;
+    }
+    else if (doc.get(p) || !doc.at_end() || p.conversation <= 0 || p.message <= 0)
+    {
+        co_return invalid();
+    }
+    auto lookup = [&](sqlite_database& db) { return find_attachment_object(db, user, p.conversation, p.message, group.object_key); };
+    auto a = co_await run_db(lookup);
+    if (!a)
+    {
+        co_return fail(-32000, "Server error");
+    }
+    if (!*a)
+    {
+        co_return fail(-32007, "Attachment unavailable");
+    }
+    auto url = co_await objects_.signed_url((**a).key);
+    if (!url)
+    {
+        co_return fail(-32000, "Could not sign download");
+    }
+    // The signing work can yield. Do not grant a URL to a member whose
+    // conversation or reference disappeared before this response.
+    auto still_available = co_await run_db(lookup);
+    if (!still_available)
+    {
+        co_return fail(-32000, "Server error");
+    }
+    if (!*still_available)
+    {
+        co_return fail(-32007, "Attachment unavailable");
+    }
+    struct download
+    {
+        std::string url, checksum;
+        std::int64_t size;
+    };
+    co_return serialize_json_rpc_value(download{*url, (**a).checksum, (**a).size}, std::move(request.id), response);
+}
+
+boost::capy::task<simdjson::error_code> chat_session::complete_attachment(multipart_upload const& t, json_rpc_request& request, std::string& response)
+{
+    auto fail = [&](int code, std::string_view msg) { return serialize_json_rpc_error(code, msg, std::move(request.id), response); };
+    auto const user = *user_id_;
+    if (t.state != "active" || t.parts.empty() || t.parts.back().etag.empty())
+    {
+        co_return fail(-32008, "Attachment upload incomplete");
+    }
+    if (!(co_await objects_.complete(t)))
+    {
+        co_return fail(-32000, "Multipart completion failed");
+    }
+    auto registered = co_await run_db(
+        [&](sqlite_database& db) -> std::expected<send_access, sqlite_error>
+        {
+            auto tx = sqlite_transaction::begin_immediate(db);
+            if (!tx)
+            {
+                return std::unexpected(tx.error());
+            }
+            auto allowed_now = can_send_to_conversation(db, t.conversation, user);
+            if (!allowed_now || *allowed_now != send_access::allowed)
+            {
+                return allowed_now;
+            }
+            auto saved = register_uploaded_file(db, t.id);
+            if (!saved)
+            {
+                return std::unexpected(saved.error());
+            }
+            if (!*saved)
+            {
+                return send_access::unavailable;
+            }
+            if (auto e = tx->commit(); e)
+            {
+                return std::unexpected(e);
+            }
+            return send_access::allowed;
+        });
+    if (!registered)
+    {
+        co_return fail(-32000, "Server error");
+    }
+    if (*registered != send_access::allowed)
+    {
+        co_return *registered == send_access::muted ? fail(chat::group_speech_muted, "Group speech is muted") : fail(-32008, "Upload unavailable");
+    }
+    co_return serialize_json_rpc_value(completed_file{t.key}, std::move(request.id), response);
+}
+
 boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc_request& request, std::string& response)
 {
     if (!request.id.present)
@@ -77,52 +183,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
     auto const user = *user_id_;
     if (request.method == "get_attachment" || request.method == "get_conversation_file")
     {
-        get_params p;
-        group_download group;
-        if (request.method == "get_conversation_file")
-        {
-            if (doc.get(group) || !doc.at_end() || group.conversation_id <= 0 || group.object_key.empty())
-            {
-                co_return invalid();
-            }
-            p.conversation = group.conversation_id;
-        }
-        else if (doc.get(p) || !doc.at_end() || p.conversation <= 0 || p.message <= 0)
-        {
-            co_return invalid();
-        }
-        auto a = co_await run_db([&](sqlite_database& db) { return find_attachment_object(db, user, p.conversation, p.message, group.object_key); });
-        if (!a)
-        {
-            co_return fail(-32000, "Server error");
-        }
-        if (!*a)
-        {
-            co_return fail(-32007, "Attachment unavailable");
-        }
-        auto url = co_await objects_.signed_url((**a).key);
-        if (!url)
-        {
-            co_return fail(-32000, "Could not sign download");
-        }
-        // The signing work can yield. Do not grant a URL to a member whose
-        // conversation or reference disappeared before this response.
-        auto still_available =
-            co_await run_db([&](sqlite_database& db) { return find_attachment_object(db, user, p.conversation, p.message, group.object_key); });
-        if (!still_available)
-        {
-            co_return fail(-32000, "Server error");
-        }
-        if (!*still_available)
-        {
-            co_return fail(-32007, "Attachment unavailable");
-        }
-        struct download
-        {
-            std::string url, checksum;
-            std::int64_t size;
-        };
-        co_return serialize_json_rpc_value(download{*url, (**a).checksum, (**a).size}, std::move(request.id), response);
+        co_return co_await download_attachment(doc, request, response);
     }
     if (device_.empty())
     {
@@ -235,8 +296,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
         co_return fail(-32008, "Upload unavailable");
     }
     auto& t = **task;
-    bool const cancel = request.method == "cancel_attachment", pause = request.method == "pause_attachment",
-               query = request.method == "query_attachment";
+    bool const cancel = request.method == "cancel_attachment", pause = request.method == "pause_attachment";
     if (cancel || pause)
     {
         auto saved = co_await run_db(
@@ -273,59 +333,23 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
     }
     if (request.method == "complete_file")
     {
-        if (t.state != "active" || t.parts.empty() || t.parts.back().etag.empty())
-        {
-            co_return fail(-32008, "Attachment upload incomplete");
-        }
-        if (!(co_await objects_.complete(t)))
-        {
-            co_return fail(-32000, "Multipart completion failed");
-        }
-        auto registered = co_await run_db(
-            [&](sqlite_database& db) -> std::expected<send_access, sqlite_error>
-            {
-                auto tx = sqlite_transaction::begin_immediate(db);
-                if (!tx)
-                {
-                    return std::unexpected(tx.error());
-                }
-                auto allowed_now = can_send_to_conversation(db, t.conversation, user);
-                if (!allowed_now || *allowed_now != send_access::allowed)
-                {
-                    return allowed_now;
-                }
-                auto saved = register_uploaded_file(db, t.id);
-                if (!saved)
-                {
-                    return std::unexpected(saved.error());
-                }
-                if (!*saved)
-                {
-                    return send_access::unavailable;
-                }
-                if (auto e = tx->commit(); e)
-                {
-                    return std::unexpected(e);
-                }
-                return send_access::allowed;
-            });
-        if (!registered)
-        {
-            co_return fail(-32000, "Server error");
-        }
-        if (*registered != send_access::allowed)
-        {
-            co_return *registered == send_access::muted ? fail(chat::group_speech_muted, "Group speech is muted")
-                                                        : fail(-32008, "Upload unavailable");
-        }
-        co_return serialize_json_rpc_value(completed_file{t.key}, std::move(request.id), response);
+        co_return co_await complete_attachment(t, request, response);
     }
+    co_return co_await grant_attachment_part(t, confirmation.number, confirmation.etag, request, response);
+}
+
+boost::capy::task<simdjson::error_code> chat_session::grant_attachment_part(
+    multipart_upload& t, int number, std::string_view etag, json_rpc_request& request, std::string& response)
+{
+    auto fail = [&](int code, std::string_view msg) { return serialize_json_rpc_error(code, msg, std::move(request.id), response); };
+    auto invalid = [&] { return serialize_json_rpc_invalid_params(std::move(request.id), response); };
+    bool const confirm = number > 0;
     if (confirm && t.state != "active")
     {
         co_return fail(-32008, "Upload paused");
     }
     auto part = std::ranges::find(t.parts, std::string{}, &attachment_part::etag);
-    if (query)
+    if (request.method == "query_attachment")
     {
         struct status
         {
@@ -380,16 +404,16 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
         }
         t.multipart = std::move(*id);
     }
-    if (confirm && (confirmation.number > static_cast<int>(t.parts.size()) || (part != t.parts.end() && confirmation.number > part->number)))
+    if (confirm && (number > static_cast<int>(t.parts.size()) || (part != t.parts.end() && number > part->number)))
     {
         co_return invalid();
     }
-    if (confirm && (part == t.parts.end() || confirmation.number < part->number) && t.parts[confirmation.number - 1].etag != confirmation.etag)
+    if (confirm && (part == t.parts.end() || number < part->number) && t.parts[number - 1].etag != etag)
     {
         co_return invalid();
     }
     // A lost confirmation can leave an already uploaded part at the first gap.
-    if (part != t.parts.end() && (!confirm || confirmation.number == part->number))
+    if (part != t.parts.end() && (!confirm || number == part->number))
     {
         auto stored = co_await objects_.uploaded_part(t, part->number);
         if (!stored)
@@ -397,7 +421,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
             co_return fail(-32000, "Could not list multipart parts");
         }
         bool const matches = *stored && (**stored).first == part->length && !(**stored).second.empty();
-        if (confirm && (!matches || confirmation.etag != (**stored).second))
+        if (confirm && (!matches || etag != (**stored).second))
         {
             co_return fail(-32008, "Part size or ETag mismatch");
         }
