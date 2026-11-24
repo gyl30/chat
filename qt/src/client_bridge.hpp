@@ -96,6 +96,8 @@ class client_bridge final : public QObject
     void set_user_profile(QString nickname, QString signature);
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {}, bool capture_unread = false);
+    void get_bundle(qint64 conversation, qint64 message, qint64 after);
+    void forward_bundle(qint64 target, QList<qint64> messages);
     void forward_messages(qint64 target, QList<qint64> messages);
     void send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision, chat::text_options options);
     void save_draft(qint64 user, qint64 conversation, qint64 revision, qint64 reply, QString text, chat::text_options options);
@@ -123,7 +125,7 @@ class client_bridge final : public QObject
     void change_file(qint64 conversation, QString key, bool add);
     void list_files(qint64 conversation, QString search, QString category, qint64 before, QString key);
     void download_file(qint64 conversation, QString key, QString filename, QString path, bool open);
-    void get_attachment(qint64 conversation, qint64 message, QString filename, QString target);
+    void get_attachment(qint64 conversation, qint64 message, QString filename, QString target, qint64 item = 0);
     void start_download(qint64 id,
                         quint64 attempt,
                         qint64 conversation,
@@ -131,10 +133,11 @@ class client_bridge final : public QObject
                         QString key,
                         QString path,
                         std::shared_ptr<chat::download_control> control,
-                        bool replace);
+                        bool replace,
+                        qint64 item = 0);
     void restore_attachments();
     void interrupt_attachment(qint64 id, bool cancel, QString path);
-    void get_message_image(qint64 conversation, qint64 message);
+    void get_message_image(qint64 conversation, qint64 message, qint64 item = 0);
     void mark_read(qint64 user, qint64 message);
     void get_avatar(qint64 user, qint64 revision);
     void set_avatar(QByteArray data);
@@ -218,7 +221,9 @@ class client_bridge final : public QObject
     void group_file_finished(qint64 id, QString error, bool unavailable);
     void files_changed(qint64 conversation, QString error);
     void files_received(qint64 conversation, chat::conversation_file_page page, bool older, QString error);
-    void download_requested(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open);
+    void bundle_received(qint64 conversation, qint64 message, chat::forwarded_page page, QString error);
+    void bundle_image_received(qint64 message, qint64 item, QByteArray bytes, QString error);
+    void download_requested(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open, qint64 item = 0);
     void download_progress(qint64 id, quint64 attempt, qint64 bytes, qint64 total);
     void download_finished(qint64 id, quint64 attempt, QString error);
     void file_downloaded(qint64 conversation, QString path, bool open, QString error);

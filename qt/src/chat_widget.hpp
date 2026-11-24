@@ -187,6 +187,8 @@ class chat_widget final : public QWidget
     void chat_history_requested(qint64 conversation, QString title);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
     void add_file_requested(qint64 conversation, QString key);
+    void content_requested(qint64 conversation, qint64 message, QString kind);
+    void bundle_requested(qint64 target, QList<qint64> messages);
     void forward_requested(qint64 target, QList<qint64> messages);
     void attachment_send_requested(qint64 conversation, QString path, qint64 reply_to, qint64 client_id, bool group_only);
     void attachment_interrupt_requested(qint64 id, bool cancel, QString path);

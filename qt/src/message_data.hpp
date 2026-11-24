@@ -68,6 +68,7 @@ struct message_data
     qint64 reaction_revision = 0;
     QList<reaction_data> reactions;
     QList<mention_data> mentions;
+    QString content = QStringLiteral("message");
     bool markdown = false;
     bool mention_all = false;
     bool acknowledgement_only = false;

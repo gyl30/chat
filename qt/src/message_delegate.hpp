@@ -23,6 +23,7 @@ class message_delegate final : public QStyledItemDelegate
     void avatar_clicked(QModelIndex const& index);
     void read_details_clicked(QModelIndex const& index);
     void reaction_clicked(QModelIndex const& index, QString emoji);
+    void content_clicked(QModelIndex const& index);
     void image_clicked(QModelIndex const& index);
 };
 

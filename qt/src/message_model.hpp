@@ -21,6 +21,7 @@ class message_model final : public QAbstractListModel
         timestamp_role,
         text_role,
         markdown_role,
+        content_role,
         outgoing_role,
         sender_name_role,
         forwarded_from_role,

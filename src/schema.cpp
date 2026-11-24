@@ -181,6 +181,7 @@ CREATE TABLE IF NOT EXISTS messages (
     sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     body TEXT,
     markdown INTEGER NOT NULL DEFAULT 0 CHECK(markdown IN (0,1)),
+    content TEXT NOT NULL DEFAULT 'message' CHECK(content IN ('message','bundle')),
     mention_all INTEGER NOT NULL DEFAULT 0 CHECK(mention_all IN (0,1)),
     archive_key TEXT REFERENCES archives(object_key),
     forward_source INTEGER,
@@ -200,7 +201,7 @@ CREATE TABLE IF NOT EXISTS messages (
 -- Only body-bearing reads consult the immutable archive. All access checks and references stay live.
 CREATE VIEW IF NOT EXISTS readable_messages AS
     SELECT id,conversation_id,sender_id,coalesce(body,chat_archive_body(archive_key,id)) AS body,
-           created_at,reply_to_id,edited_at,deleted,reaction_revision,client_id,forward_source,original_sender,markdown,mention_all FROM messages;
+           created_at,reply_to_id,edited_at,deleted,reaction_revision,client_id,forward_source,original_sender,markdown,mention_all,content FROM messages;
 
 CREATE INDEX IF NOT EXISTS messages_conversation_idx ON messages (conversation_id, id DESC);
 CREATE INDEX IF NOT EXISTS messages_mention_all ON messages(id) WHERE mention_all AND deleted=0;
@@ -262,6 +263,17 @@ CREATE TABLE IF NOT EXISTS message_attachments (
     object_key TEXT NOT NULL REFERENCES files(object_key)
 );
 CREATE INDEX IF NOT EXISTS attachments_file ON message_attachments(object_key);
+CREATE TABLE IF NOT EXISTS bundle_items (
+    parent INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL CHECK(position BETWEEN 1 AND 50),
+    author TEXT NOT NULL,
+    created INTEGER NOT NULL,
+    body TEXT NOT NULL,
+    markdown INTEGER NOT NULL,
+    object_key TEXT REFERENCES files(object_key),
+    PRIMARY KEY(parent,position)
+);
+CREATE INDEX IF NOT EXISTS bundle_files ON bundle_items(object_key) WHERE object_key IS NOT NULL;
 CREATE TABLE IF NOT EXISTS conversation_files (
     conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     object_key TEXT NOT NULL REFERENCES files(object_key),
@@ -273,6 +285,7 @@ CREATE INDEX IF NOT EXISTS group_files_page ON conversation_files(conversation_i
 
 CREATE TRIGGER IF NOT EXISTS release_message_attachments AFTER DELETE ON message_attachments
 WHEN NOT EXISTS(SELECT 1 FROM message_attachments WHERE object_key=OLD.object_key)
+ AND NOT EXISTS(SELECT 1 FROM bundle_items WHERE object_key=OLD.object_key)
  AND NOT EXISTS(SELECT 1 FROM conversation_files WHERE object_key=OLD.object_key)
 BEGIN
     INSERT INTO attachment_cleanup(object_key,reserved_at) VALUES(OLD.object_key,0);
@@ -283,6 +296,14 @@ BEGIN
 END;
 CREATE TRIGGER IF NOT EXISTS release_conversation_files AFTER DELETE ON conversation_files
 WHEN NOT EXISTS(SELECT 1 FROM message_attachments WHERE object_key=OLD.object_key)
+ AND NOT EXISTS(SELECT 1 FROM bundle_items WHERE object_key=OLD.object_key)
+ AND NOT EXISTS(SELECT 1 FROM conversation_files WHERE object_key=OLD.object_key)
+BEGIN
+    INSERT INTO attachment_cleanup(object_key,reserved_at) VALUES(OLD.object_key,0);
+END;
+CREATE TRIGGER IF NOT EXISTS release_bundle_file AFTER DELETE ON bundle_items
+WHEN OLD.object_key IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bundle_items WHERE object_key=OLD.object_key)
+ AND NOT EXISTS(SELECT 1 FROM message_attachments WHERE object_key=OLD.object_key)
  AND NOT EXISTS(SELECT 1 FROM conversation_files WHERE object_key=OLD.object_key)
 BEGIN
     INSERT INTO attachment_cleanup(object_key,reserved_at) VALUES(OLD.object_key,0);
@@ -294,6 +315,7 @@ END;
 CREATE TRIGGER IF NOT EXISTS discard_deleted_message_attachment AFTER UPDATE OF deleted ON messages
 WHEN NEW.deleted=1 AND OLD.deleted=0
 BEGIN
+    DELETE FROM bundle_items WHERE parent=NEW.id;
     DELETE FROM message_attachments WHERE message_id=NEW.id;
 END;
 

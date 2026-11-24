@@ -29,6 +29,7 @@ struct[[= simdjson::deny_unknown_fields]] confirm_params
 struct[[= simdjson::deny_unknown_fields]] get_params
 {
     std::int64_t conversation = 0, message = 0;
+    std::optional<std::int64_t> item;
 };
 struct[[= simdjson::deny_unknown_fields]] group_download
 {
@@ -73,11 +74,12 @@ boost::capy::task<simdjson::error_code> chat_session::download_attachment(simdjs
         }
         p.conversation = group.conversation_id;
     }
-    else if (doc.get(p) || !doc.at_end() || p.conversation <= 0 || p.message <= 0)
+    else if (doc.get(p) || !doc.at_end() || p.conversation <= 0 || p.message <= 0 || (p.item && (*p.item < 1 || *p.item > 50)))
     {
         co_return invalid();
     }
-    auto lookup = [&](sqlite_database& db) { return find_attachment_object(db, user, p.conversation, p.message, group.object_key); };
+    auto lookup = [&](sqlite_database& db)
+    { return find_attachment_object(db, user, p.conversation, p.message, group.object_key, p.item.value_or(0)); };
     auto a = co_await run_db(lookup);
     if (!a)
     {

@@ -17,6 +17,6 @@ struct attachment_object
 
 // Authorize every download before issuing a short-lived signed URL.
 std::expected<std::optional<attachment_object>, sqlite_error> find_attachment_object(
-    sqlite_database& db, std::int64_t user, std::int64_t conversation, std::int64_t message, std::string_view key = {});
+    sqlite_database& db, std::int64_t user, std::int64_t conversation, std::int64_t message, std::string_view key = {}, std::int64_t item = 0);
 
 #endif

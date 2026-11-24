@@ -29,7 +29,7 @@ class download_dialog final : public QDialog
     struct task
     {
         qint64 conversation;
-        qint64 message;
+        qint64 message, item;
         QString key, path;
         bool open;
         bool replace;
@@ -39,7 +39,7 @@ class download_dialog final : public QDialog
         QTreeWidgetItem* row = nullptr;
     };
 
-    void enqueue(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open);
+    void enqueue(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open, qint64 item);
     void start(qint64 id, task& value);
     void finish(qint64 id, quint64 attempt, QString const& error);
     void progress(qint64 id, quint64 attempt, qint64 bytes, qint64 total);

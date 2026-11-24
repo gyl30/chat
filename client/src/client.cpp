@@ -278,6 +278,11 @@ bool parse_mentions(dom::object object, std::vector<mention>& result)
 
 bool parse_message(dom::object object, message& value)
 {
+    value.content = string_field(object, "content");
+    if (value.content.empty())
+    {
+        value.content = "message";
+    }
     if (auto flag = find_field(object, "markdown"); flag && flag->get(value.markdown))
     {
         return false;
@@ -3725,17 +3730,39 @@ void client::pending_attachments(pending_attachments_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->restore_attachments(std::move(handler)));
 }
-void client::get_attachment(
-    std::int64_t conversation, std::int64_t message, std::string path, attachment_handler handler, std::int64_t limit, download_options options)
+void client::get_attachment(std::int64_t conversation,
+                            std::int64_t message,
+                            std::string path,
+                            attachment_handler handler,
+                            std::int64_t limit,
+                            download_options options,
+                            std::int64_t item)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_attachment("get_attachment",
-                                                                                    make_params("conversation", conversation, "message", message),
-                                                                                    std::move(path),
-                                                                                    limit,
-                                                                                    std::move(handler),
-                                                                                    std::move(options)));
+    auto params = make_params("conversation", conversation, "message", message);
+    if (item)
+    {
+        params.add("item", item);
+    }
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->get_attachment("get_attachment", std::move(params), std::move(path), limit, std::move(handler), std::move(options)));
 }
 
+void client::get_forwarded_messages(std::int64_t conversation,
+                                    std::int64_t message,
+                                    std::int64_t after,
+                                    std::function<void(std::expected<forwarded_page, error>)> handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->request_page<forwarded_page>("get_forwarded_messages",
+                                            make_params("conversation", conversation, "message", message, "after", after),
+                                            "Invalid forwarded messages",
+                                            std::move(handler)));
+}
+void client::forward_bundle(std::int64_t conversation, std::vector<std::int64_t> messages, std::int64_t client_id, message_result_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->request_message(
+        "send_message", make_params("conversation", conversation, "bundle", messages, "client_id", client_id), conversation, {}, std::move(handler)));
+}
 void client::forward_message(std::int64_t conversation, std::int64_t source, std::int64_t client_id, message_result_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->request_message(

@@ -179,6 +179,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return parts.join(QStringLiteral("；"));
         }
         case Qt::DisplayRole:
+        case content_role:
+            return message.deleted ? QString{} : message.content;
         case markdown_role:
             return message.markdown && !message.deleted;
         case text_role:

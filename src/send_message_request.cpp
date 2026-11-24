@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -29,6 +30,7 @@ struct[[= simdjson::deny_unknown_fields]] send_message_params
     std::optional<std::int64_t> reply_to;
     std::optional<std::string> object_key;
     std::optional<std::int64_t> forward;
+    std::optional<std::vector<std::int64_t>> bundle;
     [[= simdjson::default_value]] bool markdown = false;
     [[= simdjson::default_value]] bool mention_all = false;
     std::optional<std::int64_t> upload;
@@ -57,6 +59,22 @@ bool read_send_params(json_rpc_params& params, send_message_params& value, bool 
         (value.reply_to && *value.reply_to <= 0))
     {
         return false;
+    }
+    if (value.bundle)
+    {
+        auto& ids = *value.bundle;
+        if (ids.size() < 2 || ids.size() > 50 || value.text || value.forward || value.object_key || value.reply_to || value.markdown ||
+            value.mention_all)
+        {
+            return false;
+        }
+        std::ranges::sort(ids);
+        if (ids.front() <= 0 || std::ranges::adjacent_find(ids) != ids.end())
+        {
+            return false;
+        }
+        value.text = "聊天记录";
+        return true;
     }
     if (value.forward)
     {
@@ -276,7 +294,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
                                          params.reply_to,
                                          params.forward,
                                          params.markdown,
-                                         params.mention_all},
+                                         params.mention_all,
+                                         params.bundle ? std::span<const std::int64_t>(*params.bundle) : std::span<const std::int64_t>{}},
                                         request.id,
                                         params.object_key.value_or(""));
             });

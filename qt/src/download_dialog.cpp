@@ -51,7 +51,7 @@ download_dialog::download_dialog(client_bridge& client, chat_widget& chat, QWidg
     update_actions();
 }
 
-void download_dialog::enqueue(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open)
+void download_dialog::enqueue(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open, qint64 item)
 {
     path = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
     if (path_busy(path))
@@ -74,7 +74,7 @@ void download_dialog::enqueue(qint64 conversation, qint64 message, QString key, 
     auto* row = new QTreeWidgetItem(list_, {filename, source, path, {}, {}});
     row->setData(0, Qt::UserRole, static_cast<qint64>(id));
     row->setToolTip(2, path);
-    auto it = tasks_.insert(id, {conversation, message, std::move(key), path, open, QFileInfo::exists(path), 0, state::running, {}, row});
+    auto it = tasks_.insert(id, {conversation, message, item, std::move(key), path, open, QFileInfo::exists(path), 0, state::running, {}, row});
     list_->setCurrentItem(row);
     start(id, it.value());
 }
@@ -86,7 +86,7 @@ void download_dialog::start(qint64 id, task& value)
     value.row->setText(3, {});
     value.row->setText(4, QStringLiteral("正在申请下载…"));
     value.row->setToolTip(4, {});
-    client_.start_download(id, ++value.attempt, value.conversation, value.message, value.key, value.path, value.control, value.replace);
+    client_.start_download(id, ++value.attempt, value.conversation, value.message, value.key, value.path, value.control, value.replace, value.item);
     update_actions();
 }
 

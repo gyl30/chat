@@ -229,6 +229,11 @@ class client
     void pending_texts(pending_texts_handler handler);
     void retry_text(std::int64_t client_id, outbox_operation_handler handler);
     void discard_text(std::int64_t client_id, outbox_operation_handler handler);
+    void forward_bundle(std::int64_t conversation, std::vector<std::int64_t> messages, std::int64_t client_id, message_result_handler handler);
+    void get_forwarded_messages(std::int64_t conversation,
+                                std::int64_t message,
+                                std::int64_t after,
+                                std::function<void(std::expected<forwarded_page, error>)> handler);
     void forward_message(std::int64_t conversation, std::int64_t source, std::int64_t client_id, message_result_handler handler);
     void delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler);
     void set_message_reaction(std::int64_t conversation, std::int64_t message, std::string emoji, reaction_result_handler handler);
@@ -258,7 +263,8 @@ class client
                         std::string path,
                         attachment_handler handler,
                         std::int64_t limit = max_attachment_size,
-                        download_options options = {});
+                        download_options options = {},
+                        std::int64_t item = 0);
     void edit_message(std::int64_t conversation, std::int64_t message, std::string text, message_result_handler handler);
     void search_users(std::string query, users_handler handler);
     void get_friend_requests(friend_requests_handler handler);

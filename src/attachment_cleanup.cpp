@@ -31,6 +31,7 @@ std::expected<std::vector<std::string>, sqlite_error> claim_attachment_cleanup_b
             SELECT object_key FROM attachment_cleanup
             WHERE reserved_at<=?1 AND object_key>?2 AND NOT EXISTS(SELECT 1 FROM attachment_uploads u WHERE u.object_key=attachment_cleanup.object_key)
                 AND (reserved_at=0 OR NOT EXISTS(SELECT 1 FROM files f WHERE f.object_key=attachment_cleanup.object_key AND f.created_at>?3))
+                AND NOT EXISTS(SELECT 1 FROM bundle_items b WHERE b.object_key=attachment_cleanup.object_key)
                 AND NOT EXISTS(SELECT 1 FROM conversation_files c WHERE c.object_key=attachment_cleanup.object_key)
                 AND NOT EXISTS(SELECT 1 FROM message_attachments m WHERE m.object_key=attachment_cleanup.object_key)
             ORDER BY object_key LIMIT 64

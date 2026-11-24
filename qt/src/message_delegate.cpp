@@ -721,6 +721,13 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QSt
     }
 
     auto const layout = calculate_layout(option, index);
+    if (auto kind = index.data(message_model::content_role).toString();
+        !kind.isEmpty() && kind != QStringLiteral("message") &&
+        QRect(layout.text_origin(option.rect), QSize(layout.text_width, layout.text_height)).contains(mouse->position().toPoint()))
+    {
+        emit content_clicked(index);
+        return true;
+    }
     if (auto url = layout.link_at(option.rect, mouse->position().toPoint(), index); !url.isEmpty())
     {
         QDesktopServices::openUrl(url);

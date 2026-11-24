@@ -1557,6 +1557,14 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
                 }
             });
     connect(messages_delegate,
+            &message_delegate::content_clicked,
+            this,
+            [this](QModelIndex const& ix)
+            {
+                emit content_requested(
+                    active_conversation_, ix.data(message_model::id_role).toLongLong(), ix.data(message_model::content_role).toString());
+            });
+    connect(messages_delegate,
             &message_delegate::image_clicked,
             this,
             [this](QModelIndex const& index)
@@ -1826,6 +1834,10 @@ void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows
     QDialog dialog(this);
     dialog.setWindowTitle(QStringLiteral("选择转发目标"));
     auto* layout = new QVBoxLayout(&dialog);
+    auto* mode = new QComboBox(&dialog);
+    mode->addItems({QStringLiteral("逐条转发"), QStringLiteral("合并转发")});
+    mode->setVisible(rows.size() >= 2 && rows.size() <= 50);
+    layout->addWidget(mode);
     auto* targets = new QListWidget(&dialog);
     layout->addWidget(targets);
     for (int row = 0; row < conversations_->rowCount(); ++row)
@@ -1874,7 +1886,19 @@ void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows
         set_error(QStringLiteral("所选消息已不可转发"));
         return;
     }
-    emit forward_requested(target, std::move(messages));
+    if (mode->currentIndex() == 1)
+    {
+        if (messages.size() != rows.size())
+        {
+            set_error(QStringLiteral("所选消息已不可合并转发"));
+            return;
+        }
+        emit bundle_requested(target, std::move(messages));
+    }
+    else
+    {
+        emit forward_requested(target, std::move(messages));
+    }
     set_message_selection(false);
 }
 
@@ -1903,7 +1927,8 @@ void chat_widget::show_message_menu(QPoint position)
     auto* copy_code = code.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制代码"));
     auto* open_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("打开链接"));
     auto* copy_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制链接"));
-    auto* forward = menu.addAction(QStringLiteral("转发"));
+    auto const ordinary = index.data(message_model::content_role).toString() == QStringLiteral("message");
+    auto* forward = ordinary ? menu.addAction(QStringLiteral("转发")) : nullptr;
     auto* bookmark = menu.addAction(QStringLiteral("正在查询收藏状态…"));
     bookmark->setEnabled(false);
     emit bookmark_menu_requested(message_id, bookmark);
@@ -1972,7 +1997,7 @@ void chat_widget::show_message_menu(QPoint position)
     auto* preview = index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/"))
                         ? menu.addAction(QStringLiteral("查看图片"))
                         : nullptr;
-    auto* edit = can_send() && filename.isEmpty() && index.data(message_model::forwarded_from_role).toString().isEmpty() &&
+    auto* edit = ordinary && can_send() && filename.isEmpty() && index.data(message_model::forwarded_from_role).toString().isEmpty() &&
                          index.data(message_model::outgoing_role).toBool()
                      ? menu.addAction(QStringLiteral("编辑"))
                      : nullptr;
@@ -2036,7 +2061,7 @@ void chat_widget::show_message_menu(QPoint position)
         emit bookmark_requested(message_id, !bookmark->data().toBool());
         return;
     }
-    if (selected == forward)
+    if (forward && selected == forward)
     {
         choose_forward_target({target_index});
         return;

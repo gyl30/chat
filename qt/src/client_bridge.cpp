@@ -112,6 +112,7 @@ message_data client_bridge::to_message_data(chat::message const& value)
     message.mentions = to_mentions(value.mentions);
     message.timestamp = value.timestamp;
     message.text = from_utf8(value.text);
+    message.content = QString::fromStdString(value.content);
     message.markdown = value.markdown;
     message.mention_all = value.mention_all;
     message.edited_at = value.edited_at.value_or(0);
@@ -966,6 +967,43 @@ void client_bridge::set_typing(qint64 conversation, bool typing)
     client_->set_typing(conversation, typing, [](auto) {});
 }
 
+void client_bridge::get_bundle(qint64 conversation, qint64 message, qint64 after)
+{
+    client_->get_forwarded_messages(
+        conversation,
+        message,
+        after,
+        [this, conversation, message, g = connection_generation_.load()](auto result)
+        {
+            post_result(g,
+                        [this, conversation, message, result = std::move(result)]
+                        {
+                            emit bundle_received(
+                                conversation, message, result ? *result : chat::forwarded_page{}, result ? QString{} : display_error(result.error()));
+                        });
+        });
+}
+void client_bridge::forward_bundle(qint64 target, QList<qint64> messages)
+{
+    client_->forward_bundle(target,
+                            {messages.begin(), messages.end()},
+                            chat::client::new_client_id(),
+                            [this, g = connection_generation_.load()](auto result)
+                            {
+                                post_result(g,
+                                            [this, result = std::move(result)]
+                                            {
+                                                if (result)
+                                                {
+                                                    emit message_received(to_message_data(*result));
+                                                }
+                                                else
+                                                {
+                                                    emit error(display_error(result.error()));
+                                                }
+                                            });
+                            });
+}
 void client_bridge::forward_messages(qint64 target, QList<qint64> messages)
 {
     if (messages.isEmpty())
@@ -1338,9 +1376,9 @@ std::function<void(std::expected<chat::message, chat::error>)> client_bridge::se
     };
 }
 
-void client_bridge::get_attachment(qint64 conversation, qint64 message, QString filename, QString target)
+void client_bridge::get_attachment(qint64 conversation, qint64 message, QString filename, QString target, qint64 item)
 {
-    emit download_requested(conversation, message, {}, std::move(filename), std::move(target), false);
+    emit download_requested(conversation, message, {}, std::move(filename), std::move(target), false, item);
 }
 
 void client_bridge::start_download(qint64 id,
@@ -1350,7 +1388,8 @@ void client_bridge::start_download(qint64 id,
                                    QString key,
                                    QString path,
                                    std::shared_ptr<chat::download_control> control,
-                                   bool replace)
+                                   bool replace,
+                                   qint64 item)
 {
     // The task list survives reconnects; a completion from the failed connection still retires this attempt.
     auto progress = [this, id, attempt](qint64 bytes, qint64 total)
@@ -1367,7 +1406,7 @@ void client_bridge::start_download(qint64 id,
     chat::download_options options{std::move(control), std::move(progress), replace};
     if (message)
     {
-        client_->get_attachment(conversation, message, to_utf8(path), std::move(done), chat::max_attachment_size, std::move(options));
+        client_->get_attachment(conversation, message, to_utf8(path), std::move(done), chat::max_attachment_size, std::move(options), item);
     }
     else
     {
@@ -1392,12 +1431,19 @@ void client_bridge::delete_message(qint64 conversation, qint64 message)
                             });
 }
 
-void client_bridge::get_message_image(qint64 conversation, qint64 message)
+void client_bridge::get_message_image(qint64 conversation, qint64 message, qint64 item)
 {
     auto tmp = std::make_shared<QTemporaryDir>();
     if (!tmp->isValid())
     {
-        emit message_image_received(conversation, message, {}, tmp->errorString());
+        if (item)
+        {
+            emit bundle_image_received(message, item, {}, tmp->errorString());
+        }
+        else
+        {
+            emit message_image_received(conversation, message, {}, tmp->errorString());
+        }
         return;
     }
     auto path = tmp->filePath("preview");
@@ -1405,7 +1451,7 @@ void client_bridge::get_message_image(qint64 conversation, qint64 message)
         conversation,
         message,
         to_utf8(path),
-        [this, tmp, path, conversation, message, g = connection_generation_.load()](auto result)
+        [this, tmp, path, conversation, message, item, g = connection_generation_.load()](auto result)
         {
             QFile file(path);
             auto error = result ? QString{} : display_error(result.error());
@@ -1422,10 +1468,21 @@ void client_bridge::get_message_image(qint64 conversation, qint64 message)
                 }
             }
             post_result(g,
-                        [this, conversation, message, bytes = std::move(bytes), error = std::move(error)]
-                        { emit message_image_received(conversation, message, bytes, error); });
+                        [this, conversation, message, item, bytes = std::move(bytes), error = std::move(error)]
+                        {
+                            if (item)
+                            {
+                                emit bundle_image_received(message, item, bytes, error);
+                            }
+                            else
+                            {
+                                emit message_image_received(conversation, message, bytes, error);
+                            }
+                        });
         },
-        chat::max_image_preview_size);
+        chat::max_image_preview_size,
+        {},
+        item);
 }
 
 void client_bridge::edit_message(qint64 conversation, qint64 message, QString text)

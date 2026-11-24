@@ -1,4 +1,5 @@
 #include "message_store.hpp"
+#include "bundle_store.hpp"
 #include "conversation_store.hpp"
 #include "sqlite_mentions.hpp"
 #include "timestamp.hpp"
@@ -19,7 +20,7 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
         auto query = db.prepare(R"SQL(
             SELECT m.id, m.conversation_id, m.deleted,
                    EXISTS(SELECT 1 FROM message_attachments WHERE message_id=m.id),
-                   EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=m.conversation_id AND user_id=?1),coalesce(m.forward_source,0)
+                   EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=m.conversation_id AND user_id=?1),coalesce(m.forward_source,0),m.content
             FROM messages m WHERE m.sender_id=?1 AND m.client_id=?2
         )SQL",
                                 message.sender,
@@ -35,7 +36,8 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
         }
         if (*row)
         {
-            if (query->column_int64(1) != message.conversation || query->column_int64(5) != message.forward_source.value_or(0) ||
+            if (query->column_text(6) != (message.bundle.empty() ? "message" : "bundle") || query->column_int64(1) != message.conversation ||
+                query->column_int64(5) != message.forward_source.value_or(0) ||
                 (!message.forward_source && query->column_int64(2) == 0 && ((query->column_int64(3) != 0) != attachment)))
             {
                 return message_write_outcome{invalid_client_id};
@@ -122,7 +124,7 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
             SELECT m.body,coalesce(m.original_sender,m.sender_id),ref.object_key,m.markdown FROM readable_messages m
             JOIN conversation_members own ON own.conversation_id=m.conversation_id AND own.user_id=?2
             LEFT JOIN message_attachments ref ON ref.message_id=m.id
-            WHERE m.id=?1 AND m.id>own.visible_after AND NOT m.deleted
+            WHERE m.id=?1 AND m.id>own.visible_after AND NOT m.deleted AND m.content='message'
         )SQL",
                                  *message.forward_source,
                                  message.sender);
@@ -168,8 +170,8 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
     }
     auto const now = epoch_milliseconds();
     if (auto error = db.exec(R"SQL(
-        INSERT INTO messages(sender_id,conversation_id,client_id,body,reply_to_id,created_at,forward_source,original_sender,markdown,mention_all)
-        VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
+        INSERT INTO messages(sender_id,conversation_id,client_id,body,reply_to_id,created_at,forward_source,original_sender,markdown,mention_all,content)
+        VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)
     )SQL",
                              message.sender,
                              message.conversation,
@@ -180,12 +182,25 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
                              message.forward_source,
                              original_sender,
                              int(markdown),
-                             int(message.mention_all));
+                             int(message.mention_all),
+                             std::string_view(message.bundle.empty() ? "message" : "bundle"));
         error)
     {
         return std::unexpected(std::move(error));
     }
     auto const id = db.last_insert_rowid();
+    if (!message.bundle.empty())
+    {
+        auto copied = store_bundle(db, id, message.sender, message.bundle);
+        if (!copied)
+        {
+            return std::unexpected(copied.error());
+        }
+        if (!*copied)
+        {
+            return message_write_rejection::unavailable;
+        }
+    }
     if (object_key.empty() && message.text.contains('@'))
     {
         if (auto error = replace_message_mentions(db, message.conversation, id, message.text); error)

@@ -66,6 +66,19 @@ struct mention
     std::string username;
 };
 
+struct forwarded_item
+{
+    std::int64_t position, created;
+    std::string author, body;
+    bool markdown;
+    std::string filename, media_type;
+};
+struct forwarded_page
+{
+    std::vector<forwarded_item> items;
+    std::int64_t next = 0;
+};
+
 struct text_options
 {
     bool markdown = false;
@@ -93,6 +106,7 @@ struct message
     std::vector<mention> mentions;
     bool markdown = false;
     bool mention_all = false;
+    std::string content = "message";
     bool acknowledgement_only = false;
     // Present only on the caller's own messages: the ID it sent them with.
     std::optional<std::int64_t> client_id;

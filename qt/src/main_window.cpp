@@ -50,6 +50,7 @@
 #include "download_dialog.hpp"
 #include "chat_widget.hpp"
 #include "attachment_dialog.hpp"
+#include "bundle_dialog.hpp"
 #include "group_dialog.hpp"
 #include "client_bridge.hpp"
 #include "message_search_dialog.hpp"
@@ -1462,6 +1463,17 @@ void main_window::connect_messages()
                 }
             });
     connect(client_.get(), &client_bridge::group_file_finished, chat_page_, &chat_widget::finish_group_file);
+    connect(chat_page_, &chat_widget::bundle_requested, client_.get(), &client_bridge::forward_bundle);
+    connect(chat_page_,
+            &chat_widget::content_requested,
+            this,
+            [this](qint64 room, qint64 message, QString const& kind)
+            {
+                if (kind == QStringLiteral("bundle") && message > chat_page_->history_floor(room))
+                {
+                    show_bundle(*client_, *chat_page_, room, message, this);
+                }
+            });
     connect(chat_page_, &chat_widget::forward_requested, client_.get(), &client_bridge::forward_messages);
     connect(chat_page_, &chat_widget::attachment_send_requested, client_.get(), &client_bridge::send_attachment);
     connect(chat_page_, &chat_widget::attachment_interrupt_requested, client_.get(), &client_bridge::interrupt_attachment);
@@ -1544,7 +1556,8 @@ void main_window::connect_messages()
                 }
                 dialog.exec();
             });
-    connect(&chat_page_->images(), &message_images::requested, client_.get(), &client_bridge::get_message_image);
+    connect(
+        &chat_page_->images(), &message_images::requested, client_.get(), [this](qint64 room, qint64 id) { client_->get_message_image(room, id); });
     connect(client_.get(), &client_bridge::message_image_received, &chat_page_->images(), &message_images::receive, Qt::AutoConnection);
 
     connect(

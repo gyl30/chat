@@ -7,6 +7,7 @@
 #include <QTextBlock>
 #include <QTextLayout>
 #include <QApplication>
+#include <QTextBrowser>
 #include <QClipboard>
 #include <QCheckBox>
 #include <QKeyEvent>
@@ -998,6 +999,23 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             out["deleted"] = index.data(message_model::deleted_role).toBool();
         }
     }
+    else if (op == "bundle_view")
+    {
+        if (cmd.contains("open"))
+        {
+            auto mid = cmd["open"].toInteger();
+            QTimer::singleShot(0, chat, [chat, mid] { emit chat->content_requested(chat->active_conversation_, mid, QStringLiteral("bundle")); });
+        }
+        if (auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget()); dialog && dialog->windowTitle() == QStringLiteral("聊天记录"))
+        {
+            out["count"] = dialog->findChild<QListWidget*>()->count();
+            out["body"] = dialog->findChild<QTextBrowser*>()->toPlainText();
+            if (cmd["close"].toBool())
+            {
+                dialog->reject();
+            }
+        }
+    }
     else if (op == "forward_picker")
     {
         out["open"] = false;
@@ -1017,6 +1035,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                     if (list->item(i)->data(Qt::UserRole).toLongLong() == cmd["target"].toInteger())
                     {
                         list->setCurrentRow(i);
+                        if (cmd["bundle"].toBool())
+                        {
+                            dialog->findChild<QComboBox*>()->setCurrentIndex(1);
+                        }
                         auto* confirm = dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok);
                         out["confirmed"] = confirm->isEnabled();
                         QTimer::singleShot(0, confirm, &QPushButton::click);

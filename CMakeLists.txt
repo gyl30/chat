@@ -138,6 +138,7 @@ add_executable(server
     src/message_changes.cpp
     src/message_history.cpp
     src/message_store.cpp
+    src/bundle_store.cpp
     src/archive_reader.cpp
     src/schema.cpp
     src/sqlite_mentions.cpp

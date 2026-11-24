@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <expected>
 #include <optional>
+#include <span>
 #include <string_view>
 #include <variant>
 
@@ -19,6 +20,7 @@ struct message_to_write
     std::optional<std::int64_t> forward_source{};
     bool markdown = false;
     bool mention_all = false;
+    std::span<std::int64_t const> bundle{};
 };
 
 enum class message_write_rejection
