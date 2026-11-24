@@ -98,6 +98,8 @@ class chat_session
 
     boost::capy::task<simdjson::error_code> handle_get_presence(json_rpc_request& request, std::string& response);
 
+    boost::capy::task<simdjson::error_code> handle_bulk_read(json_rpc_request& request, std::string& response);
+    boost::capy::task<> publish_read(std::int64_t conversation, std::int64_t message);
     boost::capy::task<simdjson::error_code> handle_mark_read(json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> handle_set_typing(json_rpc_request& request, std::string& response);
 

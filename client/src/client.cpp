@@ -3423,6 +3423,20 @@ void client::set_notification_level(std::int64_t conversation, notification_leve
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
         "set_notification_level", {{"conversation", conversation}, {"level", static_cast<int>(level)}, {"until", until}}, std::move(handler)));
 }
+void client::mark_conversations_read(std::optional<std::int64_t> conversation, std::optional<std::int64_t> folder, group_action_handler handler)
+{
+    boost::json::object params;
+    if (conversation)
+    {
+        params.emplace("conversation", *conversation);
+    }
+    if (folder)
+    {
+        params.emplace("folder", *folder);
+    }
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action("mark_conversations_read", std::move(params), std::move(handler)));
+}
+
 void client::set_unread_mark(std::int64_t conversation, bool marked, group_action_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(

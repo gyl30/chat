@@ -362,6 +362,10 @@ boost::capy::task<simdjson::error_code> chat_session::dispatch_request(json_rpc_
     {
         co_return co_await handle_message_reaction(request, response);
     }
+    if (request.method == "mark_conversations_read")
+    {
+        co_return co_await handle_bulk_read(request, response);
+    }
     if (request.method == "set_notification_level" || request.method == "set_unread_mark" || request.method == "set_conversation_pinned" ||
         request.method == "clear_history" || request.method == "hide_conversation")
     {

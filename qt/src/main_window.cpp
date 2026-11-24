@@ -530,6 +530,7 @@ void main_window::connect_conversation_preferences_and_avatar()
     connect(chat_page_, &chat_widget::delete_conversation_folder, client_.get(), &client_bridge::delete_conversation_folder);
     connect(chat_page_, &chat_widget::reorder_conversation_folder, client_.get(), &client_bridge::reorder_conversation_folder);
     connect(chat_page_, &chat_widget::move_conversation_to_folder, client_.get(), &client_bridge::move_conversation_to_folder);
+    connect(chat_page_, &chat_widget::mark_read_scope, client_.get(), &client_bridge::mark_read_scope);
     connect(chat_page_, &chat_widget::unread_mark_requested, client_.get(), &client_bridge::set_unread_mark);
     connect(&chat_page_->avatars(), &avatar_cache::requested, client_.get(), &client_bridge::get_avatar);
     connect(client_.get(), &client_bridge::conversation_folders_received, chat_page_, &chat_widget::set_folders);

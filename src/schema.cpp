@@ -130,6 +130,13 @@ CREATE TRIGGER IF NOT EXISTS ungroup_conversations BEFORE DELETE ON conversation
     UPDATE conversation_members SET folder_id=NULL WHERE user_id=OLD.owner_id AND folder_id=OLD.id;
 END;
 
+-- Sidebar membership includes hidden conversations only after new activity.
+CREATE VIEW IF NOT EXISTS listed_conversation_members AS
+    SELECT own.* FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id
+    WHERE (own.hidden_at IS NULL OR c.activity>own.hidden_at)
+      AND (c.kind='group' OR EXISTS(SELECT 1 FROM contacts WHERE owner_id=own.user_id AND contact_id=
+          CASE WHEN c.direct_user_low=own.user_id THEN c.direct_user_high ELSE c.direct_user_low END));
+
 -- Speech restrictions are not membership or notification preferences.
 CREATE TABLE IF NOT EXISTS group_member_mutes (
     conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,

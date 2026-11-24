@@ -58,6 +58,7 @@ class client_bridge final : public QObject
     void delete_conversation_folder(qint64 folder);
     void reorder_conversation_folder(qint64 folder, bool up);
     void move_conversation_to_folder(qint64 conversation, qint64 folder);
+    void mark_read_scope(qint64 conversation, qint64 folder);
     void set_unread_mark(qint64 conversation, bool marked);
     void set_conversation_pinned(qint64 conversation, bool pinned);
     void open_direct_conversation(qint64 user, QString username);

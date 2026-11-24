@@ -12,10 +12,8 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
         WITH page AS (
             SELECT c.*, own.folder_id, own.is_admin, own.pinned, own.notification_level, own.mute_until, own.unread_mark_message_id, own.last_read_message_id, own.visible_after,
                    CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END AS peer
-            FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id
-            WHERE own.user_id=?1 AND (own.hidden_at IS NULL OR c.activity>own.hidden_at)
-              AND (c.kind='group' OR EXISTS(SELECT 1 FROM contacts WHERE owner_id=?1 AND contact_id=
-                  CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END))
+            FROM listed_conversation_members own JOIN conversations c ON c.id=own.conversation_id
+            WHERE own.user_id=?1
               AND (own.pinned,c.activity,c.id)<(?2,?3,?4)
             ORDER BY own.pinned DESC,c.activity DESC,c.id DESC LIMIT 51
         ), visible AS (

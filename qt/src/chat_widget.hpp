@@ -188,6 +188,7 @@ class chat_widget final : public QWidget
     void delete_conversation_folder(qint64 folder);
     void reorder_conversation_folder(qint64 folder, bool up);
     void move_conversation_to_folder(qint64 conversation, qint64 folder);
+    void mark_read_scope(qint64 conversation, qint64 folder);
     void unread_mark_requested(qint64 conversation, bool marked);
     void pin_requested(qint64 conversation, bool pinned);
 

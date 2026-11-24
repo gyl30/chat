@@ -454,6 +454,11 @@ void client_bridge::move_conversation_to_folder(qint64 conversation, qint64 fold
 {
     client_->move_conversation_to_folder(conversation, folder, settings_result());
 }
+void client_bridge::mark_read_scope(qint64 conversation, qint64 folder)
+{
+    client_->mark_conversations_read(
+        conversation > 0 ? std::optional(conversation) : std::nullopt, folder >= 0 ? std::optional(folder) : std::nullopt, settings_result());
+}
 void client_bridge::set_unread_mark(qint64 conversation, bool marked) { client_->set_unread_mark(conversation, marked, settings_result()); }
 void client_bridge::set_conversation_pinned(qint64 conversation, bool pinned)
 {

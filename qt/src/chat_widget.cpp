@@ -286,6 +286,15 @@ QWidget* chat_widget::create_sidebar()
                                  edit_folder_name(0);
                              }
                          });
+    main_menu->addAction(QStringLiteral("所有会话标为已读"),
+                         this,
+                         [this]
+                         {
+                             if (connection_available_)
+                             {
+                                 emit mark_read_scope(0, -1);
+                             }
+                         });
     auto* search_messages = main_menu->addAction(QStringLiteral("全局消息搜索"));
     connect(search_messages, &QAction::triggered, this, [this] { emit global_search_requested(); });
     auto* bookmarks = main_menu->addAction(QStringLiteral("消息收藏"));
@@ -654,6 +663,7 @@ QWidget* chat_widget::create_sidebar()
                     levels->addAction(QStringLiteral("静音至 %1").arg(QDateTime::fromMSecsSinceEpoch(item->mute_until).toString("MM-dd HH:mm")))
                         ->setEnabled(false);
                 }
+                menu.addAction(QStringLiteral("标为已读"), this, [this, conversation] { emit mark_read_scope(conversation, -1); });
                 auto const mark = !item->marked_unread;
                 menu.addAction(mark ? QStringLiteral("标记未读") : QStringLiteral("清除未读标记"),
                                this,
@@ -3533,6 +3543,7 @@ void chat_widget::folder_menu(QPoint point, QModelIndex const& index)
     auto id = index.data(conversation_model::folder_role).toLongLong();
     auto name = index.data().toString();
     QMenu menu(this);
+    menu.addAction(QStringLiteral("全部标为已读"), this, [this, id] { emit mark_read_scope(0, id); });
     menu.addAction(QStringLiteral("新建分组"), this, [this] { edit_folder_name(0); });
     if (id)
     {
