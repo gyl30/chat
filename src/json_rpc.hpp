@@ -17,6 +17,14 @@ struct json_rpc_params
 {
     bool present = false;
     std::string json;
+
+    // Decode into owning fields: the on-demand document lives only for this call.
+    bool read(auto& value)
+    {
+        simdjson::ondemand::parser parser;
+        simdjson::ondemand::document document;
+        return present && !parser.iterate(json).get(document) && !document.get(value) && document.at_end();
+    }
 };
 
 struct json_rpc_request

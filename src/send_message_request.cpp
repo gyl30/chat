@@ -33,21 +33,8 @@ struct[[= simdjson::deny_unknown_fields]] send_message_params
     std::optional<std::int64_t> client_id;
 };
 
-simdjson::error_code parse_send_message_params(json_rpc_params& params, send_message_params& value, bool attaching)
+bool read_send_params(json_rpc_params& params, send_message_params& value, bool attaching)
 {
-    if (!params.present)
-    {
-        return simdjson::NO_SUCH_FIELD;
-    }
-
-    simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    auto error = parser.iterate(params.json).get(document);
-    if (error)
-    {
-        return error;
-    }
-
     if (attaching)
     {
         struct[[= simdjson::deny_unknown_fields]] finish_params
@@ -56,30 +43,28 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
             std::optional<std::int64_t> reply_to;
         };
         finish_params finish;
-        error = document.get(finish);
+        if (!params.read(finish) || finish.upload <= 0 || (finish.reply_to && *finish.reply_to <= 0))
+        {
+            return false;
+        }
         value.upload = finish.upload;
         value.reply_to = finish.reply_to;
+        return true;
     }
-    else
+    if (!params.read(value) || value.upload || value.conversation <= 0 || !value.client_id || *value.client_id <= 0 ||
+        (value.reply_to && *value.reply_to <= 0))
     {
-        error = document.get(value);
+        return false;
     }
-    if (error)
+    if (value.forward)
     {
-        return error;
+        return *value.forward > 0 && !value.text && !value.object_key && !value.reply_to;
     }
-
-    if (!document.at_end())
+    if (value.object_key)
     {
-        return simdjson::TRAILING_CONTENT;
+        return !value.text && !value.object_key->empty();
     }
-
-    if (value.reply_to && *value.reply_to <= 0)
-    {
-        return simdjson::INCORRECT_TYPE;
-    }
-
-    return simdjson::SUCCESS;
+    return value.text && !value.text->empty() && !value.text->contains('\0');
 }
 
 struct delivery
@@ -217,13 +202,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
 
     send_message_params params{};
     bool const attaching = request.method == "finish_attachment";
-    auto params_error = parse_send_message_params(request.params, params, attaching);
-    if (params_error || (attaching ? (!params.upload || *params.upload <= 0 || params.conversation != 0 || params.text.has_value())
-                                   : (params.upload || params.conversation <= 0 ||
-                                      (params.forward      ? (*params.forward <= 0 || params.text || params.object_key || params.reply_to)
-                                       : params.object_key ? (params.text.has_value() || params.object_key->empty())
-                                                           : (!params.text || params.text->empty())) ||
-                                      (params.text && params.text->contains('\0')) || !params.client_id || *params.client_id <= 0)))
+    if (!read_send_params(request.params, params, attaching))
     {
         if (request.id.present)
         {

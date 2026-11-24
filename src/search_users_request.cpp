@@ -19,40 +19,6 @@ struct[[= simdjson::deny_unknown_fields]] search_users_params
     std::string query;
 };
 
-simdjson::error_code parse_search_users_params(json_rpc_params& params, search_users_params& value)
-{
-    if (!params.present)
-    {
-        return simdjson::NO_SUCH_FIELD;
-    }
-
-    simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    auto error = parser.iterate(params.json).get(document);
-    if (error)
-    {
-        return error;
-    }
-
-    error = document.get(value);
-    if (error)
-    {
-        return error;
-    }
-
-    if (!document.at_end())
-    {
-        return simdjson::TRAILING_CONTENT;
-    }
-
-    if (value.query.empty())
-    {
-        return simdjson::INCORRECT_TYPE;
-    }
-
-    return simdjson::SUCCESS;
-}
-
 }    // namespace
 
 boost::capy::task<simdjson::error_code> chat_session::handle_search_users(json_rpc_request& request, std::string& response)
@@ -67,8 +33,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_search_users(json_r
     }
 
     search_users_params params{};
-    auto params_error = parse_search_users_params(request.params, params);
-    if (params_error)
+    if (!request.params.read(params) || params.query.empty())
     {
         if (request.id.present)
         {

@@ -26,40 +26,6 @@ struct[[= simdjson::deny_unknown_fields]] get_conversations_params
     std::optional<conversation_cursor> before;
 };
 
-simdjson::error_code parse_get_conversations_params(json_rpc_params& params, get_conversations_params& value)
-{
-    if (!params.present)
-    {
-        return simdjson::SUCCESS;
-    }
-
-    simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    auto error = parser.iterate(params.json).get(document);
-    if (error)
-    {
-        return error;
-    }
-
-    error = document.get(value);
-    if (error)
-    {
-        return error;
-    }
-
-    if (!document.at_end())
-    {
-        return simdjson::TRAILING_CONTENT;
-    }
-
-    if (value.before && (value.before->activity <= 0 || value.before->id <= 0 || !value.before->pinned))
-    {
-        return simdjson::INCORRECT_TYPE;
-    }
-
-    return simdjson::SUCCESS;
-}
-
 }    // namespace
 
 boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(json_rpc_request& request, std::string& response)
@@ -74,8 +40,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
     }
 
     get_conversations_params params{};
-    auto params_error = parse_get_conversations_params(request.params, params);
-    if (params_error)
+    if ((request.params.present && !request.params.read(params)) ||
+        (params.before && (params.before->activity <= 0 || params.before->id <= 0 || !params.before->pinned)))
     {
         if (request.id.present)
         {

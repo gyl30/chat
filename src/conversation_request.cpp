@@ -35,9 +35,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_create_conversation
         co_return serialize_json_rpc_error(-32001, "Authentication required", std::move(request.id), response);
     }
     create_conversation_params params;
-    simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    if (!request.params.present || parser.iterate(request.params.json).get(document) || document.get(params) || !document.at_end())
+    if (!request.params.read(params))
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
@@ -83,10 +81,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_members(json_rp
         std::int64_t conversation = 0;
     };
     params_type params;
-    simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    if (!request.params.present || parser.iterate(request.params.json).get(document) || document.get(params) || !document.at_end() ||
-        params.conversation <= 0)
+    if (!request.params.read(params) || params.conversation <= 0)
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }

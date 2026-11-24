@@ -29,10 +29,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
     };
     update_params params;
     auto const deleting = request.method == "delete_message";
-    simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    if (!request.params.present || parser.iterate(request.params.json).get(document) || document.get(params) || !document.at_end() ||
-        params.conversation <= 0 || params.message <= 0 ||
+    if (!request.params.read(params) || params.conversation <= 0 || params.message <= 0 ||
         (deleting ? params.text.has_value() : (!params.text || params.text->empty() || params.text->find('\0') != std::string::npos)))
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);

@@ -19,48 +19,6 @@ struct[[= simdjson::deny_unknown_fields]] mark_read_params
     std::int64_t message = 0;
 };
 
-simdjson::error_code parse_mark_read_params(json_rpc_params& params, mark_read_params& value)
-{
-    if (!params.present)
-    {
-        return simdjson::NO_SUCH_FIELD;
-    }
-
-    simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    auto error = parser.iterate(params.json).get(document);
-    if (error)
-    {
-        return error;
-    }
-
-    error = document.get(value);
-    if (error)
-    {
-        return error;
-    }
-
-    if (!document.at_end())
-    {
-        return simdjson::TRAILING_CONTENT;
-    }
-
-    if (value.conversation <= 0 || value.message <= 0)
-    {
-        return simdjson::INCORRECT_TYPE;
-    }
-
-    return simdjson::SUCCESS;
-}
-
-simdjson::error_code serialize_mark_read_result(std::string_view message, json_rpc_id id, std::string& response)
-{
-    std::string result = R"({"message":)";
-    result.append(message);
-    result.push_back('}');
-    return serialize_json_rpc_success(result, std::move(id), response);
-}
-
 }    // namespace
 
 boost::capy::task<simdjson::error_code> chat_session::handle_mark_read(json_rpc_request& request, std::string& response)
@@ -75,8 +33,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_mark_read(json_rpc_
     }
 
     mark_read_params params{};
-    auto params_error = parse_mark_read_params(request.params, params);
-    if (params_error)
+    if (!request.params.read(params) || params.conversation <= 0 || params.message <= 0)
     {
         if (request.id.present)
         {
@@ -96,7 +53,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_mark_read(json_rpc_
         co_return position ? serialize_json_rpc_invalid_params(std::move(request.id), response)
                            : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-    auto const read_message = std::to_string((*position)->message);
 
     if ((*position)->advanced)
     {
@@ -108,7 +64,11 @@ boost::capy::task<simdjson::error_code> chat_session::handle_mark_read(json_rpc_
         co_return simdjson::SUCCESS;
     }
 
-    co_return serialize_mark_read_result(read_message, std::move(request.id), response);
+    struct read_result
+    {
+        std::int64_t message;
+    };
+    co_return serialize_json_rpc_value(read_result{(*position)->message}, std::move(request.id), response);
 }
 
 boost::capy::task<> chat_session::publish_read(std::int64_t conversation, std::int64_t message)

@@ -22,10 +22,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_set_typing(json_rpc
         bool typing = false;
     };
     typing_params params;
-    simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    if (!request.params.present || parser.iterate(request.params.json).get(document) || document.get(params) || !document.at_end() ||
-        params.conversation <= 0)
+    if (!request.params.read(params) || params.conversation <= 0)
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }

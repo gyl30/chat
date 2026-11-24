@@ -52,35 +52,6 @@ struct[[= simdjson::deny_unknown_fields]] bookmark_list_params
 
 bool valid_search(std::string_view query) { return !query.empty() && query.size() <= 1024 && !query.contains('\0'); }
 
-simdjson::error_code parse_params(json_rpc_params& params, auto& value)
-{
-    if (!params.present)
-    {
-        return simdjson::NO_SUCH_FIELD;
-    }
-
-    simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    auto error = parser.iterate(params.json).get(document);
-    if (error)
-    {
-        return error;
-    }
-
-    error = document.get(value);
-    if (error)
-    {
-        return error;
-    }
-
-    if (!document.at_end())
-    {
-        return simdjson::TRAILING_CONTENT;
-    }
-
-    return simdjson::SUCCESS;
-}
-
 }    // namespace
 
 boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_rpc_request& request, std::string& response)
@@ -114,9 +85,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
             co_return simdjson::SUCCESS;
         }
         search_all_params params{};
-        auto const parse_error = parse_params(request.params, params);
+        bool const parsed = request.params.read(params);
         auto const category = params.category ? chat::parse_message_category(*params.category) : chat::message_category::all;
-        if (parse_error || !category || (params.query && !valid_search(*params.query)) || (params.before && *params.before <= 0) ||
+        if (!parsed || !category || (params.query && !valid_search(*params.query)) || (params.before && *params.before <= 0) ||
             (params.conversation && *params.conversation <= 0) || (params.sender && *params.sender <= 0) ||
             (params.start && params.end && *params.start >= *params.end) ||
             (!params.query && !params.conversation && *category == chat::message_category::all && !params.sender && !params.start && !params.end &&
@@ -136,9 +107,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
     }
     get_messages_params params{};
     bool const searching = request.method == "search_messages";
-    auto const parse_error = parse_params(request.params, params);
+    bool const parsed = request.params.read(params);
     auto const category = params.category ? chat::parse_message_category(*params.category) : std::nullopt;
-    if (parse_error || (params.category && !category) || params.conversation <= 0 || (params.before && *params.before <= 0) ||
+    if (!parsed || (params.category && !category) || params.conversation <= 0 || (params.before && *params.before <= 0) ||
         (params.after && (*params.after < 0 || params.before)) ||
         (params.around && (*params.around <= 0 || params.before || params.after || searching || category)) || (category && params.after) ||
         (params.capture_unread.value_or(false) && (searching || params.before || params.after || params.around || category)) ||
@@ -205,7 +176,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_message_bookmarks(j
     if (request.method == "list_message_bookmarks")
     {
         bookmark_list_params params;
-        if (parse_params(request.params, params) || (params.query && !valid_search(*params.query)) || (params.before && *params.before <= 0))
+        if (!request.params.read(params) || (params.query && !valid_search(*params.query)) || (params.before && *params.before <= 0))
         {
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
@@ -237,7 +208,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_message_bookmarks(j
 
     bookmark_params params;
     bool const setting = request.method == "set_message_bookmark";
-    if (parse_params(request.params, params) || params.message <= 0 || params.bookmarked.has_value() != setting)
+    if (!request.params.read(params) || params.message <= 0 || params.bookmarked.has_value() != setting)
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }

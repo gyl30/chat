@@ -23,13 +23,6 @@ struct[[= simdjson::deny_unknown_fields]] respond_params
     bool accept = false;
 };
 
-template <class T>
-bool parse_params(json_rpc_params& params, T& value)
-{
-    simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    return params.present && !parser.iterate(params.json).get(document) && !document.get(value) && document.at_end() && value.user > 0;
-}
 }    // namespace
 
 boost::capy::task<simdjson::error_code> chat_session::handle_contact_change(json_rpc_request& request, std::string& response)
@@ -71,12 +64,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_contact_change(json
     }
     contact_params params;
     respond_params answer;
-    bool parsed = request.method == "respond_friend_request" ? parse_params(request.params, answer) : parse_params(request.params, params);
+    bool parsed = request.method == "respond_friend_request" ? request.params.read(answer) : request.params.read(params);
     if (request.method == "respond_friend_request")
     {
         params.user = answer.user;
     }
-    if (!parsed || params.user == *user_id_)
+    if (!parsed || params.user <= 0 || params.user == *user_id_)
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }

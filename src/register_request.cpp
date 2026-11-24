@@ -26,20 +26,12 @@ struct register_result
     std::int64_t user = 0;
 };
 
-bool parse_register_params(json_rpc_params& params, register_params& value)
-{
-    simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    return params.present && !parser.iterate(params.json).get(document) && !document.get(value) && document.at_end() &&
-           chat::valid_username(value.username) && valid_password(value.password);
-}
-
 }    // namespace
 
 boost::capy::task<simdjson::error_code> chat_session::handle_register(json_rpc_request& request, std::string& response)
 {
     register_params params{};
-    if (!parse_register_params(request.params, params))
+    if (!request.params.read(params) || !chat::valid_username(params.username) || !valid_password(params.password))
     {
         if (request.id.present)
         {

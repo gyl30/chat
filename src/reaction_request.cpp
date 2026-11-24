@@ -34,10 +34,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_message_reaction(js
         co_return serialize_json_rpc_error(-32001, "Authentication required", std::move(request.id), response);
     }
     reaction_params params;
-    simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    if (!request.params.present || parser.iterate(request.params.json).get(document) || document.get(params) || !document.at_end() ||
-        params.conversation <= 0 || params.message <= 0 || !params.emoji ||
+    if (!request.params.read(params) || params.conversation <= 0 || params.message <= 0 || !params.emoji ||
         (!params.emoji->empty() && std::ranges::find(chat::reaction_choices, *params.emoji) == chat::reaction_choices.end()))
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
