@@ -1,6 +1,6 @@
-add_library(chat_lodepng STATIC lodepng.cpp)
-target_include_directories(chat_lodepng SYSTEM PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-target_compile_definitions(chat_lodepng
+add_library(lodepng STATIC lodepng.cpp)
+target_include_directories(lodepng SYSTEM PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_definitions(lodepng
     PUBLIC
         LODEPNG_NO_COMPILE_ENCODER
         LODEPNG_NO_COMPILE_DISK

@@ -4,7 +4,7 @@ The server's SQLite Unicode functions and Qt desktop client use vendored
 [utf8proc 2.12.0 / Unicode 18](../third/utf8proc/README.chat.md). CMake builds one static library.
 The service does not depend on Qt.
 
-When `CHAT_BUILD_QT_CLIENT=ON`, CMake derives Qt's emoji property header from the same pinned
+When `CHAT_BUILD_CLIENT=ON`, CMake derives Qt's emoji property header from the same pinned
 `cmake/unicode/emoji-data-18.0.0.txt`. Qt includes the unmodified generated scanner from
 [Google emoji-segmenter 0.4.0](../third/emoji-segmenter/README.chat.md).
 Neither dependency downloads at configure time. Ragel, Python and runtime data files are not needed.

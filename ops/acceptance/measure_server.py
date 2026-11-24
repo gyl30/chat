@@ -68,10 +68,8 @@ for name in ("get_messages_request", "send_message_request", "archive_reader"):
     args[out] = obj
     args[args.index(str(path))] = str(tmp)
     subprocess.run(args + ["-I" + str(path.parent)], cwd=unit["directory"], check=True)
-line = subprocess.check_output(["ninja", "-t", "commands", "chat_server"], cwd=build, text=True).splitlines()[-1]
+line = subprocess.check_output(["ninja", "-t", "commands", "server"], cwd=build, text=True).splitlines()[-1]
 args = shlex.split(line.split("&&")[1])
-archive = next(key for key in objects if key.endswith("/archive_reader.cpp.o"))
-args.insert(args.index(next(arg for arg in args if arg.endswith("libchat_sqlite_storage.a"))), archive)
 assert all(key in args for key in objects)
 args[args.index("-o") + 1] = str(target)
 subprocess.run([objects.get(arg, arg) for arg in args], cwd=build, check=True)

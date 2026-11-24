@@ -104,7 +104,7 @@ def chat(db, storage, *, server=None):
     listen = port()
     url = f"127.0.0.1:{listen}"
     with process(
-        [server or os.getenv("CHAT_TEST_SERVER", "build/chat_server"), str(listen), "8", str(db)],
+        [server or os.getenv("CHAT_TEST_SERVER", "build/server"), str(listen), "8", str(db)],
         dict(os.environ, **storage),
         "http://" + url + "/health",
     ):

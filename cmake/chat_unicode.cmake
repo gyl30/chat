@@ -8,7 +8,7 @@ block()
     add_subdirectory(third/utf8proc EXCLUDE_FROM_ALL)
 endblock()
 
-if(NOT CHAT_BUILD_QT_CLIENT)
+if(NOT CHAT_BUILD_CLIENT)
     return()
 endif()
 

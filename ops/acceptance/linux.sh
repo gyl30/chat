@@ -8,9 +8,9 @@ if [[ -f "$build/CMakeCache.txt" ]] && ! grep -Fxq 'CMAKE_BUILD_TYPE:STRING=Rele
     exit 2
 fi
 export CC=${CC:-gcc-16} CXX=${CXX:-g++-16} PYTHONDONTWRITEBYTECODE=1
-cmake -S . -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCHAT_BUILD_QT_CLIENT=ON
-cmake --build "$build" --target chat_server chat_client chat_qt -j "${JOBS:-8}"
-export CHAT_TEST_SERVER="$build/chat_server"
+cmake -S . -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCHAT_BUILD_CLIENT=ON
+cmake --build "$build" --target server sdk client -j "${JOBS:-8}"
+export CHAT_TEST_SERVER="$build/server"
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT
 python3 ops/acceptance/build_probe.py "$build" "$work/probe"

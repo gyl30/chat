@@ -14,8 +14,8 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" /usr/bin/python3 ops/chat_admin.py -
 新版 C++ 程序不需要这个前缀。核对实际已链接的服务端身份：
 
 ```sh
-"$RELEASE_BUILD/chat_server" --sqlite-version
-CHAT_TEST_SERVER="$RELEASE_BUILD/chat_server" \
+"$RELEASE_BUILD/server" --sqlite-version
+CHAT_TEST_SERVER="$RELEASE_BUILD/server" \
 CHAT_TEST_SQLITE_LIB="$SQLITE_PREFIX/lib/libsqlite3.so.0" \
     ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" /usr/bin/python3 ops/acceptance/wal.py
 ```

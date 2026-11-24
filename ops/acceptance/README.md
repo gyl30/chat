@@ -43,7 +43,7 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 
 ```sh
 work=$(mktemp -d)
-export CHAT_TEST_SERVER="$BUILD/chat_server"
+export CHAT_TEST_SERVER="$BUILD/server"
 python3 ops/acceptance/build_probe.py "$BUILD" "$work/sdk-qa" ops/acceptance/sdk_json_probe.cpp
 python3 ops/acceptance/sdk_json.py "$work/sdk-qa"
 ```
@@ -72,7 +72,7 @@ python3 ops/acceptance/sdk_json.py "$work/sdk-qa"
 
 ```sh
 work=$(mktemp -d)
-export CHAT_TEST_SERVER="$BUILD/chat_server"
+export CHAT_TEST_SERVER="$BUILD/server"
 python3 ops/acceptance/build_probe.py "$BUILD" "$work/qt-probe"
 python3 ops/acceptance/build_s3_probe.py "$BUILD" "$work/s3-probe"
 "$work/s3-probe"
@@ -101,7 +101,7 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/recovery.py "
 ```sh
 work=$(mktemp -d)
 python3 ops/acceptance/build_probe.py "$BUILD" "$work/probe"
-export CHAT_TEST_SERVER="$BUILD/chat_server"
+export CHAT_TEST_SERVER="$BUILD/server"
 ops/with-sqlite-runtime.sh "$SQLITE_PREFIX"   python3 ops/acceptance/reading_navigation.py "$work/probe" --native
 # 单独启动一个隔离的深色、进程级缩放及 Ctrl+Enter 场景
 QT_SCALE_FACTOR=1.5 ops/with-sqlite-runtime.sh "$SQLITE_PREFIX"   python3 ops/acceptance/reading_navigation.py "$work/probe" --native --theme dark --ctrl-enter
@@ -121,7 +121,7 @@ QT_SCALE_FACTOR=1.5 ops/with-sqlite-runtime.sh "$SQLITE_PREFIX"   python3 ops/ac
 
 ## 重复搜索测量
 
-先用上面的命令构建，或单独构建同配置的 Release `chat_server`。计时工具按该版本的编译数据库重编三个临时翻译单元，链接独立服务端。生产程序没有计时开关。比较历史版本时，每个版本使用自己的源码、构建目录和计时程序。
+先用上面的命令构建，或单独构建同配置的 Release `server`。计时工具按该版本的编译数据库重编三个临时翻译单元，链接独立服务端。生产程序没有计时开关。比较历史版本时，每个版本使用自己的源码、构建目录和计时程序。
 
 当前发送探针在 `run_db()` 的业务回调内，计时从调用前开始。`run_db()` 先在数据库工作器上执行 `login_active()`，再进入被计时的 `persist_delivery()`。因此当前 `send_queue` 包含工作器排队及登录校验，不能和旧版的纯队列等待直接比较；`send_db` 仍为 `persist_delivery()` 的执行耗时。下方历史样本仍按原口径解读。
 

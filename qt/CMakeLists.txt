@@ -4,7 +4,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 add_subdirectory("${PROJECT_SOURCE_DIR}/third/emoji-segmenter" "${PROJECT_BINARY_DIR}/third/emoji-segmenter" EXCLUDE_FROM_ALL)
 
-add_executable(chat_qt
+add_executable(client
     src/main.cpp
     src/avatar.cpp
     src/attachment_dialog.cpp
@@ -69,7 +69,7 @@ add_executable(chat_qt
     src/user_model.hpp
 )
 
-qt_add_resources(chat_qt chat_icons
+qt_add_resources(client chat_icons
     PREFIX "/icons"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons"
     FILES
@@ -100,20 +100,20 @@ qt_add_resources(chat_qt chat_icons
         resources/icons/window-restore.svg
 )
 
-set_target_properties(chat_qt PROPERTIES AUTOMOC ON)
-target_include_directories(chat_qt PRIVATE "${chat_unicode_include}")
+set_target_properties(client PROPERTIES AUTOMOC ON)
+target_include_directories(client PRIVATE "${chat_unicode_include}")
 
-target_link_libraries(chat_qt
+target_link_libraries(client
     PRIVATE
-        chat_client
+        sdk
         Qt6::Svg
         Qt6::Widgets
         utf8proc::utf8proc
-        chat_emoji_scanner
+        emoji_scanner
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_libraries(chat_qt PRIVATE Qt6::DBus)
+    target_link_libraries(client PRIVATE Qt6::DBus)
 endif()
 
 # Keep editable themes beside the executable in the build tree.

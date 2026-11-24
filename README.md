@@ -21,20 +21,20 @@ cd chat
 export CC=gcc-16 CXX=g++-16
 cmake -S . -B build-server -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DBoost_DIR=/usr/local/lib/cmake/Boost-1.92.0
-cmake --build build-server --target chat_server chat_client
+cmake --build build-server --target server sdk
 
 cmake -S . -B build-qt -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DBoost_DIR=/usr/local/lib/cmake/Boost-1.92.0 \
-    -DCHAT_BUILD_QT_CLIENT=ON -DCMAKE_PREFIX_PATH=/path/to/qt
-cmake --build build-qt --target chat_server chat_client chat_qt
+    -DCHAT_BUILD_CLIENT=ON -DCMAKE_PREFIX_PATH=/path/to/qt
+cmake --build build-qt --target server sdk client
 ```
 
 按实际安装路径调整 Boost、Qt；在默认搜索路径中时可省略对应参数。不需要安装 SQLite、libcurl 或 S3 SDK 的开发包。[SQLite 3.51.3](third/sqlite/README.md)、libcurl 8.23.0 和 Yxml 都从仓库内静态构建。子模块及系统工具链齐备后可离线配置，见[依赖说明](cmake/README.md)。C++ 构建不需要 Python。管理 SQLite 的 Python 需[单独使用同源私有库](ops/sqlite-runtime.md)。隔离验收和搜索测量见[验收入口](ops/acceptance/README.md)。
 
 ## 本地运行
 
-直接使用构建目录中的 `chat_server` 和 `qt/chat_qt`。Qt 主题文件由 CMake
-复制至对应构建目录的 `qt/themes/`，无需安装或打包。Silo/S3 服务需独立启动。
+构建产物为 `server`、`libsdk.a`，启用桌面客户端时另有 `qt/client`。Qt 主题文件由 CMake
+复制到 `qt/themes/`，无需安装或打包。Qt 应用名和原有配置、主题及 SDK 数据路径保持不变。Silo/S3 服务需独立启动。
 
 ## SQLite 与 Silo 启动
 
@@ -52,8 +52,8 @@ export CHAT_S3_REGION='us-east-1'
 export CHAT_S3_HTTPS=0  # 本地 HTTP；生产环境应使用 HTTPS
 
 mkdir -p "$HOME/chat-data"
-./build/chat_server 18080 32 "$HOME/chat-data/chat.sqlite3"
-./build/qt/chat_qt ws://127.0.0.1:18080/ws
+./build/server 18080 32 "$HOME/chat-data/chat.sqlite3"
+./build/qt/client ws://127.0.0.1:18080/ws
 ```
 
 SQLite 使用 WAL、`synchronous=FULL` 和外键约束。部署时确保数据库目录可写，
@@ -63,7 +63,7 @@ SQLite 使用 WAL、`synchronous=FULL` 和外键约束。部署时确保数据�
 公网或不受信网络可启用 TLS，使用成对的证书和私钥：
 
 ```sh
-./build/chat_server 18443 32 "$HOME/chat-data/chat.sqlite3" \
+./build/server 18443 32 "$HOME/chat-data/chat.sqlite3" \
     --tls-cert /path/fullchain.pem --tls-key /path/key.pem
 ```
 

@@ -78,16 +78,22 @@ add_subdirectory(third/sqlite EXCLUDE_FROM_ALL)
 include(cmake/chat_curl.cmake)
 add_subdirectory(third/yxml EXCLUDE_FROM_ALL)
 
-add_library(chat_client STATIC
+set(common_sources
+    src/sqlite_database.cpp
+    src/blocking_worker.cpp
+)
+
+add_library(sdk STATIC
+    ${common_sources}
     client/src/attachment_files.cpp
     client/src/client.cpp
     client/src/server_url.cpp
     client/src/websocket.cpp
 )
 
-target_include_directories(chat_client PUBLIC client/include PRIVATE src)
+target_include_directories(sdk PUBLIC client/include PRIVATE src)
 
-target_link_libraries(chat_client
+target_link_libraries(sdk
     PRIVATE
         Boost::corosio_openssl
         simdjson::simdjson
@@ -98,7 +104,9 @@ target_link_libraries(chat_client
         OpenSSL::Crypto
         Threads::Threads
         wslay
-        chat_storage_support
+        SQLite::SQLite3
+        utf8proc::utf8proc
+        spdlog::spdlog_header_only
         CURL::libcurl_static
 )
 
@@ -110,13 +118,33 @@ add_compile_options(
     -Wpedantic
 )
 
-option(CHAT_BUILD_QT_CLIENT "Build Qt Widgets client" OFF)
+option(CHAT_BUILD_CLIENT "Build Qt Widgets client" OFF)
 include(cmake/chat_unicode.cmake)
-if(CHAT_BUILD_QT_CLIENT)
+if(CHAT_BUILD_CLIENT)
     add_subdirectory(qt)
 endif()
 
-add_executable(chat_server
+add_executable(server
+    ${common_sources}
+    src/attachment_access.cpp
+    src/upload_store.cpp
+    src/attachment_cleanup.cpp
+    src/conversation_list.cpp
+    src/conversation_store.cpp
+    src/database.cpp
+    src/friendship_store.cpp
+    src/group_access_store.cpp
+    src/message_changes.cpp
+    src/message_history.cpp
+    src/message_store.cpp
+    src/archive_reader.cpp
+    src/schema.cpp
+    src/sqlite_mentions.cpp
+    src/user_store.cpp
+    src/attachment_io.cpp
+    src/s3_objects.cpp
+    src/s3_signer.cpp
+    src/s3_xml.cpp
     src/main.cpp
     src/user_profile_request.cpp
     src/avatar_request.cpp
@@ -153,9 +181,9 @@ add_executable(chat_server
     src/websocket.cpp
 )
 
-target_include_directories(chat_server PRIVATE src client/include)
+target_include_directories(server PRIVATE src client/include)
 
-target_link_libraries(chat_server
+target_link_libraries(server
     PRIVATE
         Boost::corosio_openssl
         OpenSSL::SSL
@@ -164,40 +192,12 @@ target_link_libraries(chat_server
         Boost::http
         Threads::Threads
         OpenSSL::Crypto
-        chat_attachment_storage
-        chat_lodepng
+        SQLite::SQLite3
+        utf8proc::utf8proc
+        CURL::libcurl_static
+        yxml
+        lodepng
         simdjson::simdjson
         spdlog::spdlog_header_only
         wslay
-)
-
-add_library(chat_storage_support STATIC src/sqlite_database.cpp src/blocking_worker.cpp)
-target_include_directories(chat_storage_support PUBLIC src)
-target_link_libraries(chat_storage_support PUBLIC Boost::capy SQLite::SQLite3 Threads::Threads PRIVATE utf8proc spdlog::spdlog_header_only)
-
-add_library(chat_sqlite_storage STATIC
-    src/attachment_access.cpp
-    src/upload_store.cpp
-    src/attachment_cleanup.cpp
-    src/conversation_list.cpp
-    src/conversation_store.cpp
-    src/database.cpp
-    src/friendship_store.cpp
-    src/group_access_store.cpp
-    src/message_changes.cpp
-    src/message_history.cpp
-    src/message_store.cpp
-    src/archive_reader.cpp
-    src/schema.cpp
-    src/sqlite_mentions.cpp
-    src/user_store.cpp
-)
-target_include_directories(chat_sqlite_storage PUBLIC src client/include)
-target_link_libraries(chat_sqlite_storage PUBLIC chat_storage_support
-    PRIVATE utf8proc OpenSSL::Crypto spdlog::spdlog_header_only)
-
-add_library(chat_attachment_storage STATIC src/attachment_io.cpp src/s3_objects.cpp src/s3_signer.cpp src/s3_xml.cpp)
-target_link_libraries(chat_attachment_storage
-    PUBLIC chat_sqlite_storage
-    PRIVATE CURL::libcurl_static chat_yxml OpenSSL::Crypto spdlog::spdlog_header_only
 )

@@ -49,7 +49,7 @@ async def fixture(binary=None, stderr=None):
             CHAT_S3_HTTPS="0",
         )
         server = await asyncio.create_subprocess_exec(
-            binary or os.environ.get("CHAT_TEST_SERVER", "build/chat_server"),
+            binary or os.environ.get("CHAT_TEST_SERVER", "build/server"),
             str(port),
             "16",
             str(db),
@@ -74,7 +74,7 @@ async def fixture(binary=None, stderr=None):
                             break
                     except OSError:
                         if server.returncode is not None:
-                            raise RuntimeError("chat_server exited during startup")
+                            raise RuntimeError("server exited during startup")
                         await asyncio.sleep(0.025)
                 a = await login("a", "a", True)
                 b = await login("b", "b", True)

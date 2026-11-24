@@ -83,7 +83,7 @@ CGO_ENABLED=0 go build -trimpath -tags kqueue --ldflags "$(go run buildscripts/g
 回归命令（临时卷、单节点、回环端口，不能指向线上实例）：
 
 ```sh
-SILO_BIN=/path/to/candidate/silo CHAT_TEST_SERVER=/path/to/candidate/chat_server     ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/silo_retention.py
+SILO_BIN=/path/to/candidate/silo CHAT_TEST_SERVER=/path/to/candidate/server     ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/silo_retention.py
 ```
 
 测试停写后将临时实例的 Silo 上传创建标识回拨 17 天，副本不设置过期覆盖，使用默认 24h 创建阈值和 1s 扫描周期，确证两个分片不可再列；另一份使用 `off`，等待多轮扫描仍保有相同分片。再把 Chat 活动时间分别设为 14/16 天前，确认只有后者被 Chat 终止，原设备用保留的同一 ID 从第二片续传，其他设备不能接管，仍被群文件引用的完整对象不变。另设旧、新普通临时目录，确认启用 `off` 后只清扫旧目录原路径；这不验证垃圾目录空间回收，也不是实际等待 15 天。
@@ -97,7 +97,7 @@ SILO_BIN=/path/to/candidate/silo CHAT_TEST_SERVER=/path/to/candidate/chat_server
 在已有 Bash 和 Apache `rotatelogs` 的 Linux 主机上，可为 Chat 进程单独设置大小轮转。先由管理员为服务账号准备日志目录，再按 README 配好运行环境。用下面的启动形式可保留服务端 PID，进程管理器可直接发送 SIGTERM。
 
 ```bash
-exec ./build/chat_server 8080 4 "$DB" \
+exec ./build/server 8080 4 "$DB" \
   > >(rotatelogs -n 5 /var/log/chat/server.log 10M) 2>&1
 ```
 

@@ -30,13 +30,13 @@ subprocess.run(
 )
 if (build / "build.ninja").exists():
     line = subprocess.check_output(
-        ["ninja", "-t", "commands", "chat_qt"], cwd=build, text=True
+        ["ninja", "-t", "commands", "client"], cwd=build, text=True
     ).splitlines()[-1]
     args = shlex.split(line.split("&&")[1])
     cwd = build
 else:
     cwd = build / "qt"
-    args = shlex.split((cwd / "CMakeFiles/chat_qt.dir/link.txt").read_text())
+    args = shlex.split((cwd / "CMakeFiles/client.dir/link.txt").read_text())
 args[args.index("-o") + 1] = str(target)
 (old,) = (a for a in args if a.endswith("/main.cpp.o"))
 args[args.index(old)] = str(obj)

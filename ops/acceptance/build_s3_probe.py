@@ -20,22 +20,27 @@ args += ["-UNDEBUG"]
 subprocess.run(args, cwd=line["directory"], check=True)
 
 link = subprocess.check_output(
-    ["ninja", "-t", "commands", "chat_server"], cwd=build, text=True
+    ["ninja", "-t", "commands", "server"], cwd=build, text=True
 ).splitlines()[-1]
-libraries = [
-    arg
-    for arg in shlex.split(link.split("&&")[1])
-    if "chat_attachment_storage" in arg
-    or "libcurl.a" in arg
-    or "libchat_yxml.a" in arg
-    or arg.endswith(("/libssl.so", "/libcrypto.so"))
+link_args = shlex.split(link.split("&&")[1])
+units = [
+    next(arg for arg in link_args if arg.endswith("/" + name + ".cpp.o"))
+    for name in ("s3_signer", "s3_xml")
 ]
-assert len(set(libraries)) == 5, libraries
+libraries = list(
+    dict.fromkeys(
+        arg
+        for arg in link_args
+        if arg.endswith(("/libcurl.a", "/libyxml.a", "/libssl.so", "/libcrypto.so"))
+    )
+)
+assert len(libraries) == 4, libraries
 subprocess.run(
     [
         args[0],
         str(obj),
-        *sorted(dict.fromkeys(libraries), key=lambda path: path.endswith(".so")),
+        *units,
+        *sorted(libraries, key=lambda path: path.endswith(".so")),
         "-pthread",
         "-o",
         output,
