@@ -140,6 +140,18 @@ async def run(root, probe):
                         is None
                     )
                     conn.execute("DROP TRIGGER reject_test_outbox")
+                # Request-size failure is distinct from the SQL failure above.
+                # Repeating without supplying new editor text proves it stayed in Qt.
+                body = '中"\\\n👩🏽‍💻' + "x" * 65537
+                gate.messages.clear()
+                for params in ({"text": body}, {}):
+                    await ui.call("text_save_barrier", hold=True)
+                    assert (await ui.call("send", **params))["enabled"]
+                    done = await ui.wait("text_save_barrier", lambda r: r["pending"])
+                    assert done["error"] == "内容过长，请缩短后重试", done
+                    await ui.call("text_save_barrier", release=True)
+                    assert saved(group) == (body, failed_anchor)
+                assert not any(r["method"] == "send_message" for r in gate.messages)
                 await ui.call("draft", text="退出时保存")
                 await ui.call("quit")
                 assert await asyncio.wait_for(ui.proc.wait(), 8) == 0
@@ -158,7 +170,7 @@ async def run(root, probe):
                     await select(direct)
                     assert (await ui.call("state"))["draft"] == ""
                 print(
-                    "PASS Qt draft switching/restart, account/endpoint isolation, reply reauthorization and recall, local completion barrier, newer draft and forced local transaction failure",
+                    "PASS Qt draft switching/restart, account/endpoint isolation, reply reauthorization and recall, local completion barrier, newer draft and forced local transaction / oversized frame failures",
                     flush=True,
                 )
             finally:

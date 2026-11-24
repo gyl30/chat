@@ -36,6 +36,24 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 
 默认项目构建不运行上述验收。查询 GitHub 时，仓库有 0 个注册的自托管 runner 和 0 个已有 workflow；本次 GCC 16、Boost 1.92 环境的执行证据来自本机。
 
+## SDK JSON-RPC 和 Unicode 定向验收
+
+在已有真实隔离服务端、SQLite 和 Release Qt 构建的环境中运行：
+
+```sh
+work=$(mktemp -d)
+export CHAT_TEST_SERVER="$BUILD/chat_server"
+python3 ops/acceptance/build_probe.py "$BUILD" "$work/sdk-qa" ops/acceptance/sdk_json_probe.cpp
+python3 ops/acceptance/sdk_json.py "$work/sdk-qa"
+```
+
+探针使用实际 SDK 和 Qt 文本分割函数。回环代理核对 65,535／65,536／65,537 字节的区别，
+并扣住一条响应，验证解析后的通知、重入请求、乱序响应和断线清理。服务端广播的 64 KiB
+限制仍独立于请求上限；请求从 SDK 发出后，可能正常收到业务拒绝。
+`drafts.py` 另验证超限文本本地拒绝后，输入、草稿和回复目标仍保留，没有发送 RPC。
+
+[2026-11-24 JSON 和 Unicode 依赖替换验收](results/simdjson-unicode-20261124.md)。
+
 ## 消息菜单、联系人与群文件定向回归
 
 在独立虚拟桌面或离屏环境复用同一 Release 探针及本节的隔离服务端、SQLite、Silo：
