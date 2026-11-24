@@ -13,6 +13,7 @@
 #include <QApplication>
 #include <QAction>
 #include <QClipboard>
+#include <QDesktopServices>
 #include <QGridLayout>
 #include <QComboBox>
 #include <QColor>
@@ -1863,6 +1864,13 @@ void chat_widget::show_message_menu(QPoint position)
     resume_reading_after_menu(menu);
     auto const message_id = index.data(message_model::id_role).toLongLong();
     auto* copy = !index.data(message_model::text_role).toString().isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
+    QStyleOptionViewItem option;
+    option.initFrom(messages_view_);
+    option.rect = messages_view_->visualRect(index);
+    auto const url =
+        messages_view_->selectionMode() == QAbstractItemView::ExtendedSelection ? QUrl{} : message_delegate::link_at(option, index, position);
+    auto* open_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("打开链接"));
+    auto* copy_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制链接"));
     auto* forward = menu.addAction(QStringLiteral("转发"));
     auto* bookmark = menu.addAction(QStringLiteral("正在查询收藏状态…"));
     bookmark->setEnabled(false);
@@ -1951,6 +1959,22 @@ void chat_widget::show_message_menu(QPoint position)
     if (conversation != active_conversation_ || message_id <= history_floor(conversation) || !target_index.isValid() ||
         target_index.data(message_model::deleted_role).toBool())
     {
+        return;
+    }
+    if (selected && (selected == open_link || selected == copy_link))
+    {
+        option.rect = messages_view_->visualRect(target_index);
+        if (message_delegate::link_at(option, target_index, position) == url)
+        {
+            if (selected == open_link)
+            {
+                QDesktopServices::openUrl(url);
+            }
+            else
+            {
+                QGuiApplication::clipboard()->setText(url.toString(QUrl::FullyEncoded));
+            }
+        }
         return;
     }
     if (copy && selected == copy)

@@ -2,6 +2,7 @@
 #define CHAT_QT_SRC_MESSAGE_DELEGATE_HPP
 
 #include <QStyledItemDelegate>
+#include <QUrl>
 
 class message_delegate final : public QStyledItemDelegate
 {
@@ -13,6 +14,9 @@ class message_delegate final : public QStyledItemDelegate
     void paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const override;
     QSize sizeHint(QStyleOptionViewItem const& option, QModelIndex const& index) const override;
     bool editorEvent(QEvent* event, QAbstractItemModel* model, QStyleOptionViewItem const& option, QModelIndex const& index) override;
+
+    static QUrl link_at(QStyleOptionViewItem const& option, QModelIndex const& index, QPoint position);
+    bool helpEvent(QHelpEvent* event, QAbstractItemView* view, QStyleOptionViewItem const& option, QModelIndex const& index) override;
 
    signals:
     void avatar_clicked(QModelIndex const& index);

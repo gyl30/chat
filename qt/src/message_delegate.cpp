@@ -1,5 +1,9 @@
 #include "message_delegate.hpp"
 #include "theme_manager.hpp"
+#include "message_links.hpp"
+#include <QHelpEvent>
+#include <QToolTip>
+#include <QDesktopServices>
 
 #include <algorithm>
 #include <memory>
@@ -160,6 +164,37 @@ struct message_layout
     int image_width = 0;
     int image_height = 0;
     std::unique_ptr<QTextLayout> text_layout;
+
+    QPoint text_origin(QRect const& row) const
+    {
+        auto x = outgoing ? row.right() - chat_theme::message_side_margin - bubble_width + 1
+                          : row.left() + chat_theme::message_side_margin + chat_theme::message_avatar_skip;
+        return {x + chat_theme::message_padding_horizontal,
+                row.top() + day_height + top_margin + chat_theme::message_padding_vertical + name_height + image_height};
+    }
+
+    QUrl link_at(QRect const& row, QPoint point) const
+    {
+        auto local = point - text_origin(row);
+        for (int i = 0; i < text_layout->lineCount(); ++i)
+        {
+            auto line = text_layout->lineAt(i);
+            if (!line.naturalTextRect().contains(local))
+            {
+                continue;
+            }
+            auto character = line.xToCursor(local.x(), QTextLine::CursorOnCharacter);
+            for (auto const& range : text_layout->formats())
+            {
+                if (range.format.isAnchor() && character >= range.start && character < range.start + range.length)
+                {
+                    return QUrl(range.format.anchorHref());
+                }
+            }
+            break;
+        }
+        return {};
+    }
 };
 
 message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex const& index)
@@ -242,6 +277,16 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     text_option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
     result.text_layout->setTextOption(text_option);
     auto formats = emoji_formats(text, option.font);
+    if (!index.data(message_model::deleted_role).toBool() && index.data(message_model::send_state_role).toInt() == message_model::sent &&
+        index.data(message_model::attachment_name_role).toString().isEmpty())
+    {
+        auto body = index.data(message_model::text_role).toString();
+        for (auto range : message_links(body))
+        {
+            range.start += static_cast<int>(text.size() - body.size());
+            formats.push_back(range);
+        }
+    }
     auto const mentions = index.data(message_model::mentions_role).value<QList<mention_data>>();
     if (!mentions.isEmpty())
     {
@@ -521,9 +566,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     }
     painter->setPen(themed("text"));
     auto const metadata_width = layout.time_width + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0) + layout.receipt_width;
-    auto const time_reserved = layout.time_on_text_line && metadata_width > 0 ? chat_theme::message_time_gap + metadata_width : 0;
-    QRect text_rect(content_left, content_top, std::max(1, content_right - content_left - time_reserved), layout.text_height);
-    layout.text_layout->draw(painter, text_rect.topLeft());
+    layout.text_layout->draw(painter, layout.text_origin(option.rect));
 
     if (metadata_width > 0)
     {
@@ -589,6 +632,25 @@ QSize message_delegate::sizeHint(QStyleOptionViewItem const& option, QModelIndex
     };
 }
 
+QUrl message_delegate::link_at(QStyleOptionViewItem const& option, QModelIndex const& index, QPoint position)
+{
+    return calculate_layout(option, index).link_at(option.rect, position);
+}
+
+bool message_delegate::helpEvent(QHelpEvent* event, QAbstractItemView* view, QStyleOptionViewItem const& option, QModelIndex const& index)
+{
+    if (event->type() == QEvent::ToolTip && view->selectionMode() != QAbstractItemView::ExtendedSelection)
+    {
+        auto url = link_at(option, index, event->pos());
+        if (!url.isEmpty())
+        {
+            QToolTip::showText(event->globalPos(), url.toString(QUrl::FullyEncoded).toHtmlEscaped(), view);
+            return true;
+        }
+    }
+    return QStyledItemDelegate::helpEvent(event, view, option, index);
+}
+
 bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QStyleOptionViewItem const& option, QModelIndex const& index)
 {
     (void)model;
@@ -609,6 +671,11 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QSt
     }
 
     auto const layout = calculate_layout(option, index);
+    if (auto url = layout.link_at(option.rect, mouse->position().toPoint()); !url.isEmpty())
+    {
+        QDesktopServices::openUrl(url);
+        return true;
+    }
     auto y = option.rect.top() + layout.day_height + layout.top_margin;
     auto const bubble_x = layout.outgoing ? option.rect.right() - chat_theme::message_side_margin - layout.bubble_width + 1
                                           : option.rect.left() + chat_theme::message_side_margin + chat_theme::message_avatar_skip;

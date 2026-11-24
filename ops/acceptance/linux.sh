@@ -32,3 +32,6 @@ python3 ops/acceptance/bulk_read.py
 python3 ops/acceptance/user_profiles.py "$work/probe"
 python3 ops/acceptance/group_profiles.py "$work/probe"
 python3 ops/acceptance/folder_interaction.py "$work/probe"
+python3 ops/acceptance/build_probe.py "$build" "$work/content-probe" ops/acceptance/message_content_probe.cpp
+mkdir -p "$work/content-data" "$work/content-config"
+QT_QPA_PLATFORM=offscreen XDG_DATA_HOME="$work/content-data" XDG_CONFIG_HOME="$work/content-config" "$work/content-probe"
