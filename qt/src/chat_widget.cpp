@@ -22,6 +22,7 @@
 #include <QMimeData>
 #include <QSettings>
 #include <QDrag>
+#include <QMouseEvent>
 #include <QUrl>
 #include <QFile>
 #include <QFileDialog>
@@ -102,19 +103,37 @@ class conversation_list_view final : public QListView
     std::function<void(qint64, qint64)> move_to_folder;
 
    protected:
-    void startDrag(Qt::DropActions) override
+    void mousePressEvent(QMouseEvent* event) override
     {
         auto* rooms = static_cast<conversation_model*>(model());
-        auto const* item = rooms->conversation_at(currentIndex());
-        if (!item || rooms->folders().isEmpty())
+        auto pos = event->position().toPoint();
+        auto const* item = rooms->conversation_at(indexAt(pos));
+        drag_conversation_ = event->button() == Qt::LeftButton && !rooms->folders().isEmpty() && item ? item->id : 0;
+        drag_origin_ = pos;
+        QListView::mousePressEvent(event);
+    }
+    void mouseMoveEvent(QMouseEvent* event) override
+    {
+        if (!drag_conversation_ || !(event->buttons() & Qt::LeftButton))
+        {
+            QListView::mouseMoveEvent(event);
+            return;
+        }
+        if ((event->position().toPoint() - drag_origin_).manhattanLength() < QApplication::startDragDistance())
         {
             return;
         }
+        // A sidebar refresh may reset the current index between the press and the drag.
         QDrag drag(this);
         auto* mime = new QMimeData;
-        mime->setData("application/x-chat-conversation", QByteArray::number(item->id));
+        mime->setData("application/x-chat-conversation", QByteArray::number(std::exchange(drag_conversation_, 0)));
         drag.setMimeData(mime);
         drag.exec(Qt::MoveAction);
+    }
+    void mouseReleaseEvent(QMouseEvent* event) override
+    {
+        drag_conversation_ = 0;
+        QListView::mouseReleaseEvent(event);
     }
     void dragEnterEvent(QDragEnterEvent* e) override
     {
@@ -141,6 +160,10 @@ class conversation_list_view final : public QListView
                        target.data(conversation_model::folder_role).toLongLong());
         e->acceptProposedAction();
     }
+
+   private:
+    qint64 drag_conversation_ = 0;
+    QPoint drag_origin_;
 };
 
 class chat_title_button final : public QPushButton
@@ -473,7 +496,7 @@ QWidget* chat_widget::create_sidebar()
     conversations_ = new conversation_model(this, &avatars_);
     auto* list = new conversation_list_view(conversations_page);
     conversations_view_ = list;
-    list->setDragDropMode(QAbstractItemView::DragDrop);
+    list->setDragDropMode(QAbstractItemView::DropOnly);
     list->move_to_folder = [this](qint64 id, qint64 folder)
     {
         if (connection_available_)
@@ -1664,6 +1687,49 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
                     send_image(dialog.selected_image());
                 }
             });
+    mention_button_ = new QToolButton(input_bar);
+    mention_button_->setText(QStringLiteral("@"));
+    mention_button_->setObjectName(QStringLiteral("mentionMemberButton"));
+    mention_button_->setToolTip(QStringLiteral("提及群成员"));
+    mention_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
+    input_layout->addWidget(mention_button_, 0, Qt::AlignBottom);
+    auto* candidates = new QMenu(mention_button_);
+    mention_button_->setMenu(candidates);
+    mention_button_->setPopupMode(QToolButton::InstantPopup);
+    connect(candidates,
+            &QMenu::aboutToShow,
+            this,
+            [this, candidates]
+            {
+                candidates->clear();
+                for (auto const& member : messages_->members())
+                {
+                    if (member.id == self_user_)
+                    {
+                        continue;
+                    }
+                    auto const name = user_display_name(member.username, member.nickname, friend_remark(member.id));
+                    auto* action = candidates->addAction(name == member.username ? name : QStringLiteral("%1 (@%2)").arg(name, member.username));
+                    connect(action,
+                            &QAction::triggered,
+                            this,
+                            [this, id = member.id, room = active_conversation_]
+                            {
+                                auto const& members = messages_->members();
+                                auto it = std::ranges::find(members, id, &member_data::id);
+                                if (active_conversation_ != room || it == members.end() || !can_send())
+                                {
+                                    return;
+                                }
+                                auto cursor = message_edit_->textCursor();
+                                auto prefix = cursor.selectionStart() > 0 && !cursor.document()->characterAt(cursor.selectionStart() - 1).isSpace()
+                                                  ? QStringLiteral(" @")
+                                                  : QStringLiteral("@");
+                                message_edit_->insertPlainText(prefix + it->username + QStringLiteral(" "));
+                                message_edit_->setFocus();
+                            });
+                }
+            });
     emoji_button_ = make_composer_button(QStringLiteral("emojiButton"), u"emoji", QStringLiteral("表情"));
     history_button_ = make_composer_button(QStringLiteral("chatHistoryButton"), u"history", QStringLiteral("聊天记录"));
     input_layout->addWidget(emoji_button_, 0, Qt::AlignBottom);
@@ -2024,6 +2090,14 @@ void chat_widget::show_message_menu(QPoint position)
 
 void chat_widget::connect_chat_controls()
 {
+    connect(this,
+            &chat_widget::profile_received,
+            this,
+            [this](qint64 id, QString const& login, QString const& nickname)
+            {
+                messages_->update_member_nickname(id, nickname);
+                update_author(id, user_display_name(login, nickname, friend_remark(id)));
+            });
     connect(conversation_search_, &QLineEdit::textChanged, this, [this] { filter_conversations(); });
     connect(conversations_,
             &QAbstractItemModel::modelReset,
@@ -2741,10 +2815,39 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
     set_message_status(QStringLiteral("选择一个会话开始聊天"));
 }
 
+void chat_widget::update_author(qint64 user, QString const& name)
+{
+    messages_->update_author(user, name);
+    if (reply_snapshot_.from == user)
+    {
+        reply_snapshot_.username = name;
+        reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(name, grapheme_prefix(reply_snapshot_.text, 80)));
+    }
+}
+
 void chat_widget::set_contacts(QList<user_data> contacts)
 {
     auto const selected = contacts_view_->currentIndex().data(user_model::id_role).toLongLong();
     auto const scroll = contacts_view_->verticalScrollBar()->value();
+    QHash<qint64, QString> previous_names;
+    for (int i = 0; i < contacts_->rowCount(); ++i)
+    {
+        auto const* previous = contacts_->user_at(contacts_->index(i, 0));
+        previous_names.insert(previous->id, previous->display_name());
+    }
+    for (auto const& contact : contacts)
+    {
+        auto const name = contact.display_name();
+        if (previous_names.take(contact.id) != name)
+        {
+            update_author(contact.id, name);
+        }
+    }
+    for (auto id : previous_names.keys())
+    {
+        // A former contact's signature and current public name depend on shared group membership.
+        emit profile_requested(id);
+    }
     contacts_->set_users(std::move(contacts));
     if (active_conversation_ > 0 && !active_group_ && !is_contact(active_peer_))
     {
@@ -3171,7 +3274,7 @@ void chat_widget::update_message(message_data message)
     }
     if (reply_to_ == message.id)
     {
-        show_reply({message.id, message.username, grapheme_prefix(message.text, 160), message.edited_at, message.deleted});
+        show_reply({message.id, message.username, grapheme_prefix(message.text, 160), message.edited_at, message.deleted, message.from});
     }
 }
 
@@ -3781,6 +3884,8 @@ void chat_widget::update_compose_state()
     send_button_->setEnabled(item && !blocked && !saving_text_ && !message_edit_->toPlainText().isEmpty() && (!reply_to_ || !reply_bar_->isHidden()));
     attachment_button_->setEnabled(allowed);
     screenshot_button_->setEnabled(allowed);
+    mention_button_->setVisible(active_group_);
+    mention_button_->setEnabled(allowed);
     emoji_button_->setEnabled(allowed);
     message_edit_->setPlaceholderText(QStringLiteral("输入消息…"));
     if (!allowed)
@@ -4339,7 +4444,7 @@ void chat_widget::validate_draft_reply(qint64 conversation, qint64 anchor, qint6
         discard_draft_reply(conversation, anchor, true);
         return;
     }
-    show_reply({message.id, message.username, grapheme_prefix(message.text, 160), message.edited_at, message.deleted});
+    show_reply({message.id, message.username, grapheme_prefix(message.text, 160), message.edited_at, message.deleted, message.from});
 }
 
 void chat_widget::reset_reply(qint64 reply)
@@ -4664,7 +4769,8 @@ quoted_message_data chat_widget::quote(qint64 message) const
                 index.data(message_model::sender_name_role).toString(),
                 grapheme_prefix(index.data(message_model::text_role).toString(), 160),
                 revision,
-                deleted};
+                deleted,
+                index.data(message_model::from_role).toLongLong()};
     }
     return reply_snapshot_.id == message ? reply_snapshot_ : quoted_message_data{message, {}, {}, 0, false};
 }
@@ -4913,6 +5019,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     account->setAlignment(Qt::AlignCenter);
     header_layout->insertWidget(header_layout->indexOf(name) + 1, account);
     auto* signature = new QLabel(info);
+    signature->setObjectName(QStringLiteral("profileSignatureText"));
     signature->setTextFormat(Qt::PlainText);
     signature->setWordWrap(true);
     info_layout->addWidget(signature);
@@ -4936,14 +5043,14 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
                 edit_profile->setProperty("nickname", nick);
                 edit_profile->setEnabled(connection_available_);
             });
-    connect(this,
-            &chat_widget::profile_changed,
+    connect(contacts_,
+            &QAbstractItemModel::modelReset,
             &dialog,
-            [this, user](qint64 id)
+            [this, name, account, edit_profile, user]
             {
-                if (user == id)
+                if (!account->text().isEmpty())
                 {
-                    emit profile_requested(user);
+                    name->setText(user_display_name(account->text(), edit_profile->property("nickname").toString(), friend_remark(user)));
                 }
             });
     connect(copy_username_button, &QToolButton::clicked, &dialog, [account] { QGuiApplication::clipboard()->setText(account->text()); });
@@ -4972,6 +5079,17 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
                     emit profile_edit_requested(nick.text(), text.text());
                 }
             });
+    if (user != self_user_)
+    {
+        connect(this,
+                &chat_widget::profile_access_changed,
+                &dialog,
+                [this, user, signature]
+                {
+                    signature->clear();
+                    emit profile_requested(user);
+                });
+    }
     emit profile_requested(user);
     setup_profile_friendship(dialog, info_layout, relationship, message_button, user, username);
     if (user == self_user_)

@@ -156,7 +156,8 @@ class chat_widget final : public QWidget
     void contact_add_requested(qint64 user);
     void friend_request_respond_requested(qint64 user, bool accept);
     void friend_request_cancel_requested(qint64 user);
-    void profile_changed(qint64 user);
+
+    void profile_access_changed();
     void profile_requested(qint64 user);
     void profile_received(qint64 user, QString username, QString nickname, QString signature);
     void profile_edit_requested(QString nickname, QString signature);
@@ -253,6 +254,7 @@ class chat_widget final : public QWidget
     void edit_folder_name(qint64 folder, QString current = {});
     void folder_menu(QPoint point, QModelIndex const& index);
     void toggle_folder(qint64 folder);
+    void update_author(qint64 user, QString const& name);
     void filter_conversations();
     void set_list_status(QString text);
     void update_main_menu();
@@ -338,6 +340,7 @@ class chat_widget final : public QWidget
     QLineEdit* conversation_search_ = nullptr;
     QToolButton* chat_more_button_ = nullptr;
     QToolButton* screenshot_button_ = nullptr;
+    QToolButton* mention_button_ = nullptr;
     QToolButton* emoji_button_ = nullptr;
     QToolButton* history_button_ = nullptr;
     // The action awaiting its result per user, so the result can be reported in words.

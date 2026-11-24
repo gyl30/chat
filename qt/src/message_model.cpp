@@ -22,7 +22,7 @@ void merge_reply(quoted_message_data& reply, QList<message_data> const& messages
     auto const target = std::ranges::lower_bound(messages, reply.id, {}, &message_data::id);
     if (target != messages.cend() && target->id == reply.id && (target->deleted || target->edited_at > reply.edited_at))
     {
-        reply = {target->id, target->username, grapheme_prefix(target->text, 160), target->edited_at, target->deleted};
+        reply = {target->id, target->username, grapheme_prefix(target->text, 160), target->edited_at, target->deleted, target->from};
     }
 }
 
@@ -464,7 +464,7 @@ void message_model::update_message(message_data const& message)
         }
         if (current.reply.id == message.id && !current.reply.deleted && (message.deleted || message.edited_at > current.reply.edited_at))
         {
-            current.reply = {message.id, message.username, grapheme_prefix(message.text, 160), message.edited_at, message.deleted};
+            current.reply = {message.id, message.username, grapheme_prefix(message.text, 160), message.edited_at, message.deleted, message.from};
             changed = true;
         }
         if (changed)
@@ -519,6 +519,40 @@ void message_model::set_read_positions(read_positions positions)
     if (!messages_.isEmpty())
     {
         emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_count_role, Qt::AccessibleTextRole});
+    }
+}
+
+void message_model::update_author(qint64 user, QString const& name)
+{
+    for (int i = 0; i < messages_.size(); ++i)
+    {
+        auto& m = messages_[i];
+        if (m.from != user && m.reply.from != user && m.forwarded_user != user)
+        {
+            continue;
+        }
+        if (m.from == user)
+        {
+            m.username = name;
+        }
+        if (m.reply.from == user)
+        {
+            m.reply.username = name;
+        }
+        if (m.forwarded_user == user)
+        {
+            m.forwarded_from = name;
+        }
+        emit dataChanged(index(i, 0), index(i, 0), {sender_name_role, reply_text_role, forwarded_from_role, Qt::AccessibleTextRole});
+    }
+}
+
+void message_model::update_member_nickname(qint64 user, QString const& nickname)
+{
+    auto it = std::ranges::find(members_, user, &member_data::id);
+    if (it != members_.end())
+    {
+        it->nickname = nickname;
     }
 }
 

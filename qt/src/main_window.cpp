@@ -367,10 +367,12 @@ void main_window::setup_chat_page()
 {
     chat_page_ = new chat_widget(pages_);
     client_->friend_remark = [this](qint64 id) { return chat_page_->friend_remark(id); };
+    connect(client_.get(), &client_bridge::friendship_changed, chat_page_, &chat_widget::profile_access_changed);
+    connect(client_.get(), &client_bridge::conversation_changed, chat_page_, &chat_widget::profile_access_changed);
     connect(chat_page_, &chat_widget::profile_requested, client_.get(), &client_bridge::get_user_profile);
     connect(chat_page_, &chat_widget::profile_edit_requested, client_.get(), &client_bridge::set_user_profile);
     connect(client_.get(), &client_bridge::profile_received, chat_page_, &chat_widget::profile_received);
-    connect(client_.get(), &client_bridge::profile_changed, chat_page_, &chat_widget::profile_changed);
+
     chat_page_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     if (!QCoreApplication::organizationName().isEmpty() && !QCoreApplication::applicationName().isEmpty())
     {

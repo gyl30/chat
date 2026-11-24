@@ -129,7 +129,7 @@ void create_group_dialog::setup_contact_picker()
             {
                 for (int row = 0; row < list_->count(); ++row)
                 {
-                    list_->item(row)->setHidden(!list_->item(row)->text().contains(query, Qt::CaseInsensitive));
+                    list_->item(row)->setHidden(!list_->item(row)->data(user_model::search_role).toString().contains(query, Qt::CaseInsensitive));
                 }
             });
 }
@@ -202,13 +202,15 @@ void create_group_dialog::set_contacts(user_model const& contacts, qint64 self, 
             {
                 continue;
             }
-            auto* item = new QListWidgetItem(avatar_icon(user->username, 32, avatars.image(user->id)), user->username, list_);
+            auto* item = new QListWidgetItem(avatar_icon(user->username, 32, avatars.image(user->id)), user->display_name(), list_);
             item->setData(Qt::UserRole, user->id);
             item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
             item->setCheckState(chosen.contains(user->id) ? Qt::Checked : Qt::Unchecked);
+            auto search = contacts.index(row, 0).data(user_model::search_role).toString();
+            item->setData(user_model::search_role, search);
             item->setToolTip(user->username);
             item->setSizeHint(QSize(0, 50));
-            item->setHidden(!user->username.contains(search_->text(), Qt::CaseInsensitive));
+            item->setHidden(!search.contains(search_->text(), Qt::CaseInsensitive));
         }
     }
     update_selection();

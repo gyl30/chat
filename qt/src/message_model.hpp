@@ -74,6 +74,9 @@ class message_model final : public QAbstractListModel
     void set_read_message(qint64 user, qint64 message);
     qint64 read_position(qint64 user) const { return read_positions_.value(user); }
     void set_read_positions(read_positions positions);
+    void update_author(qint64 user, QString const& name);
+    void update_member_nickname(qint64 user, QString const& nickname);
+    QList<member_data> const& members() const { return members_; }
     void set_members(QList<member_data> members);
     QList<member_data> read_members(qint64 message) const;
     bool can_manage_group() const;

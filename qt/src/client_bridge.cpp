@@ -81,14 +81,16 @@ quoted_message_data client_bridge::to_reply_data(std::optional<chat::quoted_mess
                                        user_display_name(from_utf8(reply->username), from_utf8(reply->nickname), friend_remark(reply->from)),
                                        from_utf8(reply->text),
                                        reply->edited_at.value_or(0),
-                                       reply->deleted}
+                                       reply->deleted,
+                                       reply->from}
                  : quoted_message_data{};
 }
 
 message_data client_bridge::to_message_data(chat::message const& value)
 {
     message_data message;
-    message.forwarded_from = from_utf8(value.forwarded_from);
+    message.forwarded_user = value.forwarded_user;
+    message.forwarded_from = user_display_name(from_utf8(value.forwarded_from), {}, friend_remark(value.forwarded_user));
     message.id = value.id;
     message.acknowledgement_only = value.acknowledgement_only;
     message.conversation = value.conversation;
@@ -223,6 +225,7 @@ client_bridge::client_bridge(QObject* parent)
                             get_contacts();
                             get_conversations();
                             get_friend_requests();
+                            get_user_profile(id);
                             emit profile_changed(id);
                         });
         });

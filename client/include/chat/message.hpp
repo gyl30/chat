@@ -69,6 +69,7 @@ struct mention
 struct message
 {
     std::string nickname{};
+    std::int64_t forwarded_user = 0;
     std::string forwarded_from{};
     std::int64_t id = 0;
     std::int64_t conversation = 0;

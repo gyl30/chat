@@ -27,3 +27,8 @@ python3 ops/acceptance/downloads.py "$work/probe"
 python3 ops/acceptance/downloads.py "$work/probe" --stalls
 dbus-run-session -- python3 ops/acceptance/recovery.py "$work/probe"
 python3 ops/acceptance/desktop.py "$work/probe"
+python3 ops/acceptance/conversation_folders.py "$work/probe"
+python3 ops/acceptance/bulk_read.py
+python3 ops/acceptance/user_profiles.py "$work/probe"
+python3 ops/acceptance/group_profiles.py "$work/probe"
+python3 ops/acceptance/folder_interaction.py "$work/probe"

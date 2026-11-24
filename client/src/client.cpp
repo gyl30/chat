@@ -322,6 +322,10 @@ bool parse_mentions(boost::json::object const& object, std::vector<mention>& res
 bool parse_message(boost::json::object const& object, message& value)
 {
     value.nickname = string_field(object, "nickname");
+    if (auto* sender = object.if_contains("forwarded_user"); sender && sender->is_int64())
+    {
+        value.forwarded_user = sender->as_int64();
+    }
     if (auto* origin = object.if_contains("forwarded_from"); origin && origin->is_string())
     {
         value.forwarded_from = std::string(origin->as_string());

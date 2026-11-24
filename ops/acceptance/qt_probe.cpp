@@ -26,6 +26,7 @@
 #include <QPlainTextEdit>
 #include <QSocketNotifier>
 #include <QTimer>
+#include <QToolButton>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTreeWidget>
@@ -48,11 +49,11 @@
 
 namespace
 {
-void choose_menu_action(QWidget* view, QPoint point, QString const& label)
+void choose_menu_action(QWidget* view, QPoint point, QString const& label, QString const& child = {})
 {
     QTimer::singleShot(0,
                        view,
-                       [label]
+                       [label, child]
                        {
                            auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
                            if (!menu)
@@ -63,6 +64,19 @@ void choose_menu_action(QWidget* view, QPoint point, QString const& label)
                            {
                                if (action->text() == label)
                                {
+                                   if (!child.isEmpty() && action->menu())
+                                   {
+                                       for (auto* item : action->menu()->actions())
+                                       {
+                                           if (item->text() == child && item->isEnabled())
+                                           {
+                                               item->trigger();
+                                               break;
+                                           }
+                                       }
+                                       menu->close();
+                                       return;
+                                   }
                                    menu->setActiveAction(action);
                                    QKeyEvent key(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
                                    QApplication::sendEvent(menu, &key);
@@ -249,6 +263,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         {
             button("friendRequestRejectButton")->click();
         }
+        if (cmd["selfProfile"].toBool())
+        {
+            QTimer::singleShot(0, chat, [chat] { chat->show_user_details(chat->self_user(), QStringLiteral("a")); });
+        }
         if (cmd["profile"].toBool())
         {
             auto const index = chat->contacts_view_->model()->index(0, 0);
@@ -262,7 +280,24 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         if (auto* profile = chat->findChild<QDialog*>("profileDialog"))
         {
             out["profile"] = profile->findChild<QLabel*>("profileDialogName")->text();
-            out["friend"] = profile->findChild<QPushButton*>("removeContactButton")->isVisible();
+            auto* editor = profile->findChild<QPushButton*>("editUserProfile");
+            out["signature"] = profile->findChild<QLabel*>("profileSignatureText")->text();
+            out["canEdit"] = editor->isVisible() && editor->isEnabled();
+            if (cmd.contains("nickname") && out["canEdit"].toBool())
+            {
+                QTimer::singleShot(0,
+                                   profile,
+                                   [nick = cmd["nickname"].toString(), sig = cmd["signature"].toString()]
+                                   {
+                                       auto* d = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                                       d->findChild<QLineEdit*>("profileNickname")->setText(nick);
+                                       d->findChild<QLineEdit*>("profileSignature")->setText(sig);
+                                       d->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();
+                                   });
+                editor->click();
+            }
+            auto* remove = profile->findChild<QPushButton*>("removeContactButton");
+            out["friend"] = remove && remove->isVisible();
             if (cmd["closeProfile"].toBool())
             {
                 profile->reject();
@@ -1232,6 +1267,64 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             }
         }
     }
+    else if (op == "sidebar_action")
+    {
+        auto* cm = static_cast<conversation_model*>(conv->model());
+        auto label = cmd["action"].toString();
+        auto folder = cmd["folder"];
+        auto index = cm->index_for_conversation(cmd["conversation"].toInteger());
+        if (!folder.isUndefined())
+        {
+            for (int row = 0; row < cm->rowCount(); ++row)
+            {
+                auto ix = cm->index(row, 0);
+                if (ix.data(conversation_model::folder_header_role).toBool() &&
+                    ix.data(conversation_model::folder_role).toLongLong() == folder.toInteger())
+                {
+                    index = ix;
+                    break;
+                }
+            }
+        }
+        if (index.isValid())
+        {
+            auto pos = conv->visualRect(index).center();
+            auto global = conv->viewport()->mapToGlobal(pos);
+            out["point"] = QJsonArray{global.x(), global.y()};
+            out["membership"] = index.data(conversation_model::folder_role).toLongLong();
+            if (!label.isEmpty())
+            {
+                choose_menu_action(conv, pos, label, cmd["destination"].toString());
+            }
+        }
+        else if (!label.isEmpty())
+        {
+            auto* menu = window.findChild<QMenu*>("mainNavigationMenu");
+            for (auto* action : menu->actions())
+            {
+                if (action->text() == label)
+                {
+                    action->trigger();
+                    break;
+                }
+            }
+        }
+    }
+    else if (op == "mention")
+    {
+        auto* menu = window.findChild<QToolButton*>("mentionMemberButton")->menu();
+        menu->aboutToShow();
+        QJsonArray labels;
+        for (auto* item : menu->actions())
+        {
+            labels.append(item->text());
+            if (cmd["choose"].toString() == item->text())
+            {
+                item->trigger();
+            }
+        }
+        out["labels"] = labels;
+    }
     else if (op == "toggle_folder")
     {
         auto* cm = static_cast<conversation_model*>(conv->model());
@@ -1489,7 +1582,14 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         for (int i = 0; i < model->rowCount(); ++i)
         {
             auto idx = model->index(i, 0);
-            rows.append(QJsonObject{{"text", idx.data(message_model::text_role).toString()}, {"id", idx.data(message_model::id_role).toLongLong()}});
+            QJsonObject row{{"text", idx.data(message_model::text_role).toString()}, {"id", idx.data(message_model::id_role).toLongLong()}};
+            if (cmd["authors"].toBool())
+            {
+                row["author"] = idx.data(message_model::sender_name_role).toString();
+                row["forward"] = idx.data(message_model::forwarded_from_role).toString();
+                row["quote"] = idx.data(message_model::reply_text_role).toString();
+            }
+            rows.append(row);
         }
         out["rows"] = rows;
     }

@@ -31,7 +31,7 @@ constexpr std::string_view kMessageColumns = R"SQL(
     SELECT m.id,m.sender_id,u.username,u.avatar_revision,avatar.user_id IS NOT NULL,
            m.body,m.created_at,m.edited_at,m.deleted,m.reaction_revision,m.client_id,
            r.id,r.sender_id,author.username,substr(r.body,1,160),r.edited_at,r.deleted,
-           a.filename,a.media_type,a.size,a.object_key,coalesce(nullif(origin.nickname,''),origin.username),u.nickname,author.nickname
+           a.filename,a.media_type,a.size,a.object_key,coalesce(nullif(origin.nickname,''),origin.username),u.nickname,author.nickname,origin.id
     FROM readable_messages m JOIN users u ON u.id=m.sender_id
     JOIN conversation_members own ON own.conversation_id=m.conversation_id AND own.user_id=?1 AND m.id>own.visible_after
     LEFT JOIN users origin ON origin.id=m.original_sender AND m.deleted=0
@@ -132,6 +132,7 @@ chat::message read_message_row(sqlite_statement const& row, std::int64_t user, s
     message.nickname = row.column_text(22);
     message.avatar = {row.column_int64(3), row.column_int64(4) != 0};
     message.text = row.column_text(5);
+    message.forwarded_user = row.column_int64(24);
     message.forwarded_from = row.column_text(21);
     message.timestamp = row.column_int64(6);
     message.edited_at = optional_integer(row, 7);

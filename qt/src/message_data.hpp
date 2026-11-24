@@ -33,6 +33,7 @@ struct quoted_message_data
     QString text;
     qint64 edited_at = 0;
     bool deleted = false;
+    qint64 from = 0;
 };
 
 struct reaction_data
@@ -51,6 +52,7 @@ Q_DECLARE_METATYPE(QList<mention_data>)
 
 struct message_data
 {
+    qint64 forwarded_user = 0;
     QString forwarded_from{};
     qint64 id = 0;
     qint64 conversation = 0;
