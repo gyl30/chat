@@ -17,17 +17,59 @@ conversation_model::conversation_model(QObject* parent, avatar_cache* avatars) :
                         auto const& item = conversations_[row];
                         if (item.user == user && !item.group)
                         {
-                            emit dataChanged(index(row, 0), index(row, 0), {Qt::DecorationRole});
+                            auto ix = index_for_conversation(item.id);
+                            emit dataChanged(ix, ix, {Qt::DecorationRole});
                         }
                     }
                 });
     }
 }
 
-int conversation_model::rowCount(QModelIndex const& parent) const { return parent.isValid() ? 0 : conversations_.size(); }
+Qt::ItemFlags conversation_model::flags(QModelIndex const& index) const
+{
+    auto result = QAbstractListModel::flags(index);
+    if (index.isValid() && !folders_.isEmpty())
+    {
+        result |= Qt::ItemIsDropEnabled;
+        if (conversation_at(index))
+        {
+            result |= Qt::ItemIsDragEnabled;
+        }
+    }
+    return result;
+}
+
+int conversation_model::rowCount(QModelIndex const& parent) const { return parent.isValid() ? 0 : rows_.size(); }
 
 QVariant conversation_model::data(QModelIndex const& index, int role) const
 {
+    if (!index.isValid())
+    {
+        return {};
+    }
+    int const entry = rows_[index.row()];
+    if (entry < 0)
+    {
+        auto const folder = -entry - 1;
+        if (role == folder_header_role)
+        {
+            return true;
+        }
+        auto id = folder < folders_.size() ? folders_[folder].first : qint64(0);
+        if (role == collapsed_role)
+        {
+            return collapsed_.contains(id);
+        }
+        if (role == folder_role)
+        {
+            return id;
+        }
+        if (role == Qt::DisplayRole)
+        {
+            return folder < folders_.size() ? folders_[folder].second : QStringLiteral("未分组");
+        }
+        return {};
+    }
     auto const* item = conversation_at(index);
     if (!item)
     {
@@ -40,6 +82,8 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
             return item->remark.isEmpty() ? item->username : item->remark;
         case username_role:
             return item->username;
+        case folder_role:
+            return item->folder;
         case group_role:
             return item->group;
         case last_text_role:
@@ -63,6 +107,50 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
     }
 }
 
+void conversation_model::set_folders(conversation_folder_list folders)
+{
+    if (folders_ == folders)
+    {
+        return;
+    }
+    beginResetModel();
+    folders_ = std::move(folders);
+    build_rows();
+    endResetModel();
+}
+
+void conversation_model::build_rows()
+{
+    rows_.clear();
+    if (folders_.isEmpty())
+    {
+        for (int i = 0; i < conversations_.size(); ++i)
+        {
+            rows_.append(i);
+        }
+        return;
+    }
+    QHash<qint64, QList<int>> groups;
+    for (int i = 0; i < conversations_.size(); ++i)
+    {
+        groups[conversations_[i].folder].append(i);
+    }
+    for (int i = 0; i < folders_.size(); ++i)
+    {
+        rows_.append(-i - 1);
+        rows_.append(groups.take(folders_[i].first));
+    }
+    rows_.append(-static_cast<int>(folders_.size()) - 1);
+    // A folder may have been deleted between two pages of the same refresh.
+    for (int i = 0; i < conversations_.size(); ++i)
+    {
+        if (groups.contains(conversations_[i].folder))
+        {
+            rows_.append(i);
+        }
+    }
+}
+
 void conversation_model::set_conversations(QList<conversation_data> conversations)
 {
     if (avatars_)
@@ -77,6 +165,7 @@ void conversation_model::set_conversations(QList<conversation_data> conversation
     }
     beginResetModel();
     conversations_ = std::move(conversations);
+    build_rows();
     endResetModel();
 }
 
@@ -87,7 +176,7 @@ void conversation_model::discard_through(qint64 conversation, qint64 floor)
     {
         return;
     }
-    auto& item = conversations_[ix.row()];
+    auto& item = conversations_[rows_[ix.row()]];
     if (item.pinned_message.id <= floor)
     {
         item.pinned_message = {};
@@ -108,9 +197,10 @@ void conversation_model::remove_conversation(qint64 conversation)
     {
         return;
     }
-    beginRemoveRows({}, item.row(), item.row());
-    conversations_.removeAt(item.row());
-    endRemoveRows();
+    beginResetModel();
+    conversations_.removeAt(rows_[item.row()]);
+    build_rows();
+    endResetModel();
 }
 
 void conversation_model::set_online(qint64 user, bool online)
@@ -129,7 +219,7 @@ void conversation_model::set_online(qint64 user, bool online)
         }
 
         item.online = online;
-        auto const item_index = index(row, 0);
+        auto const item_index = index_for_conversation(item.id);
         emit dataChanged(item_index, item_index, {online_role});
         return;
     }
@@ -140,7 +230,7 @@ void conversation_model::set_notifications(qint64 conversation, chat::notificati
     auto ix = index_for_conversation(conversation);
     if (ix.isValid())
     {
-        auto& item = conversations_[ix.row()];
+        auto& item = conversations_[rows_[ix.row()]];
         item.notifications = level;
         item.mute_until = until;
         emit dataChanged(ix, ix, {muted_role});
@@ -149,28 +239,28 @@ void conversation_model::set_notifications(qint64 conversation, chat::notificati
 void conversation_model::set_pinned(qint64 conversation, bool pinned)
 {
     auto const item_index = index_for_conversation(conversation);
-    if (!item_index.isValid() || conversations_[item_index.row()].pinned == pinned)
+    if (!item_index.isValid() || conversations_[rows_[item_index.row()]].pinned == pinned)
     {
         return;
     }
-    conversations_[item_index.row()].pinned = pinned;
+    conversations_[rows_[item_index.row()]].pinned = pinned;
     emit dataChanged(item_index, item_index, {pinned_role});
 }
 
 conversation_data const* conversation_model::conversation_at(QModelIndex const& index) const
 {
-    if (!index.isValid() || index.row() < 0 || index.row() >= conversations_.size())
+    if (!index.isValid() || index.row() < 0 || index.row() >= rows_.size() || rows_[index.row()] < 0)
     {
         return nullptr;
     }
-    return &conversations_[index.row()];
+    return &conversations_[rows_[index.row()]];
 }
 
 QModelIndex conversation_model::index_for_conversation(qint64 conversation) const
 {
-    for (int row = 0; row < conversations_.size(); ++row)
+    for (int row = 0; row < rows_.size(); ++row)
     {
-        if (conversations_[row].id == conversation)
+        if (rows_[row] >= 0 && conversations_[rows_[row]].id == conversation)
         {
             return index(row, 0);
         }

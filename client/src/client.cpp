@@ -44,6 +44,7 @@ struct login_session_list
 };
 BOOST_DESCRIBE_STRUCT(login_session, (), (id, device_name, client_type, created_at, last_seen, current))
 BOOST_DESCRIBE_STRUCT(login_session_list, (), (sessions))
+BOOST_DESCRIBE_STRUCT(conversation_folder, (), (id, name))
 BOOST_DESCRIBE_STRUCT(conversation_view_event, (), (conversation, action, through, level, until))
 BOOST_DESCRIBE_STRUCT(contact_entry, (), (id, username, avatar_revision, has_avatar, remark, group))
 BOOST_DESCRIBE_STRUCT(contact_book, (), (users, groups))
@@ -461,6 +462,10 @@ std::expected<conversation, error> parse_conversation(boost::json::value const& 
     }
     conversation item;
     item.id = *id;
+    if (auto* folder = object.if_contains("folder"); folder && folder->is_int64())
+    {
+        item.folder = folder->as_int64();
+    }
     item.username = std::string(name->as_string());
     if (auto* remark = object.if_contains("remark"); remark && remark->is_string())
     {
@@ -1468,6 +1473,19 @@ struct client::impl
                              return;
                          }
                          conversations_result result;
+                         auto const* folders = response->as_object().if_contains("folders");
+                         if (!folders)
+                         {
+                             handler(std::unexpected(make_error(error_kind::protocol, "Missing conversation folders")));
+                             return;
+                         }
+                         auto values = boost::json::try_value_to<std::vector<conversation_folder>>(*folders);
+                         if (!values)
+                         {
+                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation folders")));
+                             return;
+                         }
+                         result.folders = std::move(*values);
                          for (auto const& value : list->as_array())
                          {
                              auto item = parse_conversation(value);
@@ -3410,6 +3428,36 @@ void client::set_unread_mark(std::int64_t conversation, bool marked, group_actio
     boost::capy::run_async(impl_->io_context_.get_executor())(
         impl_->group_action("set_unread_mark", {{"conversation", conversation}, {"marked", marked}}, std::move(handler)));
 }
+void client::create_conversation_folder(std::string name, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("create_conversation_folder", {{"name", std::move(name)}}, std::move(handler)));
+}
+
+void client::rename_conversation_folder(std::int64_t folder, std::string name, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("rename_conversation_folder", {{"folder", folder}, {"name", std::move(name)}}, std::move(handler)));
+}
+
+void client::delete_conversation_folder(std::int64_t folder, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("delete_conversation_folder", {{"folder", folder}}, std::move(handler)));
+}
+
+void client::reorder_conversation_folder(std::int64_t folder, bool up, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("reorder_conversation_folder", {{"folder", folder}, {"up", up}}, std::move(handler)));
+}
+
+void client::move_conversation_to_folder(std::int64_t conversation, std::int64_t folder, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("move_conversation_to_folder", {{"conversation", conversation}, {"folder", folder}}, std::move(handler)));
+}
+
 void client::set_conversation_pinned(std::int64_t conversation, bool pinned, pin_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->request_bool(

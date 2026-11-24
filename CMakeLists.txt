@@ -135,6 +135,7 @@ add_executable(chat_server
     src/login_session_store.cpp
     src/update_message_request.cpp
     src/reaction_request.cpp
+    src/conversation_folder_request.cpp
     src/conversation_preference_request.cpp
     src/typing_request.cpp
     src/get_contacts_request.cpp

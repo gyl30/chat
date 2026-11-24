@@ -152,6 +152,11 @@ class client
     void get_conversations(std::optional<conversation_cursor> before, conversations_handler handler);
     void set_notification_level(std::int64_t conversation, notification_level level, std::int64_t until, group_action_handler handler);
     void set_unread_mark(std::int64_t conversation, bool marked, group_action_handler handler);
+    void create_conversation_folder(std::string name, group_action_handler handler);
+    void rename_conversation_folder(std::int64_t folder, std::string name, group_action_handler handler);
+    void delete_conversation_folder(std::int64_t folder, group_action_handler handler);
+    void reorder_conversation_folder(std::int64_t folder, bool up, group_action_handler handler);
+    void move_conversation_to_folder(std::int64_t conversation, std::int64_t folder, group_action_handler handler);
     void set_conversation_pinned(std::int64_t conversation, bool pinned, pin_handler handler);
     void open_direct_conversation(std::int64_t user, conversation_handler handler);
     void create_group(std::string title, std::vector<std::int64_t> members, conversation_handler handler);

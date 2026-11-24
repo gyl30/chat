@@ -39,6 +39,7 @@
 #include <tuple>
 #include <utility>
 #include "conversation_model.hpp"
+#include "conversation_delegate.hpp"
 #include "message_model.hpp"
 #include "user_model.hpp"
 #include "theme_manager.hpp"
@@ -1155,6 +1156,21 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 {
                     d->reject();
                 }
+            }
+        }
+    }
+    else if (op == "toggle_folder")
+    {
+        auto* cm = static_cast<conversation_model*>(conv->model());
+        for (int row = 0; row < cm->rowCount(); ++row)
+        {
+            auto index = cm->index(row, 0);
+            if (index.data(conversation_model::folder_header_role).toBool() &&
+                index.data(conversation_model::folder_role).toLongLong() == cmd["folder"].toInteger())
+            {
+                auto* delegate = static_cast<conversation_delegate*>(conv->itemDelegate());
+                emit delegate->body_clicked(index);
+                break;
             }
         }
     }

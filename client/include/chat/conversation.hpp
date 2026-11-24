@@ -45,6 +45,7 @@ struct conversation_cursor
 struct conversation
 {
     std::int64_t id = 0;
+    std::int64_t folder = 0;
     conversation_kind kind = conversation_kind::direct;
     std::int64_t user = 0;
     std::string username;
@@ -66,8 +67,15 @@ struct conversation
     std::int64_t server_time = 0;
 };
 
+struct conversation_folder
+{
+    std::int64_t id;
+    std::string name;
+};
+
 struct conversations_result
 {
+    std::vector<conversation_folder> folders;
     std::vector<conversation> conversations;
     std::optional<conversation_cursor> next;
 };

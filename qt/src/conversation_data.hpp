@@ -9,10 +9,13 @@
 #include <QtGlobal>
 #include "message_data.hpp"
 
+using conversation_folder_list = QList<QPair<qint64, QString>>;
+
 struct conversation_data
 {
     qint64 id = 0;
     bool group = false;
+    qint64 folder = 0;
     qint64 user = 0;
     QString username;
     QString remark{};

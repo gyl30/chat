@@ -367,6 +367,12 @@ boost::capy::task<simdjson::error_code> chat_session::dispatch_request(json_rpc_
     {
         co_return co_await handle_conversation_preference(request, response);
     }
+    if (request.method == "create_conversation_folder" || request.method == "rename_conversation_folder" ||
+        request.method == "delete_conversation_folder" || request.method == "reorder_conversation_folder" ||
+        request.method == "move_conversation_to_folder")
+    {
+        co_return co_await handle_conversation_folder(request, response);
+    }
     if (request.method == "set_friend_remark" || request.method == "move_friend" || request.method == "create_friend_group" ||
         request.method == "rename_friend_group" || request.method == "delete_friend_group")
     {

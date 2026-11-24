@@ -20,6 +20,8 @@
 #include <QDialogButtonBox>
 #include <QDropEvent>
 #include <QMimeData>
+#include <QSettings>
+#include <QDrag>
 #include <QUrl>
 #include <QFile>
 #include <QFileDialog>
@@ -92,6 +94,54 @@ QString local_file_path(QUrl url)
     }
     return url.host().isEmpty() ? url.toLocalFile() : QString{};
 }
+
+class conversation_list_view final : public QListView
+{
+   public:
+    using QListView::QListView;
+    std::function<void(qint64, qint64)> move_to_folder;
+
+   protected:
+    void startDrag(Qt::DropActions) override
+    {
+        auto* rooms = static_cast<conversation_model*>(model());
+        auto const* item = rooms->conversation_at(currentIndex());
+        if (!item || rooms->folders().isEmpty())
+        {
+            return;
+        }
+        QDrag drag(this);
+        auto* mime = new QMimeData;
+        mime->setData("application/x-chat-conversation", QByteArray::number(item->id));
+        drag.setMimeData(mime);
+        drag.exec(Qt::MoveAction);
+    }
+    void dragEnterEvent(QDragEnterEvent* e) override
+    {
+        if (e->source() == this)
+        {
+            e->acceptProposedAction();
+        }
+    }
+    void dragMoveEvent(QDragMoveEvent* e) override
+    {
+        if (e->source() == this && indexAt(e->position().toPoint()).isValid())
+        {
+            e->acceptProposedAction();
+        }
+    }
+    void dropEvent(QDropEvent* e) override
+    {
+        auto target = indexAt(e->position().toPoint());
+        if (e->source() != this || !target.isValid())
+        {
+            return;
+        }
+        move_to_folder(e->mimeData()->data("application/x-chat-conversation").toLongLong(),
+                       target.data(conversation_model::folder_role).toLongLong());
+        e->acceptProposedAction();
+    }
+};
 
 class chat_title_button final : public QPushButton
 {
@@ -227,6 +277,15 @@ QWidget* chat_widget::create_sidebar()
     contacts_action_->setObjectName(QStringLiteral("showContactsAction"));
     contacts_action_->setIcon(svg_icon(u"contacts", themed("text"), QSize(20, 20)));
     chats_action_->setCheckable(true);
+    main_menu->addAction(QStringLiteral("新建会话分组"),
+                         this,
+                         [this]
+                         {
+                             if (connection_available_)
+                             {
+                                 edit_folder_name(0);
+                             }
+                         });
     auto* search_messages = main_menu->addAction(QStringLiteral("全局消息搜索"));
     connect(search_messages, &QAction::triggered, this, [this] { emit global_search_requested(); });
     auto* bookmarks = main_menu->addAction(QStringLiteral("消息收藏"));
@@ -403,7 +462,16 @@ QWidget* chat_widget::create_sidebar()
     conversations_layout->addWidget(conversations_status_);
 
     conversations_ = new conversation_model(this, &avatars_);
-    conversations_view_ = new QListView(conversations_page);
+    auto* list = new conversation_list_view(conversations_page);
+    conversations_view_ = list;
+    list->setDragDropMode(QAbstractItemView::DragDrop);
+    list->move_to_folder = [this](qint64 id, qint64 folder)
+    {
+        if (connection_available_)
+        {
+            emit move_conversation_to_folder(id, folder);
+        }
+    };
     conversations_view_->setObjectName(QStringLiteral("conversationList"));
     conversations_view_->setAccessibleName(QStringLiteral("会话列表"));
     conversations_view_->setModel(conversations_);
@@ -505,14 +573,33 @@ QWidget* chat_widget::create_sidebar()
                 }
                 emit group_join_requested(QString::fromStdString(*token));
             });
-    connect(conversations_delegate, &conversation_delegate::body_clicked, this, [this](QModelIndex const& index) { select_conversation(index); });
+    connect(conversations_delegate,
+            &conversation_delegate::body_clicked,
+            this,
+            [this](QModelIndex const& index)
+            {
+                if (index.data(conversation_model::folder_header_role).toBool())
+                {
+                    toggle_folder(index.data(conversation_model::folder_role).toLongLong());
+                }
+                else
+                {
+                    select_conversation(index);
+                }
+            });
     connect(conversations_view_, &QListView::activated, this, &chat_widget::select_conversation);
     connect(conversations_view_,
             &QWidget::customContextMenuRequested,
             this,
             [this](QPoint point)
             {
-                auto const* item = conversations_->conversation_at(conversations_view_->indexAt(point));
+                auto const ix = conversations_view_->indexAt(point);
+                if (connection_available_ && ix.data(conversation_model::folder_header_role).toBool())
+                {
+                    folder_menu(point, ix);
+                    return;
+                }
+                auto const* item = conversations_->conversation_at(ix);
                 if (!connection_available_ || !item)
                 {
                     return;
@@ -530,6 +617,20 @@ QWidget* chat_widget::create_sidebar()
                                        emit pin_requested(conversation, pinned);
                                    }
                                });
+                if (!conversations_->folders().isEmpty())
+                {
+                    auto* move = menu.addMenu(QStringLiteral("移动到分组"));
+                    auto add = [this, move, conversation, current = item->folder](qint64 id, QString const& name)
+                    {
+                        move->addAction(name, this, [this, conversation, id] { emit move_conversation_to_folder(conversation, id); })
+                            ->setEnabled(id != current);
+                    };
+                    for (auto const& [id, name] : conversations_->folders())
+                    {
+                        add(id, name);
+                    }
+                    add(0, QStringLiteral("未分组"));
+                }
                 auto* levels = menu.addMenu(QStringLiteral("通知"));
                 auto add_level = [&, conversation](QString title, chat::notification_level level, qint64 duration)
                 {
@@ -1628,7 +1729,7 @@ void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows
     {
         auto const ix = conversations_->index(row, 0);
         auto const* room = conversations_->conversation_at(ix);
-        if (!room->speech_blocked())
+        if (room && !room->speech_blocked())
         {
             auto* item = new QListWidgetItem(ix.data().toString(), targets);
             item->setData(Qt::UserRole, room->id);
@@ -2040,7 +2141,7 @@ void chat_widget::connect_chat_controls()
     }
 }
 
-void chat_widget::set_user(QString const& username, qint64 user)
+void chat_widget::set_user(QString const& username, qint64 user, QString const& server)
 {
     flush_draft();
     contacts_feedback_->clear();
@@ -2056,6 +2157,14 @@ void chat_widget::set_user(QString const& username, qint64 user)
     avatar_updating_ = false;
     self_username_ = username;
     self_user_ = user;
+    folder_settings_key_ = QStringLiteral("collapsedFolders/%1/%2").arg(QString::fromLatin1(server.toUtf8().toHex())).arg(user);
+    QSet<qint64> collapsed;
+    for (auto const& id : QSettings().value(folder_settings_key_).toStringList())
+    {
+        collapsed.insert(id.toLongLong());
+    }
+    conversations_->set_collapsed(std::move(collapsed));
+    conversations_->set_folders({});
     self_profile_action_->setIcon(avatar_icon(username, 24));
     self_profile_action_->setEnabled(user > 0);
     history_floors_.clear();
@@ -3383,6 +3492,60 @@ void chat_widget::request_friend_action(qint64 user, QString const& username, in
     emit friendship_updated();
 }
 
+void chat_widget::set_folders(conversation_folder_list folders) { conversations_->set_folders(std::move(folders)); }
+void chat_widget::toggle_folder(qint64 folder)
+{
+    auto collapsed = conversations_->collapsed();
+    if (!collapsed.remove(folder))
+    {
+        collapsed.insert(folder);
+    }
+    QStringList ids;
+    for (auto id : collapsed)
+    {
+        ids.append(QString::number(id));
+    }
+    conversations_->set_collapsed(std::move(collapsed));
+    QSettings().setValue(folder_settings_key_, ids);
+    filter_conversations();
+    conversations_view_->viewport()->update();
+}
+void chat_widget::edit_folder_name(qint64 folder, QString current)
+{
+    bool ok = false;
+    auto name = QInputDialog::getText(this, QStringLiteral("会话分组"), QStringLiteral("分组名称（最多 32 个字符）"), QLineEdit::Normal, current, &ok)
+                    .trimmed();
+    if (!ok || name.isEmpty())
+    {
+        return;
+    }
+    if (folder)
+    {
+        emit rename_conversation_folder(folder, name);
+    }
+    else
+    {
+        emit create_conversation_folder(name);
+    }
+}
+void chat_widget::folder_menu(QPoint point, QModelIndex const& index)
+{
+    auto id = index.data(conversation_model::folder_role).toLongLong();
+    auto name = index.data().toString();
+    QMenu menu(this);
+    menu.addAction(QStringLiteral("新建分组"), this, [this] { edit_folder_name(0); });
+    if (id)
+    {
+        menu.addAction(QStringLiteral("重命名"), this, [this, id, name] { edit_folder_name(id, name); });
+        menu.addAction(QStringLiteral("上移"), this, [this, id] { emit reorder_conversation_folder(id, true); })
+            ->setEnabled(conversations_->folders().front().first != id);
+        menu.addAction(QStringLiteral("下移"), this, [this, id] { emit reorder_conversation_folder(id, false); })
+            ->setEnabled(conversations_->folders().back().first != id);
+        menu.addAction(QStringLiteral("删除分组"), this, [this, id] { emit delete_conversation_folder(id); });
+    }
+    menu.exec(conversations_view_->viewport()->mapToGlobal(point));
+}
+
 void chat_widget::filter_conversations()
 {
     auto const query = conversation_search_->text().trimmed();
@@ -3390,9 +3553,16 @@ void chat_widget::filter_conversations()
     for (int row = 0; row < conversations_->rowCount(); ++row)
     {
         auto const index = conversations_->index(row, 0);
-        auto const matched = query.isEmpty() || index.data(Qt::DisplayRole).toString().contains(query, Qt::CaseInsensitive) ||
-                             index.data(conversation_model::username_role).toString().contains(query, Qt::CaseInsensitive) ||
-                             index.data(conversation_model::last_text_role).toString().contains(query, Qt::CaseInsensitive);
+        if (index.data(conversation_model::folder_header_role).toBool())
+        {
+            conversations_view_->setRowHidden(row, !query.isEmpty());
+            continue;
+        }
+        auto const matched = (query.isEmpty() && (conversations_->folders().isEmpty() ||
+                                                  !conversations_->collapsed().contains(index.data(conversation_model::folder_role).toLongLong()))) ||
+                             (!query.isEmpty() && (index.data(Qt::DisplayRole).toString().contains(query, Qt::CaseInsensitive) ||
+                                                   index.data(conversation_model::username_role).toString().contains(query, Qt::CaseInsensitive) ||
+                                                   index.data(conversation_model::last_text_role).toString().contains(query, Qt::CaseInsensitive)));
         conversations_view_->setRowHidden(row, !matched);
         shown += matched;
     }
@@ -3411,6 +3581,10 @@ void chat_widget::update_main_menu()
     {
         auto const index = conversations_->index(row, 0);
         auto const* item = conversations_->conversation_at(index);
+        if (!item)
+        {
+            continue;
+        }
         if (item->notifications == chat::notification_level::muted && item->mute_until > now && (nearest == 0 || item->mute_until < nearest))
         {
             nearest = item->mute_until;
@@ -3606,11 +3780,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     }
     if (!existing.isValid())
     {
-        QList<conversation_data> items;
-        for (int row = 0; row < conversations_->rowCount(); ++row)
-        {
-            items.push_back(*conversations_->conversation_at(conversations_->index(row, 0)));
-        }
+        auto items = conversations_->items();
         items.push_back(conversation);
         conversations_->set_conversations(std::move(items));
     }

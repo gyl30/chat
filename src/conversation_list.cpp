@@ -10,7 +10,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
     constexpr auto max = std::numeric_limits<std::int64_t>::max();
     auto query = db.prepare(R"SQL(
         WITH page AS (
-            SELECT c.*, own.is_admin, own.pinned, own.notification_level, own.mute_until, own.unread_mark_message_id, own.last_read_message_id, own.visible_after,
+            SELECT c.*, own.folder_id, own.is_admin, own.pinned, own.notification_level, own.mute_until, own.unread_mark_message_id, own.last_read_message_id, own.visible_after,
                    CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END AS peer
             FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id
             WHERE own.user_id=?1 AND (own.hidden_at IS NULL OR c.activity>own.hidden_at)
@@ -22,8 +22,10 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
             SELECT * FROM page ORDER BY pinned DESC,activity DESC,id DESC LIMIT 50
         )
         SELECT json_object(
+            'folders',json((SELECT json_group_array(json_object('id',id,'name',name)) FROM
+                (SELECT id,name FROM conversation_folders WHERE owner_id=?1 AND (SELECT count(*) FROM page)<=50 ORDER BY position,id))),
             'conversations', json((SELECT json_group_array(json_object(
-                'id',c.id,'kind',c.kind,'user',c.peer,'username',coalesce(c.title,u.username),
+                'id',c.id,'folder',coalesce(c.folder_id,0),'kind',c.kind,'user',c.peer,'username',coalesce(c.title,u.username),
                 'remark',coalesce(ct.remark,''),'avatar_revision',coalesce(u.avatar_revision,0),
                 'has_avatar',json(CASE WHEN avatar.user_id IS NULL THEN 'false' ELSE 'true' END),
                 'activity',c.activity,'notification_level',c.notification_level,'mute_until',c.mute_until,

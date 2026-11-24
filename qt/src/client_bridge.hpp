@@ -53,6 +53,11 @@ class client_bridge final : public QObject
     void clear_history(qint64 conversation, qint64 through);
     void change_history_view(qint64 conversation, bool hide);
     void set_notification_level(qint64 conversation, chat::notification_level level, qint64 until);
+    void create_conversation_folder(QString name);
+    void rename_conversation_folder(qint64 folder, QString name);
+    void delete_conversation_folder(qint64 folder);
+    void reorder_conversation_folder(qint64 folder, bool up);
+    void move_conversation_to_folder(qint64 conversation, qint64 folder);
     void set_unread_mark(qint64 conversation, bool marked);
     void set_conversation_pinned(qint64 conversation, bool pinned);
     void open_direct_conversation(qint64 user, QString username);
@@ -144,6 +149,7 @@ class client_bridge final : public QObject
     void login_sessions_received(quint64 request, std::vector<chat::login_session> sessions, QString error_message);
     void login_management_finished(QString message, bool success);
     void logout_finished(QString error_message);
+    void conversation_folders_received(conversation_folder_list folders);
     void conversations_received(QList<conversation_data> conversations, QString error_message);
     void pin_finished(qint64 conversation, bool pinned, QString error_message);
     void friendship_changed();

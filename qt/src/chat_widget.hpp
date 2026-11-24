@@ -55,7 +55,7 @@ class chat_widget final : public QWidget
     avatar_cache& avatars() { return avatars_; }
     message_images& images() { return images_; }
     void finish_avatar_update(QString error);
-    void set_user(QString const& username, qint64 user = 0);
+    void set_user(QString const& username, qint64 user = 0, QString const& server = {});
     void open_conversation(conversation_data conversation);
     void hide_conversation(qint64 conversation);
     qint64 history_floor(qint64 conversation) const { return history_floors_.value(conversation); }
@@ -70,6 +70,7 @@ class chat_widget final : public QWidget
     void set_conversations_error(QString message);
     void set_connection_available(bool available);
     void set_connection_status(QString text, bool retry_enabled);
+    void set_folders(conversation_folder_list folders);
     void set_conversations(QList<conversation_data> conversations);
     void set_friend_groups(QStringList const& groups);
     void set_contacts(QList<user_data> contacts);
@@ -182,6 +183,11 @@ class chat_widget final : public QWidget
     void history_discarded(qint64 conversation, qint64 through);
     void history_view_requested(qint64 conversation, bool hide);
     void notification_level_requested(qint64 conversation, chat::notification_level level, qint64 until);
+    void create_conversation_folder(QString name);
+    void rename_conversation_folder(qint64 folder, QString name);
+    void delete_conversation_folder(qint64 folder);
+    void reorder_conversation_folder(qint64 folder, bool up);
+    void move_conversation_to_folder(qint64 conversation, qint64 folder);
     void unread_mark_requested(qint64 conversation, bool marked);
     void pin_requested(qint64 conversation, bool pinned);
 
@@ -236,6 +242,11 @@ class chat_widget final : public QWidget
     void search_users();
     void select_contact(QModelIndex const& index);
     void request_friend_action(qint64 user, QString const& username, int action);
+    QString folder_settings_key_;
+
+    void edit_folder_name(qint64 folder, QString current = {});
+    void folder_menu(QPoint point, QModelIndex const& index);
+    void toggle_folder(qint64 folder);
     void filter_conversations();
     void set_list_status(QString text);
     void update_main_menu();

@@ -49,6 +49,14 @@ conversation_delegate::conversation_delegate(QObject* parent) : QStyledItemDeleg
 
 void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const
 {
+    if (index.data(conversation_model::folder_header_role).toBool())
+    {
+        auto header = option;
+        initStyleOption(&header, index);
+        header.text = (index.data(conversation_model::collapsed_role).toBool() ? QStringLiteral("▸  ") : QStringLiteral("▾  ")) + header.text;
+        option.widget->style()->drawControl(QStyle::CE_ItemViewItem, &header, painter, option.widget);
+        return;
+    }
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
 
@@ -180,7 +188,10 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
 QSize conversation_delegate::sizeHint(QStyleOptionViewItem const& option, QModelIndex const& index) const
 {
     (void)option;
-    (void)index;
+    if (index.data(conversation_model::folder_header_role).toBool())
+    {
+        return {314, 30};
+    }
     return {314, chat_theme::dialog_row_height};
 }
 
@@ -202,7 +213,7 @@ bool conversation_delegate::editorEvent(QEvent* event, QAbstractItemModel* model
                       option.rect.top() + chat_theme::dialog_avatar_top,
                       chat_theme::dialog_avatar_size,
                       chat_theme::dialog_avatar_size);
-    if (avatar_rect.contains(mouse->position().toPoint()))
+    if (!index.data(conversation_model::folder_header_role).toBool() && avatar_rect.contains(mouse->position().toPoint()))
     {
         emit avatar_clicked(index);
     }

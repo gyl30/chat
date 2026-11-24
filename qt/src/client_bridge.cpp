@@ -342,6 +342,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                            {
                                                conversation_data value;
                                                value.id = item.id;
+                                               value.folder = item.folder;
                                                value.group = item.kind == chat::conversation_kind::group;
                                                value.user = item.user;
                                                value.username = from_utf8(item.username);
@@ -377,6 +378,12 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                            }
                                            else
                                            {
+                                               conversation_folder_list folders;
+                                               for (auto const& folder : result->folders)
+                                               {
+                                                   folders.append({folder.id, from_utf8(folder.name)});
+                                               }
+                                               emit conversation_folders_received(std::move(folders));
                                                emit conversations_received(std::move(conversations), {});
                                            }
                                        });
@@ -435,6 +442,17 @@ void client_bridge::clear_history(qint64 conversation, qint64 through)
 void client_bridge::set_notification_level(qint64 conversation, chat::notification_level level, qint64 until)
 {
     client_->set_notification_level(conversation, level, until, settings_result());
+}
+void client_bridge::create_conversation_folder(QString name) { client_->create_conversation_folder(to_utf8(name), settings_result()); }
+void client_bridge::rename_conversation_folder(qint64 folder, QString name)
+{
+    client_->rename_conversation_folder(folder, to_utf8(name), settings_result());
+}
+void client_bridge::delete_conversation_folder(qint64 folder) { client_->delete_conversation_folder(folder, settings_result()); }
+void client_bridge::reorder_conversation_folder(qint64 folder, bool up) { client_->reorder_conversation_folder(folder, up, settings_result()); }
+void client_bridge::move_conversation_to_folder(qint64 conversation, qint64 folder)
+{
+    client_->move_conversation_to_folder(conversation, folder, settings_result());
 }
 void client_bridge::set_unread_mark(qint64 conversation, bool marked) { client_->set_unread_mark(conversation, marked, settings_result()); }
 void client_bridge::set_conversation_pinned(qint64 conversation, bool pinned)

@@ -97,6 +97,15 @@ CREATE TABLE IF NOT EXISTS conversations (
 CREATE UNIQUE INDEX IF NOT EXISTS conversations_direct_pair_idx
     ON conversations (direct_user_low, direct_user_high) WHERE kind = 'direct';
 
+CREATE TABLE IF NOT EXISTS conversation_folders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 32 AND name <> '未分组'),
+    position INTEGER NOT NULL,
+    UNIQUE(owner_id,name),
+    UNIQUE(owner_id,id)
+);
+
 CREATE TABLE IF NOT EXISTS conversation_members (
     conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -105,15 +114,21 @@ CREATE TABLE IF NOT EXISTS conversation_members (
     cleared_message_id INTEGER NOT NULL DEFAULT 0 CHECK(cleared_message_id>=0),
     visible_after INTEGER GENERATED ALWAYS AS (max(joined_message_id,cleared_message_id)) VIRTUAL,
     hidden_at INTEGER,
+    folder_id INTEGER,
     is_admin INTEGER NOT NULL DEFAULT 0 CHECK (is_admin IN (0, 1)),
     notification_level INTEGER NOT NULL DEFAULT 0 CHECK(notification_level BETWEEN 0 AND 2),
     mute_until INTEGER NOT NULL DEFAULT 0 CHECK(mute_until>=0 AND (notification_level=2 OR mute_until=0)),
     unread_mark_message_id INTEGER CHECK(unread_mark_message_id>=0),
     pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+    FOREIGN KEY(user_id,folder_id) REFERENCES conversation_folders(owner_id,id),
     PRIMARY KEY (conversation_id, user_id)
 );
 
 CREATE INDEX IF NOT EXISTS conversation_members_user_idx ON conversation_members (user_id, conversation_id);
+
+CREATE TRIGGER IF NOT EXISTS ungroup_conversations BEFORE DELETE ON conversation_folders BEGIN
+    UPDATE conversation_members SET folder_id=NULL WHERE user_id=OLD.owner_id AND folder_id=OLD.id;
+END;
 
 -- Speech restrictions are not membership or notification preferences.
 CREATE TABLE IF NOT EXISTS group_member_mutes (

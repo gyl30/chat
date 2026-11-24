@@ -525,8 +525,14 @@ void main_window::connect_conversation_preferences_and_avatar()
         });
     connect(client_.get(), &client_bridge::notifications_changed, chat_page_, &chat_widget::set_notifications);
     connect(chat_page_, &chat_widget::notification_level_requested, client_.get(), &client_bridge::set_notification_level);
+    connect(chat_page_, &chat_widget::create_conversation_folder, client_.get(), &client_bridge::create_conversation_folder);
+    connect(chat_page_, &chat_widget::rename_conversation_folder, client_.get(), &client_bridge::rename_conversation_folder);
+    connect(chat_page_, &chat_widget::delete_conversation_folder, client_.get(), &client_bridge::delete_conversation_folder);
+    connect(chat_page_, &chat_widget::reorder_conversation_folder, client_.get(), &client_bridge::reorder_conversation_folder);
+    connect(chat_page_, &chat_widget::move_conversation_to_folder, client_.get(), &client_bridge::move_conversation_to_folder);
     connect(chat_page_, &chat_widget::unread_mark_requested, client_.get(), &client_bridge::set_unread_mark);
     connect(&chat_page_->avatars(), &avatar_cache::requested, client_.get(), &client_bridge::get_avatar);
+    connect(client_.get(), &client_bridge::conversation_folders_received, chat_page_, &chat_widget::set_folders);
     connect(chat_page_, &chat_widget::pin_requested, client_.get(), &client_bridge::set_conversation_pinned);
     connect(client_.get(),
             &client_bridge::pin_finished,
@@ -2264,7 +2270,7 @@ void main_window::show_registration_error(QString message)
 void main_window::show_authenticated_page(qint64 user)
 {
     unconfirmed_clears_.clear();
-    chat_page_->set_user(pending_username_, user);
+    chat_page_->set_user(pending_username_, user, server_edit_->text().trimmed());
     client_->restore_drafts(user);
     client_->restore_texts();
     client_->restore_attachments();
