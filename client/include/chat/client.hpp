@@ -265,6 +265,7 @@ class client
     void remove_contact(std::int64_t user, remove_contact_handler handler);
     void mark_read(std::int64_t conversation, std::int64_t message, mark_read_handler handler);
     void set_typing(std::int64_t conversation, bool typing, typing_result_handler handler);
+    // New avatars must be static PNG at avatar_extent × avatar_extent, at most max_avatar_size bytes.
     void set_avatar(std::string data, avatar_state_handler handler, std::int64_t group = 0);
     void get_group_avatar(std::int64_t conversation, std::int64_t revision, avatar_handler handler);
     void get_avatar(std::int64_t user, std::int64_t revision, avatar_handler handler);

@@ -80,7 +80,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
     auto const clearing = request.method == "clear_avatar";
     std::int64_t group = 0;
     std::string content;
-    std::string media_type;
+
     if (clearing)
     {
         struct[[= simdjson::deny_unknown_fields]] clear_params
@@ -117,13 +117,13 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
         group = avatar_upload_->group;
         content = std::move(avatar_upload_->content);
         avatar_upload_.reset();
-        media_type = avatar_media_type(content);
-        if (media_type.empty())
+        if (!valid_avatar_png(content))
         {
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
     }
-    auto changed = co_await run_db([&, user = *user_id_](sqlite_database& db) { return write_avatar(db, user, group, media_type, content); });
+    auto changed =
+        co_await run_db([&, user = *user_id_](sqlite_database& db) { return write_avatar(db, user, group, clearing ? "" : "image/png", content); });
     if (!changed)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);

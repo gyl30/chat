@@ -92,11 +92,28 @@ std::expected<QByteArray, QString> choose_avatar(QWidget* parent)
         return std::unexpected(QStringLiteral("无法读取图片，头像文件不得超过 1 MiB。"));
     }
     auto bytes = file.read(chat::max_avatar_size + 1);
-    if (bytes.size() > static_cast<qsizetype>(chat::max_avatar_size) || decode_avatar(bytes).isNull())
+    auto const original = decode_avatar(bytes);
+    if (original.isNull())
     {
         return std::unexpected(QStringLiteral("请选择完整的 PNG 或 JPEG 图片，最多 1600 万像素。"));
     }
-    return bytes;
+    // Draw into a fresh image so source metadata does not reach the upload.
+    auto const extent = chat::avatar_extent;
+    QImage square(extent, extent, original.hasAlphaChannel() ? QImage::Format_ARGB32_Premultiplied : QImage::Format_RGB32);
+    auto const side = std::min(original.width(), original.height());
+    QPainter painter(&square);
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    painter.drawImage(square.rect(), original, QRect((original.width() - side) / 2, (original.height() - side) / 2, side, side));
+    painter.end();
+
+    QByteArray png;
+    QBuffer output(&png);
+    if (!output.open(QIODevice::WriteOnly) || !square.save(&output, "PNG") || png.size() > static_cast<qsizetype>(chat::max_avatar_size))
+    {
+        return std::unexpected(QStringLiteral("无法生成 PNG 头像，请尝试其他图片。"));
+    }
+    return png;
 }
 
 void avatar_cache::observe(qint64 user, chat::avatar_state state)

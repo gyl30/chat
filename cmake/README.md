@@ -20,12 +20,18 @@ Supply `CMAKE_PREFIX_PATH` or `Qt6_DIR` if Qt is not in a default location.
 Chat 只使用 Boost.HTTP 的路由和 Upgrade，不构建它的可选 JSON body 中间件；固定的
 Boost.HTTP 子模块源码保持原样，不要求系统提供 Boost.JSON。
 
+## 头像图片依赖
+
+仅服务端静态链接仓库固定的 [LodePNG 20261102](../third/lodepng/README.chat.md)。
+Chat 不再要求 libpng、libjpeg 或 zlib 开发包。Boost.HTTP 可选压缩模块未被 Chat
+链接，仓库内 curl 的 HTTP 压缩支持仍关闭。Qt 运行时及其格式插件仍可能自行依赖
+系统 libpng、libjpeg 和 zlib，不卸载或替换这些库。
+
 ## 附件传输和 S3
 
 [libcurl 8.23.0](../third/curl/README.chat.md) 和 [Yxml](../third/yxml/README.chat.md)
 直接由仓库内源码静态构建，无系统 libcurl 回退、预编译前缀或配置阶段下载。libcurl 仅保留
 HTTP/1.1 和 HTTPS，使用 OpenSSL、线程 DNS、IPv4/IPv6 与 AWS SigV4；Yxml 只链接服务端。
-Qt 或 libpng 所需的 zlib 仍由系统提供。
 
 服务端使用现有 S3 工作器执行带 SigV4 请求头的 S3 请求；分片 PUT 和下载 GET 的查询签名
 由服务端 OpenSSL 单独生成。SDK 传输这些 URL 时不重新编码。HTTPS 不关闭证书或主机名校验。

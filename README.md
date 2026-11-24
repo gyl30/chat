@@ -9,7 +9,7 @@ C++ 聊天服务器、共享客户端 SDK 和 Qt Widgets 桌面客户端。
 以 Debian/Ubuntu 系为例，配置上述工具链和 Boost 后，系统开发包为：
 
 ```sh
-sudo apt install pkg-config libssl-dev zlib1g-dev libpng-dev libjpeg-dev
+sudo apt install pkg-config libssl-dev
 ```
 
 Qt 客户端另需 Qt 6.5+ Widgets/Svg（通常为 `qt6-base-dev qt6-svg-dev`，发行版版本不足时安装满足版本的 Qt SDK），Linux 另需 `libdbus-1-dev` 及 Qt 本身要求的图形开发依赖。可选依赖包括 Brotli/Zstd 和 liburing 2.5+；它们不阻止缺省构建。
@@ -104,7 +104,7 @@ request `id` 及 JSON 转义产生的内容；不是消息正文的字符数上�
 
 从个人资料编辑昵称和签名，分别最多 32 和 128 个 Unicode 码点。用户名始终用于登录和文字提及。联系人和消息作者优先显示自己的好友备注，其次为昵称，最后为用户名。昵称可重复；群输入区的「@」选择器同时显示成员登录名。只有本人、当前好友或有共同群的成员能读取签名。
 
-群主和管理员可在群资料中更换或清除头像、编辑最多 256 个 Unicode 码点的多行简介。群简介与公告独立。群成员列表可按用户名、昵称和自己的好友备注搜索。群头像复用 SQLite 和头像分块协议，分别按群 ID 和用户 ID 管理图片。
+群主和管理员可在群资料中更换或清除头像、编辑最多 256 个 Unicode 码点的多行简介。群简介与公告独立。群成员列表可按用户名、昵称和自己的好友备注搜索。群头像复用 SQLite 和头像分块协议，分别按群 ID 和用户 ID 管理图片。Qt 可选择 PNG、JPG 或 JPEG 原图，居中裁切并平滑缩放为 256 × 256 静态 PNG，保留透明通道，不改动原文件。SDK/RPC 直接上传新头像需提供不超过 1 MiB 的这一规格；旧 JPEG 和旧尺寸 PNG 仍可读。这不限制聊天图片附件。
 
 ## 消息阅读导航
 

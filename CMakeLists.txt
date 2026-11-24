@@ -102,8 +102,7 @@ target_link_libraries(chat_client
         CURL::libcurl_static
 )
 
-find_package(PNG REQUIRED)
-find_package(JPEG REQUIRED)
+add_subdirectory(third/lodepng EXCLUDE_FROM_ALL)
 
 add_compile_options(
     -Wall
@@ -166,8 +165,7 @@ target_link_libraries(chat_server
         Threads::Threads
         OpenSSL::Crypto
         chat_attachment_storage
-        PNG::PNG
-        JPEG::JPEG
+        chat_lodepng
         simdjson::simdjson
         spdlog::spdlog_header_only
         wslay

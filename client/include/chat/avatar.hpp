@@ -8,6 +8,7 @@
 namespace chat
 {
 
+inline constexpr int avatar_extent = 256;
 inline constexpr std::size_t max_avatar_size = 1024 * 1024;
 inline constexpr std::size_t avatar_chunk_size = 32 * 1024;
 inline constexpr std::size_t max_avatar_pixels = 16 * 1024 * 1024;
