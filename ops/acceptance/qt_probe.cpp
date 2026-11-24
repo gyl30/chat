@@ -122,6 +122,7 @@ struct completion_barrier
 
 struct probe_controls
 {
+    QJsonObject deliveries;
     completion_barrier<qint64, QString> text_save;
     completion_barrier<qint64, quint64, QString> download;
 };
@@ -136,7 +137,11 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     auto button = [&window](const char* name) { return window.findChild<QAbstractButton*>(name); };
     auto op = cmd["op"].toString();
     QJsonObject out;
-    if (op == "login")
+    if (op == "deliveries")
+    {
+        return controls.deliveries;
+    }
+    else if (op == "login")
     {
         window.findChild<QLineEdit*>("loginUsernameEdit")->setText(cmd["user"].toString());
         window.findChild<QLineEdit*>("loginPasswordEdit")->setText(cmd["password"].toString(QStringLiteral("pass")));
@@ -661,6 +666,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         out["shown"] = d && d->isVisible();
         if (d)
         {
+            out["status"] = d->findChild<QLabel*>("attachmentStatus")->text();
             auto* image = d->findChild<QLabel*>("attachmentImage");
             out["image"] = image->isVisible() && !image->pixmap().isNull();
             if (cmd["save"].toBool())
@@ -1037,8 +1043,23 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 }
                 out["rows"] = rows;
                 out["members"] = names;
+                for (auto* label : dialog->findChildren<QLabel*>())
+                {
+                    if (!label->text().isEmpty())
+                    {
+                        out["labels"] = out["labels"].toString() + label->text() + "\n";
+                    }
+                }
                 for (auto* button : dialog->findChildren<QPushButton*>())
                 {
+                    if (button->text() == QStringLiteral("更多投票成员"))
+                    {
+                        out["more"] = button->isVisible();
+                    }
+                    if (button->text() == QStringLiteral("结束投票"))
+                    {
+                        out["canClose"] = button->isVisible();
+                    }
                     if (cmd["action"].toString() == button->text())
                     {
                         button->click();
@@ -1053,6 +1074,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     }
     else if (op == "bundle_view")
     {
+        out["open"] = false;
         if (cmd.contains("open"))
         {
             auto mid = cmd["open"].toInteger();
@@ -1060,6 +1082,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         }
         if (auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget()); dialog && dialog->windowTitle() == QStringLiteral("聊天记录"))
         {
+            out["open"] = true;
             auto* list = dialog->findChild<QListWidget*>();
             out["count"] = list->count();
             if (cmd.contains("attachment_row"))
@@ -1388,6 +1411,12 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 out["scroll"] = l->verticalScrollBar()->value();
                 out["row"] = l->indexOfTopLevelItem(l->currentItem());
                 out["ctx"] = ctx->isVisible();
+                QJsonArray context_ids;
+                for (int i = 0; i < ctx->count(); ++i)
+                {
+                    context_ids.append(ctx->item(i)->data(Qt::UserRole).toLongLong());
+                }
+                out["contextIds"] = context_ids;
                 out["count"] = ctx->count();
                 out["anchor"] = ctx->currentItem() ? ctx->currentItem()->data(Qt::UserRole).toLongLong() : 0;
                 out["selected"] = l->currentItem() ? l->currentItem()->data(1, Qt::UserRole).toLongLong() : 0;
@@ -1726,6 +1755,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     {
         out["user"] = chat->self_user();
         out["conv"] = chat->active_conversation();
+        out["floor"] = chat->history_floor(chat->active_conversation());
         out["enabled"] = edit->isEnabled();
         out["sendEnabled"] = button("sendButton")->isEnabled();
         auto const* notice = window.findChild<QLabel*>("groupSpeechNotice");
@@ -1781,6 +1811,17 @@ int main(int argc, char** argv)
     auto* chat = window.findChild<chat_widget*>();
     auto* bridge = window.client_.get();
     probe_controls controls;
+    auto observe = [&](auto signal, QString key)
+    { QObject::connect(bridge, signal, &window, [&, key] { controls.deliveries[key] = controls.deliveries.value(key).toInt() + 1; }); };
+    observe(&client_bridge::poll_changed, "update");
+    observe(&client_bridge::poll_received, "poll");
+    observe(&client_bridge::voters_received, "voters");
+    observe(&client_bridge::bundle_received, "bundle");
+    observe(&client_bridge::bundle_image_received, "image");
+    observe(&client_bridge::notifications_changed, "preference");
+    observe(&client_bridge::message_updated, "edit");
+    observe(&client_bridge::messages_received, "history");
+    observe(&client_bridge::message_received, "new");
     auto* downloads = window.downloads_;
     QObject::disconnect(bridge, &client_bridge::text_saved, chat, &chat_widget::finish_text_save);
     QObject::connect(

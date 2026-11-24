@@ -39,3 +39,4 @@ python3 ops/acceptance/message_content.py "$work/probe"
 python3 ops/acceptance/mention_all.py
 python3 ops/acceptance/bundles.py "$work/probe"
 python3 ops/acceptance/polls.py "$work/probe"
+python3 ops/acceptance/content_races.py "$work/probe"

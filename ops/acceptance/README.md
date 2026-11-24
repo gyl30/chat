@@ -16,6 +16,7 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 | `mention_all.py` | 发言和角色授权、幂等、撤回、清空与再入群；`desktop.py` 同时检验三档通知的九种组合 |
 | `bundles.py <probe>` | 合并快照、分页、Qt 下载及最后文件引用回收、两个归档月份和独立 Silo 恢复 |
 | `polls.py <probe>` | Qt 创建、改票、取消、实时成员明细、断线期间错过的改票、结束竞态和归档恢复 |
+| `content_races.py <probe>` | Gate 扣留真实历史、详情、投票人及合并记录分页回包，核对 Qt 最终显示、水位和请求归属 |
 | `conversation_folders.py <probe>` | 跨账号隔离、多端顺序与移动、隐藏后恢复、退群重入、解散、折叠搜索和组内置顶 |
 | `folder_interaction.py <probe>` | 脚本单独启动 Xvfb 和私有 D-Bus；通过 libXtst 实际拖放，检查右键归组、三个标读菜单、草稿和重启后的折叠状态。需要 xvfb-run、xauth 和 libXtst |
 | `bulk_read.py` | 检查真实 SQLite 水位、手工标记、并发新消息、跨设备事件、其他成员回执和客户端第一页以外的会话 |

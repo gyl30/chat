@@ -446,9 +446,9 @@ async def notifications(ui, gate, a, b, group, root):
     await ui.wait("filter", lambda s: "资料" in s["names"])
     gate.hold.add("get_conversations")
 
-    async def level(n):
+    async def level(n, expires=0):
         count = len(gate.held)
-        await a.ok("set_notification_level", conversation=group, level=n, until=0)
+        await a.ok("set_notification_level", conversation=group, level=n, until=expires)
         await until(lambda: len(gate.held) > count, "preference processed")
 
     expected = []
@@ -463,6 +463,19 @@ async def notifications(ui, gate, a, b, group, root):
     await gate.release("get_conversations")
     await until(lambda: expected[-1] in lines(), "notification matrix")
     assert [x for x in lines() if "通知探针" in x] == expected
+    gate.hold.add("get_conversations")
+    expires = int(time.time() * 1000) + 2000
+    await level(2, expires)
+    count = (await ui.call("deliveries")).get("new", 0)
+    await b.ok("send_message", conversation=group, text="临时免打扰内", client_id=701, mention_all=True)
+    await ui.wait("deliveries", lambda r: r.get("new", 0) > count)
+    assert int(time.time() * 1000) < expires
+    await until(lambda: int(time.time() * 1000) >= expires, "mute deadline")
+    await b.ok("send_message", conversation=group, text="临时免打扰到期", client_id=702, mention_all=True)
+    await until(lambda: "临时免打扰到期" in lines(), "expired mute allows new notification")
+    assert "临时免打扰内" not in lines()
+    await level(0)
+    await gate.release("get_conversations")
     print("PASS Qt notification events with reversed, delayed list snapshots", flush=True)
 
 

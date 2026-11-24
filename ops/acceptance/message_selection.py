@@ -248,9 +248,29 @@ async def cases(ui, gate, peer, db, group, target, seeded, mixed, image, file, t
     await ui.wait(
         "state", lambda r: any(x["text"] == "打开菜单后编辑" for x in r["rows"])
     )
+    incoming = (
+        await peer.ok(
+            "send_message", conversation=group, text="菜单关闭后标读", client_id=9902
+        )
+    )["id"]
+    await ui.wait("reading", lambda r: r["last"] == incoming and r["popup"])
+    await ui.call("reading", bottom=True)
+
+    def read_position():
+        with sqlite3.connect(db) as conn:
+            return conn.execute(
+                "SELECT last_read_message_id FROM conversation_members WHERE conversation_id=? AND user_id=1",
+                (group,),
+            ).fetchone()[0]
+
+    assert read_position() < incoming
     await ui.call("message_menu", copy=True)
     copied = await ui.wait("message_menu", lambda r: not r.get("open"))
     assert copied["clipboard"] == "打开菜单后编辑", f"menu copied stale body: {copied}"
+    await until(
+        lambda: read_position() == incoming,
+        "menu close resumes marking visible messages read",
+    )
     await multi(seed="保留剪贴板")
     await ui.call("message_menu", open=menu_message)
     await ui.wait("message_menu", lambda r: r.get("open"))

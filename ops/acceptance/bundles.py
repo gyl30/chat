@@ -8,7 +8,8 @@ import sys
 import tempfile
 import urllib.request
 
-from desktop import Desktop, until
+from desktop import Desktop, Gate, until
+from websockets.asyncio.server import serve
 from isolated import Store, begin, chat, login, put
 from message_selection import PNG
 from recovery import admin
@@ -67,7 +68,15 @@ async def run(root, probe):
                     )
                 admin("--db", db, "archive", "2025-01")
                 ui = Desktop()
-                await ui.start(probe, root, url)
+                gate = Gate(url)
+                proxy = await stack.enter_async_context(
+                    serve(gate.handle, "127.0.0.1", 0)
+                )
+                await ui.start(
+                    probe,
+                    root,
+                    f"ws://127.0.0.1:{proxy.sockets[0].getsockname()[1]}/ws",
+                )
                 stack.push_async_callback(ui.stop)
                 await ui.wait("select", lambda r: r["ok"], conv=source)
                 await ui.wait(
@@ -163,23 +172,47 @@ async def run(root, probe):
                     assert urllib.request.urlopen(download["url"]).read() == payload
                 await ui.call("bundle_view", open=mid)
                 await ui.wait("bundle_view", lambda r: r.get("count") == 3)
+                gate.hold.add("get_attachment")
+                await ui.call("bundle_view", attachment_row=1)
+                await gate.caught("get_attachment")
+                await ui.call("dialogstate", close=True)
+                await ui.wait("bundle_view", lambda r: r.get("count") == 3)
+                gate.hold.clear()
+                await ui.call("bundle_view", attachment_row=1)
+                await ui.wait("dialogstate", lambda r: r.get("image"))
+                n = (await ui.call("deliveries")).get("image", 0)
+                await gate.release("get_attachment", error=True)
+                await ui.wait("deliveries", lambda r: r.get("image", 0) > n)
+                assert (
+                    "QA search failure" not in (await ui.call("dialogstate"))["status"]
+                ), "previous preview error leaked into reopened image"
+                await ui.call("dialogstate", close=True)
+                await ui.wait("bundle_view", lambda r: r.get("count") == 3)
+                saved = []
                 for row, payload in [(1, PNG), (2, b"snapshot")]:
                     await ui.call("bundle_view", attachment_row=row)
                     await ui.wait(
                         "dialogstate",
                         lambda r: r["shown"] and (row != 1 or r.get("image")),
                     )
+                    gate.hold.add("get_attachment")
                     destination = root / f"saved-{row}"
                     await ui.call(
                         "dialogstate", save=True, destination=str(destination)
                     )
                     await until(
-                        destination.exists, "Qt saved the requested bundle item"
+                        lambda: len(gate.held) == row,
+                        "independent bundle download grants",
                     )
-                    assert destination.read_bytes() == payload
+                    saved.append((destination, payload))
                     await ui.call("dialogstate", close=True)
                     await ui.wait("bundle_view", lambda r: r.get("count") == 3)
                 await ui.call("bundle_view", close=True)
+                gate.held.reverse()
+                await gate.release("get_attachment")
+                for destination, payload in saved:
+                    await until(destination.exists, "both Qt downloads completed")
+                    assert destination.read_bytes() == payload
                 # The archive metadata, children and file references must survive an actual restore.
                 with sqlite3.connect(db) as con:
                     con.execute(
@@ -193,7 +226,26 @@ async def run(root, probe):
                 assert "error" in await c.ask("get_forwarded_messages", **args)
                 await a.ok("invite_group_members", conversation=target, members=[2])
                 assert "error" in await b.ask("get_forwarded_messages", **args)
+                await ui.call("bundle_view", open=mid)
+                await ui.wait("bundle_view", lambda r: r.get("count") == 3)
+                await ui.call("bundle_view", attachment_row=1)
+                await ui.wait("dialogstate", lambda r: r.get("image"))
+                await ui.call("dialogstate", save=True)
+                await ui.wait("dialogstate", lambda r: r.get("chooser"))
                 await a.ok("delete_message", **args)
+                await ui.wait(
+                    "dialogstate", lambda r: not r["shown"] and not r.get("chooser")
+                )
+                assert not (await ui.call("bundle_view"))["open"]
+                gate.hold.add("get_forwarded_messages")
+                await ui.call("bundle_view", open=long["id"])
+                await gate.caught("get_forwarded_messages")
+                await a.ok("delete_message", conversation=target, message=long["id"])
+                await ui.wait("bundle_view", lambda r: not r["open"])
+                count = (await ui.call("deliveries")).get("bundle", 0)
+                await gate.release("get_forwarded_messages")
+                await ui.wait("deliveries", lambda r: r.get("bundle", 0) > count)
+                assert not (await ui.call("bundle_view"))["open"]
                 assert "error" in await a.ask("get_attachment", **args, item=2)
                 with sqlite3.connect(db) as con:
                     assert con.execute(
