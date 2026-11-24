@@ -13,6 +13,13 @@ Preserve the vendored licenses and `cmake/unicode/UNICODE-LICENSE.txt` when dist
 Qt 6.5+ Svg and Widgets are required for the desktop client (on Linux, DBus is required as well).
 Supply `CMAKE_PREFIX_PATH` or `Qt6_DIR` if Qt is not in a default location.
 
+## JSON-RPC
+
+服务端和 SDK 使用现有 simdjson 5.0.1 子模块，保持 `SIMDJSON_EXCEPTIONS=OFF`。
+服务端的 On-Demand 不变；SDK 用 Builder 写请求，单次 DOM 解析每个响应或通知。
+Chat 只使用 Boost.HTTP 的路由和 Upgrade，不构建它的可选 JSON body 中间件；固定的
+Boost.HTTP 子模块源码保持原样，不要求系统提供 Boost.JSON。
+
 ## 附件传输和 S3
 
 [libcurl 8.23.0](../third/curl/README.chat.md) 和 [Yxml](../third/yxml/README.chat.md)

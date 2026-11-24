@@ -39,7 +39,6 @@ find_package(Boost 1.92.0 EXACT REQUIRED CONFIG COMPONENTS
     assert
     config
     core
-    json
     mp11
     system
     throw_exception
@@ -51,6 +50,19 @@ find_package(Boost 1.92.0 EXACT REQUIRED CONFIG COMPONENTS
 add_subdirectory(third/capy EXCLUDE_FROM_ALL)
 add_subdirectory(third/corosio EXCLUDE_FROM_ALL)
 add_subdirectory(third/http EXCLUDE_FROM_ALL)
+# Pinned Boost.HTTP adds its optional JSON body middleware unconditionally.
+# Chat uses routing/upgrade, not that middleware. Keep the submodule unmodified.
+block()
+    get_target_property(http_sources boost_http SOURCES)
+    list(REMOVE_ITEM http_sources "${CMAKE_CURRENT_SOURCE_DIR}/third/http/src/json/json_body.cpp")
+    set_property(TARGET boost_http PROPERTY SOURCES "${http_sources}")
+    foreach(property IN ITEMS LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
+        get_target_property(http_links boost_http ${property})
+        list(REMOVE_ITEM http_links Boost::json)
+        set_property(TARGET boost_http PROPERTY ${property} "${http_links}")
+    endforeach()
+endblock()
+
 
 set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE)
 add_subdirectory(third/wslay EXCLUDE_FROM_ALL)
@@ -78,7 +90,7 @@ target_include_directories(chat_client PUBLIC client/include PRIVATE src)
 target_link_libraries(chat_client
     PRIVATE
         Boost::corosio_openssl
-        Boost::json
+        simdjson::simdjson
         Boost::capy
         Boost::corosio
         Boost::http
