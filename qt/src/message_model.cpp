@@ -179,6 +179,20 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return parts.join(QStringLiteral("；"));
         }
         case Qt::DisplayRole:
+        case poll_role:
+        {
+            if (!message.poll || message.deleted)
+            {
+                return {};
+            }
+            QStringList lines;
+            for (auto const& o : message.poll->options)
+            {
+                lines << QStringLiteral("○ %1  ·  %2 票").arg(QString::fromStdString(o.label)).arg(o.votes);
+            }
+            lines << (message.poll->closed ? QStringLiteral("投票已结束 · 查看结果") : QStringLiteral("参与投票 · 查看详情"));
+            return lines.join(u'\n');
+        }
         case content_role:
             return message.deleted ? QString{} : message.content;
         case markdown_role:
@@ -453,6 +467,11 @@ void message_model::update_message(message_data const& message)
                 {
                     current.reply = std::move(reply);
                 }
+                changed = true;
+            }
+            if (!current.deleted && message.poll && (!current.poll || message.poll->revision > current.poll->revision))
+            {
+                current.poll = message.poll;
                 changed = true;
             }
             if (!current.deleted && message.reaction_revision > current.reaction_revision)

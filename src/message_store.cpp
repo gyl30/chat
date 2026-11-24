@@ -36,7 +36,7 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
         }
         if (*row)
         {
-            if (query->column_text(6) != (message.bundle.empty() ? "message" : "bundle") || query->column_int64(1) != message.conversation ||
+            if (query->column_text(6) != message.content() || query->column_int64(1) != message.conversation ||
                 query->column_int64(5) != message.forward_source.value_or(0) ||
                 (!message.forward_source && query->column_int64(2) == 0 && ((query->column_int64(3) != 0) != attachment)))
             {
@@ -62,14 +62,14 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
         }
     }
 
-    if (message.mention_all)
+    if (message.mention_all || !message.poll_options.empty())
     {
         auto role = read_group_role(db, message.conversation, message.sender);
         if (!role)
         {
             return std::unexpected(role.error());
         }
-        if (!*role || **role == chat::member_role::member)
+        if (!*role || (message.mention_all && **role == chat::member_role::member))
         {
             return message_write_outcome{unavailable};
         }
@@ -183,12 +183,27 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
                              original_sender,
                              int(markdown),
                              int(message.mention_all),
-                             std::string_view(message.bundle.empty() ? "message" : "bundle"));
+                             message.content());
         error)
     {
         return std::unexpected(std::move(error));
     }
     auto const id = db.last_insert_rowid();
+    if (!message.poll_options.empty())
+    {
+        if (auto err = db.exec("INSERT INTO polls(message) VALUES(?)", id); err)
+        {
+            return std::unexpected(err);
+        }
+        int pos = 0;
+        for (auto const& label : message.poll_options)
+        {
+            if (auto err = db.exec("INSERT INTO poll_options(message,position,label) VALUES(?,?,?)", id, ++pos, label); err)
+            {
+                return std::unexpected(err);
+            }
+        }
+    }
     if (!message.bundle.empty())
     {
         auto copied = store_bundle(db, id, message.sender, message.bundle);
@@ -201,7 +216,7 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
             return message_write_rejection::unavailable;
         }
     }
-    if (object_key.empty() && message.text.contains('@'))
+    if (message.content() == "message" && object_key.empty() && message.text.contains('@'))
     {
         if (auto error = replace_message_mentions(db, message.conversation, id, message.text); error)
         {

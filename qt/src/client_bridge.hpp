@@ -96,6 +96,11 @@ class client_bridge final : public QObject
     void set_user_profile(QString nickname, QString signature);
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {}, bool capture_unread = false);
+    void create_poll(qint64 room, QString question, QStringList options);
+    void get_poll(qint64 room, qint64 message);
+    void vote_poll(qint64 room, qint64 message, qint64 choice);
+    void close_poll(qint64 room, qint64 message);
+    void get_poll_voters(qint64 room, qint64 message, qint64 choice, qint64 after);
     void get_bundle(qint64 conversation, qint64 message, qint64 after);
     void forward_bundle(qint64 target, QList<qint64> messages);
     void forward_messages(qint64 target, QList<qint64> messages);
@@ -221,6 +226,9 @@ class client_bridge final : public QObject
     void group_file_finished(qint64 id, QString error, bool unavailable);
     void files_changed(qint64 conversation, QString error);
     void files_received(qint64 conversation, chat::conversation_file_page page, bool older, QString error);
+    void poll_changed(chat::poll_update update);
+    void poll_received(qint64 room, qint64 message, chat::poll_state state, QString error);
+    void voters_received(qint64 message, qint64 choice, qint64 after, chat::poll_voters page, QString error);
     void bundle_received(qint64 conversation, qint64 message, chat::forwarded_page page, QString error);
     void bundle_image_received(qint64 message, qint64 item, QByteArray bytes, QString error);
     void download_requested(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open, qint64 item = 0);
@@ -248,6 +256,7 @@ class client_bridge final : public QObject
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:
+    chat::client::poll_handler poll_result(qint64 room, qint64 message, bool write);
     std::function<void(std::expected<bool, chat::error>)> settings_result();
     void publish_pending_text(chat::pending_text const& item);
     std::function<void(std::expected<chat::friendship_result, chat::error>)> friend_request_result(qint64 user);

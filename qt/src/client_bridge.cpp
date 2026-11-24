@@ -112,6 +112,7 @@ message_data client_bridge::to_message_data(chat::message const& value)
     message.mentions = to_mentions(value.mentions);
     message.timestamp = value.timestamp;
     message.text = from_utf8(value.text);
+    message.poll = value.poll;
     message.content = QString::fromStdString(value.content);
     message.markdown = value.markdown;
     message.mention_all = value.mention_all;
@@ -174,6 +175,9 @@ client_bridge::client_bridge(QObject* parent)
     client_->set_message_handler(
         [this](chat::message message)
         { post_result(connection_generation_.load(), [this, message = std::move(message)] { emit message_received(to_message_data(message)); }); });
+    client_->set_poll_change_handler(
+        [this](chat::poll_update update)
+        { post_result(connection_generation_.load(), [this, update = std::move(update)] { emit poll_changed(update); }); });
     client_->set_message_updated_handler(
         [this](chat::message value)
         {
@@ -967,6 +971,71 @@ void client_bridge::set_typing(qint64 conversation, bool typing)
     client_->set_typing(conversation, typing, [](auto) {});
 }
 
+void client_bridge::create_poll(qint64 room, QString question, QStringList options)
+{
+    std::vector<std::string> labels;
+    for (auto const& label : options)
+    {
+        labels.push_back(to_utf8(label));
+    }
+    client_->create_poll(room,
+                         to_utf8(question),
+                         std::move(labels),
+                         chat::client::new_client_id(),
+                         [this, g = connection_generation_.load()](auto result)
+                         {
+                             post_result(g,
+                                         [this, result = std::move(result)]
+                                         {
+                                             if (result)
+                                             {
+                                                 emit message_received(to_message_data(*result));
+                                             }
+                                             else
+                                             {
+                                                 emit error(display_error(result.error()));
+                                             }
+                                         });
+                         });
+}
+chat::client::poll_handler client_bridge::poll_result(qint64 room, qint64 message, bool write)
+{
+    return [this, room, message, write, g = connection_generation_.load()](auto result)
+    {
+        post_result(g,
+                    [this, room, message, write, result = std::move(result)]
+                    {
+                        emit poll_received(room, message, result ? *result : chat::poll_state{}, result ? QString{} : display_error(result.error()));
+                        if (result && write)
+                        {
+                            emit poll_changed({room, message, result->summary});
+                        }
+                    });
+    };
+}
+void client_bridge::get_poll(qint64 room, qint64 message) { client_->get_poll(room, message, poll_result(room, message, false)); }
+void client_bridge::vote_poll(qint64 room, qint64 message, qint64 choice)
+{
+    client_->vote_poll(room, message, choice, poll_result(room, message, true));
+}
+void client_bridge::close_poll(qint64 room, qint64 message) { client_->close_poll(room, message, poll_result(room, message, true)); }
+void client_bridge::get_poll_voters(qint64 room, qint64 message, qint64 choice, qint64 after)
+{
+    client_->get_poll_voters(
+        room,
+        message,
+        choice,
+        after,
+        [this, message, choice, after, g = connection_generation_.load()](auto result)
+        {
+            post_result(g,
+                        [this, message, choice, after, result = std::move(result)]
+                        {
+                            emit voters_received(
+                                message, choice, after, result ? *result : chat::poll_voters{}, result ? QString{} : display_error(result.error()));
+                        });
+        });
+}
 void client_bridge::get_bundle(qint64 conversation, qint64 message, qint64 after)
 {
     client_->get_forwarded_messages(

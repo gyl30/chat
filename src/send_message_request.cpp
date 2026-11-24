@@ -16,6 +16,8 @@
 #include "database.hpp"
 #include "message_history.hpp"
 #include "message_store.hpp"
+#include <chat/text.hpp>
+#include <set>
 #include <sqlite3.h>
 
 namespace
@@ -31,6 +33,7 @@ struct[[= simdjson::deny_unknown_fields]] send_message_params
     std::optional<std::string> object_key;
     std::optional<std::int64_t> forward;
     std::optional<std::vector<std::int64_t>> bundle;
+    std::optional<std::vector<std::string>> poll_options;
     [[= simdjson::default_value]] bool markdown = false;
     [[= simdjson::default_value]] bool mention_all = false;
     std::optional<std::int64_t> upload;
@@ -59,6 +62,26 @@ bool read_send_params(json_rpc_params& params, send_message_params& value, bool 
         (value.reply_to && *value.reply_to <= 0))
     {
         return false;
+    }
+    if (value.poll_options)
+    {
+        auto valid = [](std::string_view s, std::size_t max)
+        {
+            return !s.contains('\0') && !chat::text_is_blank(s) &&
+                   std::ranges::count_if(s, [](unsigned char c) { return (c & 0xc0) != 0x80; }) <= static_cast<std::ptrdiff_t>(max);
+        };
+        if (!value.text || !valid(*value.text, 256) || value.bundle || value.forward || value.object_key || value.markdown || value.mention_all ||
+            value.reply_to)
+        {
+            return false;
+        }
+        auto const& options = *value.poll_options;
+        if (options.size() < 2 || options.size() > 10)
+        {
+            return false;
+        }
+        std::set<std::string_view> unique;
+        return std::ranges::all_of(options, [&](auto const& label) { return valid(label, 80) && unique.insert(label).second; });
     }
     if (value.bundle)
     {
@@ -295,7 +318,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
                                          params.forward,
                                          params.markdown,
                                          params.mention_all,
-                                         params.bundle ? std::span<const std::int64_t>(*params.bundle) : std::span<const std::int64_t>{}},
+                                         params.bundle ? std::span<const std::int64_t>(*params.bundle) : std::span<const std::int64_t>{},
+                                         params.poll_options ? std::span<const std::string>(*params.poll_options) : std::span<const std::string>{}},
                                         request.id,
                                         params.object_key.value_or(""));
             });

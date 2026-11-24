@@ -92,6 +92,7 @@ class chat_widget final : public QWidget
     void set_read_message(qint64 conversation, qint64 user, qint64 message);
     void reset_read_positions(qint64 conversation);
     void set_typing(qint64 conversation, qint64 user, QString username, bool typing);
+    void update_poll(chat::poll_update const& update);
     void add_message(qint64 user, message_data message);
     void update_message(message_data message);
     bool set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions);
@@ -187,6 +188,7 @@ class chat_widget final : public QWidget
     void chat_history_requested(qint64 conversation, QString title);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
     void add_file_requested(qint64 conversation, QString key);
+    void create_poll_requested(qint64 room, QString question, QStringList options);
     void content_requested(qint64 conversation, qint64 message, QString kind);
     void bundle_requested(qint64 target, QList<qint64> messages);
     void forward_requested(qint64 target, QList<qint64> messages);
@@ -353,6 +355,7 @@ class chat_widget final : public QWidget
     QToolButton* screenshot_button_ = nullptr;
     QToolButton* mention_button_ = nullptr;
     QToolButton* mention_all_button_ = nullptr;
+    QToolButton* poll_button_ = nullptr;
     QToolButton* markdown_button_ = nullptr;
     QToolButton* emoji_button_ = nullptr;
     QToolButton* history_button_ = nullptr;

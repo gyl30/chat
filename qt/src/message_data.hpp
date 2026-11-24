@@ -3,6 +3,7 @@
 
 #include <QList>
 #include <chat/avatar.hpp>
+#include <chat/message.hpp>
 #include <QMetaType>
 #include <QString>
 #include <QtGlobal>
@@ -68,6 +69,7 @@ struct message_data
     qint64 reaction_revision = 0;
     QList<reaction_data> reactions;
     QList<mention_data> mentions;
+    std::optional<chat::poll_summary> poll;
     QString content = QStringLiteral("message");
     bool markdown = false;
     bool mention_all = false;

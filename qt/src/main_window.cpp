@@ -51,6 +51,7 @@
 #include "chat_widget.hpp"
 #include "attachment_dialog.hpp"
 #include "bundle_dialog.hpp"
+#include "poll_dialog.hpp"
 #include "group_dialog.hpp"
 #include "client_bridge.hpp"
 #include "message_search_dialog.hpp"
@@ -1463,13 +1464,23 @@ void main_window::connect_messages()
                 }
             });
     connect(client_.get(), &client_bridge::group_file_finished, chat_page_, &chat_widget::finish_group_file);
+    connect(chat_page_, &chat_widget::create_poll_requested, client_.get(), &client_bridge::create_poll);
+    connect(client_.get(), &client_bridge::poll_changed, this, [this](chat::poll_update update) { chat_page_->update_poll(update); });
     connect(chat_page_, &chat_widget::bundle_requested, client_.get(), &client_bridge::forward_bundle);
     connect(chat_page_,
             &chat_widget::content_requested,
             this,
             [this](qint64 room, qint64 message, QString const& kind)
             {
-                if (kind == QStringLiteral("bundle") && message > chat_page_->history_floor(room))
+                if (message <= chat_page_->history_floor(room))
+                {
+                    return;
+                }
+                if (kind == QStringLiteral("poll"))
+                {
+                    show_poll(*client_, *chat_page_, room, message, this);
+                }
+                else if (kind == QStringLiteral("bundle"))
                 {
                     show_bundle(*client_, *chat_page_, room, message, this);
                 }

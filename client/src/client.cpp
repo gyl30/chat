@@ -278,6 +278,14 @@ bool parse_mentions(dom::object object, std::vector<mention>& result)
 
 bool parse_message(dom::object object, message& value)
 {
+    if (auto poll = find_field(object, "poll"); poll && !poll->is_null())
+    {
+        value.poll = read_payload<poll_summary>(*poll);
+        if (!value.poll)
+        {
+            return false;
+        }
+    }
     value.content = string_field(object, "content");
     if (value.content.empty())
     {
@@ -738,6 +746,19 @@ struct client::impl
             return;
         }
 
+        if (method_name == "poll_updated")
+        {
+            auto update = read_payload<poll_update>(*params);
+            if (update)
+            {
+                notify(poll_change_handler_, std::move(*update));
+            }
+            else
+            {
+                report_error(make_error(error_kind::protocol, "Invalid poll update"));
+            }
+            return;
+        }
         if (method_name == "reaction")
         {
             reaction_update notification;
@@ -3064,6 +3085,7 @@ struct client::impl
     typing_handler typing_handler_;
     avatar_changed_handler avatar_handler_;
     reaction_handler reaction_handler_;
+    poll_change_handler poll_change_handler_;
     bookmark_changed_handler bookmark_changed_handler_;
     group_join_request_handler join_request_handler_;
     connection_handler contacts_changed_handler_;
@@ -3156,6 +3178,12 @@ void client::set_bookmark_changed_handler(bookmark_changed_handler handler)
 {
     std::lock_guard lock(impl_->handler_mutex_);
     impl_->bookmark_changed_handler_ = std::move(handler);
+}
+
+void client::set_poll_change_handler(poll_change_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->poll_change_handler_ = std::move(handler);
 }
 
 void client::set_reaction_handler(reaction_handler handler)
@@ -3757,6 +3785,35 @@ void client::get_forwarded_messages(std::int64_t conversation,
                                             make_params("conversation", conversation, "message", message, "after", after),
                                             "Invalid forwarded messages",
                                             std::move(handler)));
+}
+void client::create_poll(std::int64_t room, std::string question, std::vector<std::string> options, std::int64_t id, message_result_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->request_message(
+        "send_message", make_params("conversation", room, "text", question, "poll_options", options, "client_id", id), room, {}, std::move(handler)));
+}
+void client::get_poll(std::int64_t room, std::int64_t message, poll_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->request_page<poll_state>("get_poll", make_params("conversation", room, "message", message), "Invalid poll", std::move(handler)));
+}
+void client::vote_poll(std::int64_t room, std::int64_t message, std::int64_t choice, poll_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->request_page<poll_state>(
+        "vote_poll", make_params("conversation", room, "message", message, "choice", choice), "Invalid poll", std::move(handler)));
+}
+void client::close_poll(std::int64_t room, std::int64_t message, poll_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->request_page<poll_state>("close_poll", make_params("conversation", room, "message", message), "Invalid poll", std::move(handler)));
+}
+void client::get_poll_voters(
+    std::int64_t room, std::int64_t message, std::int64_t choice, std::int64_t after, std::function<void(std::expected<poll_voters, error>)> handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->request_page<poll_voters>("get_poll_voters",
+                                         make_params("conversation", room, "message", message, "choice", choice, "after", after),
+                                         "Invalid poll voters",
+                                         std::move(handler)));
 }
 void client::forward_bundle(std::int64_t conversation, std::vector<std::int64_t> messages, std::int64_t client_id, message_result_handler handler)
 {

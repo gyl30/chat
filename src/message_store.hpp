@@ -21,6 +21,8 @@ struct message_to_write
     bool markdown = false;
     bool mention_all = false;
     std::span<std::int64_t const> bundle{};
+    std::span<std::string const> poll_options{};
+    std::string_view content() const { return !bundle.empty() ? "bundle" : !poll_options.empty() ? "poll" : "message"; }
 };
 
 enum class message_write_rejection

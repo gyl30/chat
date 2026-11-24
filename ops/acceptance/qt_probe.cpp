@@ -999,6 +999,58 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             out["deleted"] = index.data(message_model::deleted_role).toBool();
         }
     }
+    else if (op == "poll_ui")
+    {
+        if (cmd["create"].toBool())
+        {
+            QTimer::singleShot(0, chat->poll_button_, &QToolButton::click);
+        }
+        if (cmd.contains("open"))
+        {
+            auto mid = cmd["open"].toInteger();
+            QTimer::singleShot(0, chat, [chat, mid] { emit chat->content_requested(chat->active_conversation_, mid, QStringLiteral("poll")); });
+        }
+        if (auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget()))
+        {
+            out["title"] = dialog->windowTitle();
+            if (dialog->windowTitle() == QStringLiteral("发起群投票") && cmd.contains("question"))
+            {
+                dialog->findChild<QLineEdit*>()->setText(cmd["question"].toString());
+                dialog->findChild<QPlainTextEdit*>()->setPlainText(cmd["options"].toString());
+                dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
+            }
+            if (dialog->windowTitle() == QStringLiteral("群投票"))
+            {
+                auto lists = dialog->findChildren<QListWidget*>();
+                if (cmd.contains("choose"))
+                {
+                    lists[0]->setCurrentRow(cmd["choose"].toInt() - 1);
+                }
+                QJsonArray rows, names;
+                for (int i = 0; i < lists[0]->count(); ++i)
+                {
+                    rows.append(lists[0]->item(i)->text());
+                }
+                for (int i = 0; i < lists[1]->count(); ++i)
+                {
+                    names.append(lists[1]->item(i)->text());
+                }
+                out["rows"] = rows;
+                out["members"] = names;
+                for (auto* button : dialog->findChildren<QPushButton*>())
+                {
+                    if (cmd["action"].toString() == button->text())
+                    {
+                        button->click();
+                    }
+                }
+                if (cmd["close"].toBool())
+                {
+                    dialog->reject();
+                }
+            }
+        }
+    }
     else if (op == "bundle_view")
     {
         if (cmd.contains("open"))

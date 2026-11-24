@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS messages (
     sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     body TEXT,
     markdown INTEGER NOT NULL DEFAULT 0 CHECK(markdown IN (0,1)),
-    content TEXT NOT NULL DEFAULT 'message' CHECK(content IN ('message','bundle')),
+    content TEXT NOT NULL DEFAULT 'message' CHECK(content IN ('message','bundle','poll')),
     mention_all INTEGER NOT NULL DEFAULT 0 CHECK(mention_all IN (0,1)),
     archive_key TEXT REFERENCES archives(object_key),
     forward_source INTEGER,
@@ -263,6 +263,24 @@ CREATE TABLE IF NOT EXISTS message_attachments (
     object_key TEXT NOT NULL REFERENCES files(object_key)
 );
 CREATE INDEX IF NOT EXISTS attachments_file ON message_attachments(object_key);
+CREATE TABLE IF NOT EXISTS polls (
+    message INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+    revision INTEGER NOT NULL DEFAULT 1,
+    closed INTEGER NOT NULL DEFAULT 0 CHECK(closed IN (0,1))
+);
+CREATE TABLE IF NOT EXISTS poll_options (
+    message INTEGER NOT NULL REFERENCES polls(message) ON DELETE CASCADE,
+    position INTEGER NOT NULL CHECK(position BETWEEN 1 AND 10),
+    label TEXT NOT NULL CHECK(length(label) BETWEEN 1 AND 80),
+    PRIMARY KEY(message,position), UNIQUE(message,label)
+);
+CREATE TABLE IF NOT EXISTS poll_votes (
+    message INTEGER NOT NULL,
+    user INTEGER NOT NULL REFERENCES users(id),
+    choice INTEGER NOT NULL,
+    PRIMARY KEY(message,user),
+    FOREIGN KEY(message,choice) REFERENCES poll_options(message,position) ON DELETE CASCADE
+);
 CREATE TABLE IF NOT EXISTS bundle_items (
     parent INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
     position INTEGER NOT NULL CHECK(position BETWEEN 1 AND 50),
@@ -315,6 +333,7 @@ END;
 CREATE TRIGGER IF NOT EXISTS discard_deleted_message_attachment AFTER UPDATE OF deleted ON messages
 WHEN NEW.deleted=1 AND OLD.deleted=0
 BEGIN
+    DELETE FROM polls WHERE message=NEW.id;
     DELETE FROM bundle_items WHERE parent=NEW.id;
     DELETE FROM message_attachments WHERE message_id=NEW.id;
 END;

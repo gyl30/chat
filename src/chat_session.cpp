@@ -423,6 +423,10 @@ boost::capy::task<simdjson::error_code> chat_session::dispatch_request(json_rpc_
     {
         co_return co_await handle_message_bookmarks(request, response);
     }
+    if (request.method == "get_poll" || request.method == "vote_poll" || request.method == "close_poll" || request.method == "get_poll_voters")
+    {
+        co_return co_await handle_poll(request, response);
+    }
     if (request.method == "get_forwarded_messages")
     {
         co_return co_await handle_bundle(request, response);

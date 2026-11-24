@@ -1,4 +1,5 @@
 #include "message_history.hpp"
+#include "poll_store.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -56,8 +57,17 @@ std::expected<void, sqlite_error> populate_interactions(sqlite_database& db, std
     // Search pages can omit IDs between their bounds. Bind exactly the IDs
     // selected by the page, excluding any lookahead row.
     std::string ids = "[";
-    for (auto const& message : messages)
+    for (auto& message : messages)
     {
+        if (message.content == "poll" && !message.deleted)
+        {
+            auto summary = read_poll_summary(db, message.id);
+            if (!summary)
+            {
+                return std::unexpected(summary.error());
+            }
+            message.poll = std::move(*summary);
+        }
         if (ids.size() != 1)
         {
             ids.push_back(',');

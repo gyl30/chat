@@ -213,6 +213,10 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
 {
     message_layout result;
     result.text = index.data(message_model::text_role).toString();
+    if (auto poll = index.data(message_model::poll_role).toString(); !poll.isEmpty())
+    {
+        result.text += u'\n' + poll;
+    }
     result.outgoing = outgoing_at(index);
     auto const bubble_max = maximum_bubble_width(option, result.outgoing);
     auto const inner_max = std::max(80, bubble_max - chat_theme::message_padding_horizontal * 2);
@@ -300,8 +304,8 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     text_option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
     result.text_layout->setTextOption(text_option);
     auto formats = emoji_formats(text, option.font);
-    if (!result.markdown && !index.data(message_model::deleted_role).toBool() &&
-        index.data(message_model::send_state_role).toInt() == message_model::sent &&
+    if (index.data(message_model::content_role).toString() == QStringLiteral("message") && !result.markdown &&
+        !index.data(message_model::deleted_role).toBool() && index.data(message_model::send_state_role).toInt() == message_model::sent &&
         index.data(message_model::attachment_name_role).toString().isEmpty())
     {
         auto body = index.data(message_model::text_role).toString();

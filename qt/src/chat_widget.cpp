@@ -1,4 +1,5 @@
 #include "chat_widget.hpp"
+#include "poll_dialog.hpp"
 #include "theme_manager.hpp"
 #include <chat/invite.hpp>
 #include <chat/text.hpp>
@@ -1758,6 +1759,24 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     mention_all_button_->hide();
     connect(mention_all_button_, &QToolButton::toggled, mention_all_button_, &QWidget::setVisible);
     connect(mention_all_button_, &QToolButton::toggled, this, &chat_widget::draft_edited);
+    poll_button_ = new QToolButton(input_bar);
+    poll_button_->setText(QStringLiteral("投票"));
+    poll_button_->setToolTip(QStringLiteral("发起群投票"));
+    poll_button_->setObjectName(QStringLiteral("createPoll"));
+    input_layout->addWidget(poll_button_, 0, Qt::AlignBottom);
+    connect(poll_button_,
+            &QToolButton::clicked,
+            this,
+            [this]
+            {
+                auto room = active_conversation_;
+                auto visit = conversation_visit_;
+                auto poll = compose_poll(this);
+                if (poll && active_conversation_ == room && conversation_visit_ == visit && can_send())
+                {
+                    emit create_poll_requested(room, poll->first, poll->second);
+                }
+            });
     markdown_button_ = new QToolButton(input_bar);
     markdown_button_->setObjectName(QStringLiteral("markdownButton"));
     markdown_button_->setText(QStringLiteral("MD"));
@@ -1811,7 +1830,10 @@ void chat_widget::update_message_selection()
     auto const count = messages_view_->selectionModel()->selectedIndexes().size();
     selection_count_->setText(QStringLiteral("已选 %1 条").arg(count));
     selection_copy_->setEnabled(count != 0);
-    selection_forward_->setEnabled(count != 0 && connection_available_);
+    auto const selected = messages_view_->selectionModel()->selectedIndexes();
+    selection_forward_->setEnabled(
+        !selected.empty() && connection_available_ &&
+        std::ranges::all_of(selected, [](auto const& ix) { return ix.data(message_model::content_role).toString() == QStringLiteral("message"); }));
 }
 void chat_widget::copy_selected_messages()
 {
@@ -1928,6 +1950,10 @@ void chat_widget::show_message_menu(QPoint position)
     auto* open_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("打开链接"));
     auto* copy_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制链接"));
     auto const ordinary = index.data(message_model::content_role).toString() == QStringLiteral("message");
+    auto* details =
+        ordinary ? nullptr
+                 : menu.addAction(index.data(message_model::content_role).toString() == QStringLiteral("poll") ? QStringLiteral("查看投票")
+                                                                                                               : QStringLiteral("查看聊天记录"));
     auto* forward = ordinary ? menu.addAction(QStringLiteral("转发")) : nullptr;
     auto* bookmark = menu.addAction(QStringLiteral("正在查询收藏状态…"));
     bookmark->setEnabled(false);
@@ -2059,6 +2085,11 @@ void chat_widget::show_message_menu(QPoint position)
     if (selected == bookmark)
     {
         emit bookmark_requested(message_id, !bookmark->data().toBool());
+        return;
+    }
+    if (details && selected == details)
+    {
+        emit content_requested(conversation, message_id, target_index.data(message_model::content_role).toString());
         return;
     }
     if (forward && selected == forward)
@@ -3308,6 +3339,19 @@ void chat_widget::reset_read_positions(qint64 conversation)
     }
 }
 
+void chat_widget::update_poll(chat::poll_update const& update)
+{
+    if (update.conversation != active_conversation_ || update.message <= history_floor(update.conversation))
+    {
+        return;
+    }
+    message_data m;
+    m.conversation = update.conversation;
+    m.id = update.message;
+    m.poll = update.summary;
+    messages_->update_message(m);
+}
+
 void chat_widget::add_message(qint64 user, message_data message)
 {
     settle(message);
@@ -3970,6 +4014,8 @@ void chat_widget::update_compose_state()
     send_button_->setEnabled(item && !blocked && !saving_text_ && !message_edit_->toPlainText().isEmpty() && (!reply_to_ || !reply_bar_->isHidden()));
     attachment_button_->setEnabled(allowed);
     screenshot_button_->setEnabled(allowed);
+    poll_button_->setVisible(active_group_);
+    poll_button_->setEnabled(allowed);
     mention_button_->setVisible(active_group_);
     mention_button_->setEnabled(allowed);
     emoji_button_->setEnabled(allowed);

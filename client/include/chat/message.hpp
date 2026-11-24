@@ -66,6 +66,39 @@ struct mention
     std::string username;
 };
 
+struct poll_option
+{
+    std::int64_t position, votes;
+    std::string label;
+};
+struct poll_summary
+{
+    std::int64_t revision = 0;
+    bool closed = false;
+    std::vector<poll_option> options;
+};
+struct poll_state
+{
+    poll_summary summary;
+    std::int64_t selection = 0;
+    bool can_close = false;
+    std::string question;
+};
+struct poll_voter
+{
+    std::int64_t id = 0;
+    std::string username, nickname;
+};
+struct poll_voters
+{
+    std::vector<poll_voter> members;
+    std::int64_t next = 0;
+};
+struct poll_update
+{
+    std::int64_t conversation = 0, message = 0;
+    poll_summary summary;
+};
 struct forwarded_item
 {
     std::int64_t position, created;
@@ -107,6 +140,7 @@ struct message
     bool markdown = false;
     bool mention_all = false;
     std::string content = "message";
+    std::optional<poll_summary> poll;
     bool acknowledgement_only = false;
     // Present only on the caller's own messages: the ID it sent them with.
     std::optional<std::int64_t> client_id;

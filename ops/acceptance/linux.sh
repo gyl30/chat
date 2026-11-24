@@ -38,3 +38,4 @@ QT_QPA_PLATFORM=offscreen XDG_DATA_HOME="$work/content-data" XDG_CONFIG_HOME="$w
 python3 ops/acceptance/message_content.py "$work/probe"
 python3 ops/acceptance/mention_all.py
 python3 ops/acceptance/bundles.py "$work/probe"
+python3 ops/acceptance/polls.py "$work/probe"
