@@ -3,3 +3,6 @@ third/curl/** -text -whitespace
 third/utf8proc/utf8proc_data.c -text -whitespace
 third/utf8proc/utils.cmake -text -whitespace
 third/emoji-segmenter/emoji_presentation_scanner.c -text -whitespace
+third/lodepng/LICENSE -text -whitespace
+third/lodepng/lodepng.cpp -text
+third/lodepng/lodepng.h -text
