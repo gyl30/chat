@@ -643,6 +643,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         context.palette.setColor(QPalette::Text, themed("text"));
         context.palette.setColor(QPalette::Link, themed("link"));
         layout.markdown->documentLayout()->draw(painter, context);
+        layout.markdown->draw_quote_guides(*painter);
         painter->restore();
     }
 

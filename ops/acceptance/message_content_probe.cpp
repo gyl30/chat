@@ -333,6 +333,20 @@ int main(int argc, char** argv)
         }
         assert(draw().height() > 3 * voted.height());
     }
+    message_markdown quotation(
+        QStringLiteral("前言\n\n> 引用\n>\n> > 深层 `code`\n> >\n> > ~~~cpp\n> > int x;\n> > ~~~\n\n结尾"), view->font(), 300, {});
+    QImage guide_image(quotation.size().toSize(), QImage::Format_RGB32);
+    guide_image.fill(themed("surface"));
+    QPainter guides(&guide_image);
+    quotation.draw_quote_guides(guides);
+    guides.end();
+    auto nested = quotation.find(QStringLiteral("深层")).block();
+    auto outer = quotation.find(QStringLiteral("引用")).block();
+    assert(nested.blockFormat().leftMargin() > outer.blockFormat().leftMargin());
+    auto nested_y = qFloor(quotation.documentLayout()->blockBoundingRect(nested).center().y());
+    assert(guide_image.pixelColor(2, nested_y) == themed("border_strong") &&
+           guide_image.pixelColor(qRound(outer.blockFormat().leftMargin()) + 2, nested_y) == themed("border_strong"));
+    assert(quotation.find(QStringLiteral("code")).charFormat().background().color() == themed("subtle"));
     check_code_cards(view->font());
     QDesktopServices::unsetUrlHandler("http");
     QDesktopServices::unsetUrlHandler("https");

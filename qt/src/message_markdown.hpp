@@ -8,6 +8,7 @@ class message_markdown final : public QTextDocument
 {
    public:
     message_markdown(QString const& source, QFont const& font, int width, QList<mention_data> const& mentions);
+    void draw_quote_guides(QPainter& painter) const;
     QString code_at(QPointF point) const;
     QString code_for_link(QUrl const& url) const;
 

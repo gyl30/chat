@@ -12,6 +12,8 @@
 #include <QDialog>
 #include <QLabel>
 #include <QMenu>
+#include <QPainter>
+#include <QScrollBar>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QTextBrowser>
@@ -19,6 +21,21 @@
 
 namespace
 {
+class snapshot_body final : public QTextBrowser
+{
+   protected:
+    void paintEvent(QPaintEvent* event) override
+    {
+        QTextBrowser::paintEvent(event);
+        if (auto* doc = dynamic_cast<message_markdown*>(document()))
+        {
+            QPainter painter(viewport());
+            painter.translate(-horizontalScrollBar()->value(), -verticalScrollBar()->value());
+            doc->draw_quote_guides(painter);
+        }
+    }
+};
+
 void show_attachment(client_bridge& client, QDialog& dialog, qint64 room, qint64 message, qint64 position, QString const& name, bool image)
 {
     attachment_dialog preview(room, message, name, image, &dialog, {});
@@ -83,7 +100,7 @@ void append_entry(QVBoxLayout& stream, chat::forwarded_item const& item, QDialog
     }
     else
     {
-        auto* body = new QTextBrowser;
+        auto* body = new snapshot_body;
         body->setObjectName(QStringLiteral("snapshotBody"));
         body->setOpenLinks(false);
         body->setFrameShape(QFrame::NoFrame);

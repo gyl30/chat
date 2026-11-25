@@ -4,11 +4,22 @@
 
 #include <QAbstractTextDocumentLayout>
 #include <QImage>
+#include <QPainter>
 #include <QRegularExpression>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextFrame>
 #include <QUrl>
+
+namespace
+{
+constexpr int quote_indent = 13;
+int quote_depth(QTextFormat const& format)
+{
+    // Keep a readable text column even in deeply nested quotations.
+    return qMin(6, format.intProperty(QTextFormat::BlockQuoteLevel));
+}
+}    // namespace
 
 QVariant message_markdown::loadResource(int, QUrl const&)
 {
@@ -22,6 +33,7 @@ message_markdown::message_markdown(QString const& source, QFont const& font, int
     setLayoutEnabled(false);
     setDefaultFont(font);
     setDocumentMargin(0);
+    setIndentWidth(22);
     setMarkdown(source, MarkdownFeatures(MarkdownDialectGitHub) | MarkdownNoHTML);
     // Work backwards so replacing an image with its description preserves earlier positions.
     for (auto block = lastBlock(); block.isValid(); block = block.previous())
@@ -29,11 +41,28 @@ message_markdown::message_markdown(QString const& source, QFont const& font, int
         QTextCursor cursor(block);
         auto format = block.blockFormat();
         bool const fenced = format.hasProperty(QTextFormat::BlockCodeLanguage);
+        int const depth = quote_depth(format);
+        if (depth)
+        {
+            // Fenced code carries its indent on the enclosing frame.
+            format.setLeftMargin(fenced ? 0 : quote_indent * depth);
+            format.setRightMargin(0);
+        }
         if (fenced)
         {
             format.setNonBreakableLines(false);
-            cursor.setBlockFormat(format);
         }
+        else if (format.headingLevel())
+        {
+            format.setTopMargin(block == begin() ? 0 : 8);
+            format.setBottomMargin(4);
+        }
+        else
+        {
+            format.setTopMargin(block == begin() ? 0 : block.textList() ? 1 : 4);
+            format.setBottomMargin(block.textList() ? 1 : 3);
+        }
+        cursor.setBlockFormat(format);
         QList<QTextFragment> fragments;
         for (auto it = block.begin(); !it.atEnd(); ++it)
         {
@@ -45,6 +74,17 @@ message_markdown::message_markdown(QString const& source, QFont const& font, int
             auto const pos = it->position();
             cursor.setPosition(pos);
             cursor.setPosition(pos + it->length(), QTextCursor::KeepAnchor);
+            if (depth && !fenced && !cf.isAnchor())
+            {
+                cf.setForeground(themed("text_secondary"));
+                cursor.setCharFormat(cf);
+            }
+            if (!fenced && cf.fontFixedPitch())
+            {
+                cf.setBackground(themed("subtle"));
+                cf.setForeground(themed("text"));
+                cursor.setCharFormat(cf);
+            }
             if (cf.isImageFormat())
             {
                 cursor.insertText(cf.stringProperty(QTextFormat::ImageAltText), QTextCharFormat{});
@@ -107,6 +147,9 @@ void decorate_code_block(QTextBlock const& block, QTextBlock const& last, QStrin
     QTextFrameFormat frame_format;
     frame_format.setBackground(themed("subtle"));
     frame_format.setPadding(7);
+    int const depth = quote_depth(block.blockFormat());
+    frame_format.setLeftMargin(depth * quote_indent);
+    frame_format.setProperty(QTextFormat::BlockQuoteLevel, depth);
     frame_format.setTopMargin(4);
     frame_format.setBottomMargin(4);
     frame_format.setProperty(kCodeBlock, true);
@@ -257,4 +300,33 @@ QString message_markdown::code_at(QPointF point) const
 QString message_markdown::code_for_link(QUrl const& url) const
 {
     return url.scheme() == QStringLiteral("chat-copy") ? frame_code(qobject_cast<QTextFrame*>(object(url.path().toInt()))) : QString{};
+}
+
+void message_markdown::draw_quote_guides(QPainter& painter) const
+{
+    // Use native document coordinates for both the delegate and the continuous reader.
+    int previous_depth = 0;
+    qreal previous_bottom = 0;
+    for (auto it = rootFrame()->begin(); !it.atEnd(); ++it)
+    {
+        auto* frame = it.currentFrame();
+        auto block = it.currentBlock();
+        int const depth = frame ? quote_depth(frame->frameFormat()) : quote_depth(block.blockFormat());
+        if (!depth)
+        {
+            if (block.isValid() && block.length() > 1)
+            {
+                previous_depth = 0;
+            }
+            continue;
+        }
+        QRectF rect = frame ? documentLayout()->frameBoundingRect(frame) : documentLayout()->blockBoundingRect(block);
+        for (int level = 0; level < depth; ++level)
+        {
+            qreal top = level < previous_depth ? qMin(previous_bottom, rect.top()) : rect.top();
+            painter.fillRect(QRectF(documentMargin() + level * quote_indent + 2, top, 2, rect.bottom() - top), themed("border_strong"));
+        }
+        previous_depth = depth;
+        previous_bottom = rect.bottom();
+    }
 }
