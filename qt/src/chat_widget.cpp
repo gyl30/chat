@@ -615,7 +615,7 @@ QWidget* chat_widget::create_sidebar()
                 }
                 auto* input = dialog.findChild<QLineEdit*>();
                 input->setMinimumWidth(chat_theme::dialog_small_width - 2 * chat_theme::dialog_padding);
-                input->setPlaceholderText(QStringLiteral("例如 K7QM-3XWP"));
+                input->setPlaceholderText(QStringLiteral("输入邀请码"));
                 input->setAccessibleName(QStringLiteral("邀请码"));
                 if (dialog.exec() != QDialog::Accepted || !connection_available_)
                 {
@@ -807,8 +807,8 @@ void chat_widget::setup_contacts_dialog()
     contacts_dialog_->setAccessibleName(QStringLiteral("联系人"));
     contacts_dialog_->setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     contacts_dialog_->setWindowModality(Qt::WindowModal);
-    contacts_dialog_->resize(420, 480);
-    contacts_dialog_->setMinimumSize(360, 240);
+    contacts_dialog_->resize(460, 560);
+    contacts_dialog_->setMinimumSize(390, 460);
     auto* contacts_layout = new QVBoxLayout(contacts_dialog_);
     contacts_layout->setContentsMargins(0, 0, 0, 0);
     contacts_layout->setSpacing(0);
@@ -906,7 +906,7 @@ void chat_widget::setup_contacts_dialog()
     contacts_requests_button_->hide();
     contacts_home_layout->addWidget(contacts_requests_button_);
     connect(contacts_requests_button_, &QPushButton::clicked, this, [this] { show_friend_requests(); });
-    contacts_status_ = new QLabel(QStringLiteral("暂无联系人，可从主菜单“添加联系人”发起好友申请"), contacts_dialog_);
+    contacts_status_ = new QLabel(QStringLiteral("暂无联系人，可点击“添加联系人”发起好友申请"), contacts_dialog_);
     contacts_status_->setObjectName(QStringLiteral("contactsStatus"));
     contacts_status_->setContentsMargins(18, 8, 14, 8);
     contacts_status_->setWordWrap(true);
@@ -2490,7 +2490,7 @@ void chat_widget::set_user(QString const& username, qint64 user, QString const& 
     set_friend_requests({}, {}, {});
     contacts_filter_->setFilterFixedString(QString{});
     contact_search_->clear();
-    contacts_status_->setText(QStringLiteral("暂无联系人，可从主菜单“添加联系人”发起好友申请"));
+    contacts_status_->setText(QStringLiteral("暂无联系人，可点击“添加联系人”发起好友申请"));
     add_users_->set_users({});
     add_user_search_->clear();
     add_users_status_->setText(QStringLiteral("输入用户名后按 Enter 查找"));
@@ -3081,7 +3081,7 @@ void chat_widget::set_contacts(QList<user_data> contacts)
     {
         leave_conversation(active_conversation_);
     }
-    contacts_status_->setText(contacts_->rowCount() == 0 ? QStringLiteral("暂无联系人，可从主菜单“添加联系人”发起好友申请") : QString{});
+    contacts_status_->setText(contacts_->rowCount() == 0 ? QStringLiteral("暂无联系人，可点击“添加联系人”发起好友申请") : QString{});
     if (selected > 0)
     {
         for (int row = 0; row < contacts_filter_->rowCount(); ++row)
@@ -3662,7 +3662,6 @@ void chat_widget::show_friend_requests()
     contacts_pages_->setCurrentIndex(1);
     contacts_title_->setText(QStringLiteral("好友申请"));
     contacts_back_button_->show();
-    contacts_dialog_->resize(420, 480);
     for (auto* list : {incoming_friends_, outgoing_friends_})
     {
         if (list->count() > 0 && !list->currentItem())
@@ -3683,8 +3682,6 @@ void chat_widget::show_contacts_dialog()
     }
     show_contacts_home();
     contact_search_->clear();
-    contacts_dialog_->resize(
-        420, std::clamp(120 + contacts_->rowCount() * chat_theme::dialog_row_height + (contacts_requests_button_->isHidden() ? 0 : 64), 240, 480));
     contacts_dialog_->open();
     contact_search_->setFocus();
 }

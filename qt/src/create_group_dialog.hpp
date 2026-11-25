@@ -10,7 +10,6 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPushButton;
-class QStackedWidget;
 
 class create_group_dialog final : public QDialog
 {
@@ -21,18 +20,13 @@ class create_group_dialog final : public QDialog
     QList<qint64> selected_members() const;
 
    private:
-    void setup_contact_picker();
-    void setup_naming_page();
     void update_selection();
 
-    QStackedWidget* steps_;
     QLineEdit* search_;
     QLabel* selected_count_;
     QListWidget* selected_;
     QListWidget* list_;
     QLineEdit* title_;
-    QLabel* summary_;
-    QListWidget* member_list_;
     QPushButton* proceed_;
 };
 #endif

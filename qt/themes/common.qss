@@ -133,40 +133,40 @@ QMainWindow {
         QDialog#editMessageDialog QPushButton:focus {
             border-color: ${focus};
         }
-        QDialog#createGroupDialog QPushButton#groupNextButton, QDialog#joinGroupDialog QPushButton#joinGroupButton,
+        QDialog#createGroupDialog QPushButton#groupCreateButton, QDialog#joinGroupDialog QPushButton#joinGroupButton,
         QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton,
         QDialog#editMessageDialog QPushButton#editMessageButton {
             background: ${accent};
             color: ${on_accent};
             border: 2px solid transparent;
         }
-        QDialog#createGroupDialog QPushButton#groupNextButton:hover, QDialog#joinGroupDialog QPushButton#joinGroupButton:hover,
+        QDialog#createGroupDialog QPushButton#groupCreateButton:hover, QDialog#joinGroupDialog QPushButton#joinGroupButton:hover,
         QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:hover,
         QDialog#editMessageDialog QPushButton#editMessageButton:hover {
             background: ${accent_hover};
         }
-        QDialog#createGroupDialog QPushButton#groupNextButton:focus, QDialog#joinGroupDialog QPushButton#joinGroupButton:focus,
+        QDialog#createGroupDialog QPushButton#groupCreateButton:focus, QDialog#joinGroupDialog QPushButton#joinGroupButton:focus,
         QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:focus,
         QDialog#editMessageDialog QPushButton#editMessageButton:focus {
             border-color: ${on_accent};
         }
-        QDialog#createGroupDialog QPushButton#groupNextButton:disabled, QDialog#joinGroupDialog QPushButton#joinGroupButton:disabled,
+        QDialog#createGroupDialog QPushButton#groupCreateButton:disabled, QDialog#joinGroupDialog QPushButton#joinGroupButton:disabled,
         QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:disabled,
         QDialog#editMessageDialog QPushButton#editMessageButton:disabled {
             background: ${selected};
             color: ${text_secondary};
         }
-        QListWidget#groupContactPicker, QListWidget#groupNamingMembers, QListWidget#groupSelectedContacts {
+        QListWidget#groupContactPicker, QListWidget#groupSelectedContacts {
             background: transparent;
             border: 0;
             outline: 0;
         }
-        QListWidget#groupContactPicker::item, QListWidget#groupNamingMembers::item {
+        QListWidget#groupContactPicker::item {
             padding: 0 8px;
             border-radius: 8px;
         }
         QListWidget#groupContactPicker::item:hover { background: ${subtle}; }
-        QListWidget#groupNamingMembers:focus { border: 1px solid ${focus}; border-radius: 8px; }
+        QListWidget#groupContactPicker:focus { border: 1px solid ${focus}; border-radius: 8px; }
         QListWidget#groupContactPicker::item:selected { background: ${selected}; color: ${text}; }
         QListWidget#groupContactPicker::indicator, QDialog#groupInviteDialog QListWidget::indicator {
             width: 16px;
@@ -186,7 +186,7 @@ QMainWindow {
             border-radius: 8px;
             padding: 0 8px;
         }
-        QLabel#groupSelectedCount, QLabel#groupNamingSummary { color: ${text_secondary}; font-size: 13px; }
+        QLabel#groupSelectedCount { color: ${text_secondary}; font-size: 13px; }
         QDialog#confirmationDialog QPushButton#confirmationActionButton {
             background: ${danger};
             color: ${on_accent};
