@@ -353,7 +353,7 @@ void group_dialog::setup_management(bool join_approval)
     all_mute_ = new QCheckBox(QStringLiteral("全员禁言（仅限制普通成员）"), management);
     all_mute_->setObjectName(QStringLiteral("groupMuteAll"));
     layout->addWidget(all_mute_);
-    dissolve_button_ = new QPushButton(QStringLiteral("解散群"), management);
+    dissolve_button_ = new QPushButton(QStringLiteral("解散群聊"), management);
     dissolve_button_->setObjectName(QStringLiteral("groupDissolveButton"));
     dissolve_button_->setAutoDefault(false);
     layout->addWidget(dissolve_button_, 0, Qt::AlignLeft);
@@ -731,9 +731,9 @@ void group_dialog::connect_member_actions()
             [this]
             {
                 if (confirm_action(this,
-                                   QStringLiteral("解散群"),
+                                   QStringLiteral("解散群聊"),
                                    QStringLiteral("解散后所有成员将无法通过 Chat 访问这个群的历史和群文件，且不能再加入。确定解散？"),
-                                   QStringLiteral("解散群")) &&
+                                   QStringLiteral("解散群聊")) &&
                     available_)
                 {
                     pending_ = true;
@@ -748,7 +748,7 @@ void group_dialog::connect_member_actions()
             {
                 if (confirm_action(this,
                                    QStringLiteral("退出群聊"),
-                                   QStringLiteral("退出后将无法继续访问这个群，重新加入需要群主或管理员邀请。确定退出？"),
+                                   QStringLiteral("退出后将无法访问本群的聊天记录和群文件。确定退出群聊？"),
                                    QStringLiteral("退出群聊")))
                 {
                     pending_ = true;

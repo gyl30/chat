@@ -945,7 +945,13 @@ async def qt_scenarios(root, probe, url, owner, member, db):
                 "SELECT reply,body FROM compose_drafts WHERE conversation=?",
                 conv,
             ) == [(0, "解散后可复制的正文")]
-            await ui.call("recover_local", row=key, action="删除本地草稿")
+            await ui.call("recover_local", row=key, action="删除草稿")
+            await ui.wait("confirm", lambda r: r["open"], cancel=True)
+            assert read(
+                journal, "SELECT 1 FROM compose_drafts WHERE conversation=?", conv
+            )
+            await ui.call("recover_local", row=key, action="删除草稿")
+            await ui.wait("confirm", lambda r: r["open"])
             await until(
                 lambda: not read(
                     journal, "SELECT 1 FROM compose_drafts WHERE conversation=?", conv
@@ -1020,7 +1026,7 @@ async def qt_scenarios(root, probe, url, owner, member, db):
                 )
             ).get("triggered")
             await searching.call(
-                "recover_local", row="离线解散待发送", action="删除本地待发送记录"
+                "recover_local", row="离线解散待发送", action="删除待发消息"
             )
             await until(
                 lambda: not read(

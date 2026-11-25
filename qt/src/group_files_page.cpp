@@ -1,5 +1,6 @@
 #include "group_files_page.hpp"
 #include "client_bridge.hpp"
+#include "theme.hpp"
 
 #include <QComboBox>
 #include <QDateTime>
@@ -9,7 +10,6 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QLocale>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QStandardPaths>
 #include <QTreeWidget>
@@ -75,7 +75,7 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
     auto* actions = new QHBoxLayout;
     save_ = new QPushButton(QStringLiteral("下载"), this);
     open_ = new QPushButton(QStringLiteral("保存并打开"), this);
-    remove_ = new QPushButton(QStringLiteral("移除"), this);
+    remove_ = new QPushButton(QStringLiteral("移除群文件"), this);
     more_ = new QPushButton(QStringLiteral("加载更多"), this);
     for (auto* b : {save_, open_, remove_, more_})
     {
@@ -108,8 +108,12 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
                     return;
                 }
                 auto const key = item->data(0, key_role).toString();
-                if (QMessageBox::question(this, QStringLiteral("移除群文件"), QStringLiteral("从本群的文件列表移除“%1”？").arg(item->text(0))) ==
-                    QMessageBox::Yes)
+                auto const uploader = item->data(0, uploader_role).toLongLong();
+                if (confirm_action(this,
+                                   QStringLiteral("移除群文件"),
+                                   QStringLiteral("从本群的文件列表移除“%1”？聊天消息和其他群的引用会保留。").arg(item->text(0)),
+                                   QStringLiteral("移除群文件")) &&
+                    isEnabled() && (manager_ || uploader == user_))
                 {
                     client_.change_file(conversation_, key, false);
                 }

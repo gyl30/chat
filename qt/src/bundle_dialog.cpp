@@ -155,19 +155,31 @@ void append_entry(QVBoxLayout& stream, chat::forwarded_item const& item, QDialog
                          {
                              QMenu menu(body);
                              QObject::connect(&dialog, &QDialog::finished, &menu, &QMenu::close);
-                             auto* original = menu.addAction(QStringLiteral("复制原文"));
+                             auto selected = body->textCursor().selectedText();
+                             auto* selection = selected.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制选中文字"));
+                             menu.addAction(QStringLiteral("复制原文"));
                              auto* doc = dynamic_cast<message_markdown*>(body->document());
                              auto code = doc ? doc->code_at(point) : QString{};
+                             menu.addSeparator();
                              auto* block = code.isNull() ? nullptr : menu.addAction(QStringLiteral("复制代码"));
-                             auto selected = body->textCursor().selectedText();
-                             if (!selected.isEmpty())
-                             {
-                                 menu.addAction(QStringLiteral("复制选中文字"));
-                             }
+                             auto const url = http_message_url(body->anchorAt(point));
+                             auto* open_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("打开链接"));
+                             auto* copy_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制链接"));
                              auto* action = menu.exec(body->viewport()->mapToGlobal(point));
-                             if (action)
+                             if (!action)
                              {
-                                 QApplication::clipboard()->setText(action == original ? source : action == block ? code : selected);
+                                 return;
+                             }
+                             if (action == open_link)
+                             {
+                                 QDesktopServices::openUrl(url);
+                             }
+                             else
+                             {
+                                 QApplication::clipboard()->setText(action == copy_link   ? url.toString(QUrl::FullyEncoded)
+                                                                    : action == selection ? selected
+                                                                    : action == block     ? code
+                                                                                          : source);
                              }
                          });
         layout->addWidget(body);

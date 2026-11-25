@@ -430,12 +430,13 @@ void chat_history_dialog::show_menu(QPoint position)
     auto const id = item->data(id_role).toLongLong();
     auto const found = std::ranges::find(messages_, id, &message_data::id);
     QMenu menu(this);
+    connect(this, &QDialog::finished, &menu, &QMenu::close);
     auto* locate = menu.addAction(QStringLiteral("定位到聊天位置"));
     auto* copy = found != messages_.end() && !found->text.isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
     auto* chosen = menu.exec(list_->viewport()->mapToGlobal(position));
     // Live edits can change the cache while the nested menu loop is running.
     auto const current = std::ranges::find(messages_, id, &message_data::id);
-    if (current == messages_.end())
+    if (current == messages_.end() || current->deleted)
     {
         return;
     }

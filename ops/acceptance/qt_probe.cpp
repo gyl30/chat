@@ -565,7 +565,14 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 {
                     if (child->text() == cmd["action"].toString() && child->isEnabled())
                     {
-                        child->trigger();
+                        if (child->text() == "删除草稿")
+                        {
+                            QTimer::singleShot(0, child, &QAction::trigger);
+                        }
+                        else
+                        {
+                            child->trigger();
+                        }
                         out["triggered"] = true;
                     }
                 }

@@ -111,6 +111,24 @@ async def cases(ui, gate, peer, db, group, target, seeded, mixed, image, file, t
 
     await ui.wait("select", lambda result: result["ok"], conv=group)
     await ui.wait("state", lambda s: file in [row["id"] for row in s["rows"]])
+    # The local task can finish and its conversation can change during QMenu::exec.
+    gate.hold_requests.add("send_message")
+    await ui.call("send", text="临时待发菜单")
+    await until(lambda: bool(gate.held_requests), "delayed send")
+    await ui.wait("multi", lambda r: r["pending"] in (1, 2))
+    await multi(seed="保持剪贴板")
+    await ui.call("message_menu", open=0)
+    await ui.wait("message_menu", lambda r: r.get("open"))
+    assert (await ui.call("select", conv=target))["ok"]
+    await gate.release_requests("send_message")
+    await ui.call("message_menu", copy=True)
+    closed = await ui.wait("message_menu", lambda r: not r.get("open"))
+    assert closed["clipboard"] == "保持剪贴板", closed
+    await ui.wait("select", lambda r: r["ok"], conv=group)
+    await ui.wait("state", lambda s: file in [row["id"] for row in s["rows"]])
+    print(
+        "PASS pending menu cannot copy from a previous conversation visit", flush=True
+    )
     await ui.call("reply_to", id=seeded[-1])
     await ui.call("draft", text="给回复的草稿\n未发送")
     initial = await multi(cursor=3)
