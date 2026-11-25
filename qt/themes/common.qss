@@ -433,15 +433,10 @@ QMainWindow {
             background: transparent;
         }
         QPushButton#chatHeaderButton {
-            min-height: 38px;
-            padding: 0 10px 0 2px;
-            border: 0;
+            padding: 0;
+            border: 1px solid transparent;
             border-radius: 12px;
             background: transparent;
-            color: ${text};
-            text-align: left;
-            font-size: 17px;
-            font-weight: 700;
         }
         QPushButton#chatHeaderButton:hover:enabled {
             background: ${canvas_hover};
@@ -462,16 +457,6 @@ QMainWindow {
         }
         QPushButton#entryUnreadButton:focus {
             border: 1px solid ${focus};
-        }
-        QLabel#chatPresence, QLabel#chatPresenceOnline {
-            background: transparent;
-            font-size: 13px;
-        }
-        QLabel#chatPresence {
-            color: ${text_muted};
-        }
-        QLabel#chatPresenceOnline {
-            color: ${online};
         }
         QToolButton#connectionStatusButton {
             min-height: 26px;
@@ -767,14 +752,13 @@ QMainWindow {
             background: ${surface};
             border-color: ${focus};
         }
-        QToolButton#chatMoreButton, QToolButton#sendAttachmentButton,
+        QToolButton#sendAttachmentButton,
         QToolButton#screenshotButton, QToolButton#emojiButton, QToolButton#chatHistoryButton {
             padding: 0;
             border: 0;
             border-radius: 18px;
             background: transparent;
         }
-        QToolButton#chatMoreButton:hover:enabled,
         QToolButton#screenshotButton:hover:enabled, QToolButton#sendAttachmentButton:hover:enabled, QToolButton#emojiButton:hover:enabled,
         QToolButton#chatHistoryButton:hover:enabled {
             background: ${canvas_hover};
@@ -877,7 +861,7 @@ QPushButton#loginButton:focus, QPushButton#registrationSubmitButton:focus, QTool
 
 QToolButton#profileActionButton[primary="true"]:focus,
 QDialog#profileDialog QPushButton#changeAvatarButton:focus { border-color: ${on_accent}; }
-QToolButton#chatMoreButton:focus, QToolButton#composeToolButton:focus,
+QToolButton#composeToolButton:focus,
 QPushButton#chatHeaderButton:focus { border: 1px solid ${focus}; }
 
 

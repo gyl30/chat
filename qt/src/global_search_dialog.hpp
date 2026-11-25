@@ -26,7 +26,7 @@ class QDateEdit;
 class global_search_dialog final : public QDialog
 {
    public:
-    global_search_dialog(client_bridge& client, QWidget* parent, qint64 self = 0, QString const& self_name = {}, bool mentions_me = false);
+    global_search_dialog(client_bridge& client, QWidget* parent, qint64 self = 0, QString const& self_name = {}, bool mentions_me = false, QString const& query = {});
     void locate(qint64 conversation, qint64 anchor, std::function<void()> unavailable = {}, QString const& title = {});
 
    private:

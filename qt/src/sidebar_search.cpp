@@ -85,7 +85,8 @@ sidebar_search::sidebar_search(
     directory_->setItemDelegate(new search_result_delegate(input, directory_));
     directory_->setIconSize(QSize(32, 32));
     layout->addWidget(directory_);
-    layout->addWidget(new QLabel(QStringLiteral("聊天记录"), this));
+    auto* history = new QLabel(QStringLiteral("聊天记录"), this);
+    layout->addWidget(history);
     hits_ = new QListWidget(this);
     hits_->setObjectName(QStringLiteral("sidebarMessageHits"));
     hits_->setItemDelegate(new search_result_delegate(input, hits_));
@@ -94,7 +95,18 @@ sidebar_search::sidebar_search(
     layout->addWidget(more_);
     more_->hide();
     auto* advanced = new QPushButton(QStringLiteral("高级搜索"), this);
+    advanced->setObjectName(QStringLiteral("sidebarAdvancedSearch"));
     layout->addWidget(advanced);
+    auto show_results = [this, history]
+    {
+        bool searching = !input_.text().isEmpty();
+        history->setVisible(searching);
+        hits_->setVisible(searching);
+        directory_->setVisible(searching && directory_->count() > 0);
+        setSizePolicy(QSizePolicy::Preferred, searching ? QSizePolicy::Expanding : QSizePolicy::Maximum);
+    };
+    connect(&input_, &QLineEdit::textChanged, this, show_results);
+    show_results();
     connect(advanced, &QPushButton::clicked, this, &sidebar_search::advanced_requested);
     connect(more_,
             &QPushButton::clicked,

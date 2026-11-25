@@ -20,6 +20,8 @@ class conversation_delegate final : public QStyledItemDelegate
     void body_clicked(QModelIndex const& index);
 
    private:
+    QIcon expanded_;
+    QIcon collapsed_;
     QIcon pin_;
     QIcon mute_;
 };

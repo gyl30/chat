@@ -52,7 +52,7 @@ QString search_snippet(QString const& body, QString const& query)
 }
 }    // namespace
 
-global_search_dialog::global_search_dialog(client_bridge& client, QWidget* parent, qint64 self, QString const& self_name, bool mentions_me)
+global_search_dialog::global_search_dialog(client_bridge& client, QWidget* parent, qint64 self, QString const& self_name, bool mentions_me, QString const& query)
     : QDialog(parent), client_(client), self_(self)
 {
     setWindowTitle(QStringLiteral("全局消息搜索"));
@@ -62,6 +62,7 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
     query_->setPlaceholderText(QStringLiteral("输入关键词，按回车搜索全部聊天记录"));
     query_->setObjectName(QStringLiteral("globalSearchQuery"));
     query_->setClearButtonEnabled(true);
+    query_->setText(query);
     header_ = new QWidget(this);
     auto* header = new QHBoxLayout(header_);
     header->setContentsMargins(0, 0, 0, 0);

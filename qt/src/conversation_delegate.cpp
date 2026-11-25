@@ -51,6 +51,8 @@ conversation_delegate::conversation_delegate(QObject* parent) : QStyledItemDeleg
     auto update_icons = [this]
     {
         pin_ = svg_icon(u"pin", themed("text_secondary"), {16, 16});
+        expanded_ = svg_icon(u"chevron-down", themed("text_secondary"), {16, 16});
+        collapsed_ = svg_icon(u"chevron-right", themed("text_secondary"), {16, 16});
         mute_ = svg_icon(u"bell-off", themed("text_secondary"), {16, 16});
     };
     update_icons();
@@ -61,10 +63,22 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
 {
     if (index.data(conversation_model::folder_header_role).toBool())
     {
-        auto header = option;
-        initStyleOption(&header, index);
-        header.text = (index.data(conversation_model::collapsed_role).toBool() ? QStringLiteral("▸  ") : QStringLiteral("▾  ")) + header.text;
-        option.widget->style()->drawControl(QStyle::CE_ItemViewItem, &header, painter, option.widget);
+        painter->save();
+        auto const row = option.rect.adjusted(6, 2, -6, -2);
+        if (option.state & (QStyle::State_MouseOver | QStyle::State_HasFocus))
+        {
+            painter->setRenderHint(QPainter::Antialiasing);
+            painter->setBrush(themed("subtle"));
+            painter->setPen(Qt::NoPen);
+            painter->drawRoundedRect(row, 8, 8);
+        }
+        QRect arrow(option.rect.left() + chat_theme::dialog_left, row.center().y() - 7, 16, 16);
+        (index.data(conversation_model::collapsed_role).toBool() ? collapsed_ : expanded_).paint(painter, arrow);
+        auto const label = row.adjusted(arrow.right() + 7 - row.left(), 0, -8, 0);
+        painter->setFont(option.font);
+        painter->setPen(themed("text_secondary"));
+        painter->drawText(label, Qt::AlignLeft | Qt::AlignVCenter, option.fontMetrics.elidedText(index.data().toString(), Qt::ElideRight, label.width()));
+        painter->restore();
         return;
     }
     painter->save();

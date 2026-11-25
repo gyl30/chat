@@ -198,7 +198,7 @@ class chat_widget final : public QWidget
     void logout_requested(QWidget* parent);
     void bookmark_menu_requested(qint64 message, QAction* action);
     void bookmark_requested(qint64 message, bool bookmarked);
-    void global_search_requested(bool mentions_me = false);
+    void global_search_requested(QString query);
     void message_context_requested(qint64 conversation, qint64 anchor);
     void chat_history_requested(qint64 conversation, QString title);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
@@ -230,6 +230,7 @@ class chat_widget final : public QWidget
 
    private:
     QWidget* create_sidebar();
+    void add_list_actions(QMenu& menu);
     void add_local_content(QMenu& menu);
     void show_conversation_menu(QPoint point);
     void setup_contacts_dialog();
@@ -330,7 +331,6 @@ class chat_widget final : public QWidget
     void show_read_details(qint64 conversation, qint64 message);
     void update_chat_header(QString const& username);
     void update_pinned_message();
-    void update_chat_presence();
     void set_message_status(QString message);
     void stop_typing();
     void update_typing_label();
@@ -370,7 +370,6 @@ class chat_widget final : public QWidget
     QToolButton* cancel_reply_button_ = nullptr;
     QLabel* main_menu_badge_ = nullptr;
     QLineEdit* conversation_search_ = nullptr;
-    QToolButton* chat_more_button_ = nullptr;
     QToolButton* screenshot_button_ = nullptr;
     QToolButton* mention_button_ = nullptr;
     QToolButton* mention_all_button_ = nullptr;
@@ -396,7 +395,6 @@ class chat_widget final : public QWidget
     QListView* add_users_view_ = nullptr;
     QLabel* add_users_status_ = nullptr;
     QPushButton* chat_title_ = nullptr;
-    QLabel* chat_presence_ = nullptr;
     QLabel* typing_label_ = nullptr;
     QTimer* mute_expiry_timer_ = nullptr;
     QTimer* typing_idle_timer_ = nullptr;
@@ -455,7 +453,6 @@ class chat_widget final : public QWidget
     qint64 active_conversation_ = 0;
     qint64 active_peer_ = 0;
     bool active_group_ = false;
-    quint64 active_member_count_ = 0;
     QString active_username_;
     QPushButton* unread_start_button_ = nullptr;
     quint64 conversation_visit_ = 0;
