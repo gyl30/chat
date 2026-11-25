@@ -15,6 +15,7 @@ class screenshot_dialog final : public QDialog
    public:
     explicit screenshot_dialog(QWidget* parent);
     ~screenshot_dialog() override;
+    void request_screenshot();
     QImage selected_image() const;
 
    private slots:
@@ -22,7 +23,6 @@ class screenshot_dialog final : public QDialog
 
    private:
     void show_image(QImage image);
-    void request_screenshot();
 
     screenshot_preview* preview_;
     QLabel* status_;

@@ -1737,13 +1737,34 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
             this,
             [this]
             {
-                auto const recipient = active_conversation_;
-                auto const account = self_user_;
-                screenshot_dialog dialog(this);
-                if (dialog.exec() == QDialog::Accepted && active_conversation_ == recipient && self_user_ == account && can_send())
+                if (findChild<screenshot_dialog*>(QString(), Qt::FindDirectChildrenOnly))
                 {
-                    send_image(dialog.selected_image());
+                    return;
                 }
+                auto* dialog = new screenshot_dialog(this);
+                auto const visit = conversation_visit_;
+                connect(messages_,
+                        &QAbstractItemModel::modelReset,
+                        dialog,
+                        [this, dialog, visit]
+                        {
+                            if (conversation_visit_ != visit)
+                            {
+                                dialog->reject();
+                            }
+                        });
+                connect(dialog,
+                        &QDialog::accepted,
+                        this,
+                        [this, dialog, visit]
+                        {
+                            if (visit == conversation_visit_ && can_send())
+                            {
+                                send_image(dialog->selected_image());
+                            }
+                        });
+                connect(dialog, &QDialog::finished, dialog, &QObject::deleteLater);
+                dialog->request_screenshot();
             });
     mention_button_ = new QToolButton(input_bar);
     mention_button_->setProperty("composeText", true);

@@ -97,7 +97,6 @@ screenshot_dialog::screenshot_dialog(QWidget* parent) : QDialog(parent)
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     layout->addWidget(buttons);
-    request_screenshot();
 }
 
 #if defined(Q_OS_LINUX)
@@ -134,8 +133,7 @@ void screenshot_dialog::request_screenshot()
             return;
         }
         auto call = QDBusMessage::createMethodCall(portal, "/org/freedesktop/portal/desktop", "org.freedesktop.portal.Screenshot", "Screenshot");
-        call << QString{} << QVariantMap{{"handle_token", token}, {"interactive", true}};
-        status_->setText(QStringLiteral("请在桌面截图窗口中选择画面"));
+        call << QString{} << QVariantMap{{"handle_token", token}, {"interactive", false}};
         auto* watcher = new QDBusPendingCallWatcher(bus.asyncCall(call), this);
         connect(watcher,
                 &QDBusPendingCallWatcher::finished,
@@ -201,13 +199,15 @@ void screenshot_dialog::show_image(QImage image)
 {
     if (image.isNull())
     {
-        status_->setText(QStringLiteral("未能取得屏幕画面，请检查桌面截图权限"));
+        status_->setText(QStringLiteral("当前桌面未能提供截图。可使用系统截图后，在聊天输入框中粘贴图片。"));
+        open();
         return;
     }
     preview_->display(std::move(image));
     status_->setText(QStringLiteral("拖动选取区域，单击恢复整幅画面。"));
     send_->setEnabled(true);
     adjustSize();
+    open();
 }
 
 QImage screenshot_dialog::selected_image() const { return preview_->selected(); }
