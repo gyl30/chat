@@ -1034,3 +1034,12 @@ QLabel#snapshotTime { color: ${text_secondary}; font-size: 12px; }
 QTextBrowser#snapshotBody { background: transparent; border: 0; padding: 0; }
 
 QLabel#pollFeedback, QLabel#pollSummary { color: ${text_secondary}; }
+
+QDialog[chatPopup="true"] {
+    background: ${panel}; border: 1px solid ${border}; border-radius: 10px;
+}
+QToolButton#popupCloseButton {
+    background: transparent; border: 1px solid transparent; border-radius: 6px;
+}
+QToolButton#popupCloseButton:hover { background: ${subtle}; }
+QToolButton#popupCloseButton:focus { border-color: ${focus}; }

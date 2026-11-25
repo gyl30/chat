@@ -21,6 +21,7 @@ create_group_dialog::create_group_dialog(QWidget* parent) : QDialog(parent)
     setWindowTitle(QStringLiteral("创建群聊"));
     resize(640, 500);
     auto* layout = new QVBoxLayout(this);
+    frame_dialog(*this);
     layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
     layout->setSpacing(chat_theme::dialog_spacing);
     layout->addWidget(new QLabel(QStringLiteral("群名称"), this));

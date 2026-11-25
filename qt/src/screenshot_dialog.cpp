@@ -1,3 +1,4 @@
+#include "theme.hpp"
 #include "screenshot_dialog.hpp"
 
 #include <algorithm>
@@ -85,6 +86,7 @@ screenshot_dialog::screenshot_dialog(QWidget* parent) : QDialog(parent)
     setWindowTitle(QStringLiteral("截图预览"));
     setObjectName(QStringLiteral("screenshotDialog"));
     auto* layout = new QVBoxLayout(this);
+    frame_dialog(*this);
     status_ = new QLabel(this);
     layout->addWidget(status_);
     preview_ = new screenshot_preview(this);

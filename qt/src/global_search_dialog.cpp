@@ -1,3 +1,4 @@
+#include "theme.hpp"
 #include "global_search_dialog.hpp"
 
 #include <QDateTime>
@@ -58,6 +59,7 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
     setWindowTitle(QStringLiteral("全局消息搜索"));
     resize(760, 540);
     auto* layout = new QVBoxLayout(this);
+    frame_dialog(*this);
     query_ = new QLineEdit(this);
     query_->setPlaceholderText(QStringLiteral("输入关键词，按回车搜索全部聊天记录"));
     query_->setObjectName(QStringLiteral("globalSearchQuery"));
@@ -106,7 +108,7 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
                 sender_->setCurrentIndex(0);
                 bool ok = false;
                 auto text =
-                    QInputDialog::getText(this, QStringLiteral("查找发送者"), QStringLiteral("用户名或昵称"), QLineEdit::Normal, {}, &ok).trimmed();
+                    prompt_text(this, QStringLiteral("查找发送者"), QStringLiteral("用户名或昵称"), {}, ok).trimmed();
                 if (ok && !text.isEmpty())
                 {
                     sender_request_ = client_.find_search_senders(text);

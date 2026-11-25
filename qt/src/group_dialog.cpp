@@ -49,6 +49,7 @@ group_dialog::group_dialog(client_bridge& client,
     resize(520, 580);
     setMinimumSize(420, 400);
     auto* outer = new QVBoxLayout(this);
+    frame_dialog(*this);
     outer->setContentsMargins(16, 16, 16, 16);
     outer->setSpacing(chat_theme::dialog_spacing);
     tabs_ = new QTabWidget(this);
@@ -169,6 +170,7 @@ void group_dialog::setup_overview()
                 dialog.setWindowTitle(QStringLiteral("群公告"));
                 dialog.resize(480, 400);
                 auto* layout = new QVBoxLayout(&dialog);
+                frame_dialog(dialog);
                 layout->setContentsMargins(
                     chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
                 layout->setSpacing(chat_theme::dialog_spacing);
@@ -274,7 +276,7 @@ void group_dialog::setup_management(bool join_approval)
             {
                 bool ok = false;
                 auto text =
-                    QInputDialog::getMultiLineText(this, QStringLiteral("群简介"), QStringLiteral("最多 256 个字符"), description_->text(), &ok);
+                    prompt_text(this, QStringLiteral("群简介"), QStringLiteral("最多 256 个字符"), description_->text(), ok, true);
                 if (ok)
                 {
                     emit description_requested(std::move(text));
@@ -624,6 +626,7 @@ void group_dialog::connect_member_actions()
                 dialog.setWindowTitle(QStringLiteral("邀请联系人"));
                 dialog.resize(400, 360);
                 auto* layout = new QVBoxLayout(&dialog);
+                frame_dialog(dialog);
                 layout->setContentsMargins(
                     chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
                 layout->setSpacing(chat_theme::dialog_spacing);
@@ -705,8 +708,16 @@ void group_dialog::connect_member_actions()
                                           QStringLiteral("24 小时"),
                                           QStringLiteral("永久禁言")};
                 constexpr qint64 seconds[] = {0, 600, 3600, 86400, -1};
-                bool accepted = false;
-                auto const selection = QInputDialog::getItem(this, QStringLiteral("成员禁言"), target.username, choices, 1, false, &accepted);
+                QInputDialog dialog(this);
+                dialog.setWindowTitle(QStringLiteral("成员禁言"));
+                dialog.setLabelText(target.username);
+                dialog.setComboBoxItems(choices);
+                dialog.setTextValue(choices[1]);
+                dialog.setOkButtonText(QStringLiteral("确定"));
+                dialog.setCancelButtonText(QStringLiteral("取消"));
+                frame_dialog(dialog, false);
+                bool const accepted = dialog.exec() == QDialog::Accepted;
+                auto const selection = dialog.textValue();
                 auto const choice = choices.indexOf(selection);
                 if (accepted && choice >= 0 && available_)
                 {

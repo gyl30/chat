@@ -153,6 +153,7 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     setWindowTitle(QStringLiteral("聊天记录 · %1").arg(title));
     resize(560, 640);
     auto* layout = new QVBoxLayout(this);
+    frame_dialog(*this);
     layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
     layout->setSpacing(chat_theme::dialog_spacing);
     auto* search = new QLineEdit(this);

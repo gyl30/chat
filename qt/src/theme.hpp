@@ -6,6 +6,7 @@
 #include <QString>
 
 class QWidget;
+class QDialog;
 
 class feedback_label final : public QLabel
 {
@@ -71,6 +72,9 @@ inline constexpr int compose_field_min_height = 36;
 }    // namespace chat_theme
 
 QString chat_style_sheet();
+QLabel* dialog_title(QDialog& dialog, QString title);
+void frame_dialog(QDialog& dialog, bool resizable = true);
+QString prompt_text(QWidget* parent, QString const& title, QString const& label, QString const& initial, bool& accepted, bool multiline = false);
 bool confirm_action(QWidget* parent, QString const& title, QString const& text, QString const& action);
 
 #endif

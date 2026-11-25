@@ -20,6 +20,7 @@ login_sessions_dialog::login_sessions_dialog(client_bridge& client, QWidget* par
     setWindowTitle(QStringLiteral("账号安全与登录设备"));
     resize(760, 500);
     auto* layout = new QVBoxLayout(this);
+    frame_dialog(*this);
     sessions_ = new QTreeWidget(this);
     sessions_->setObjectName(QStringLiteral("loginSessionsList"));
     sessions_->setRootIsDecorated(false);

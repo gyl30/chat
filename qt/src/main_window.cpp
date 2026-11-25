@@ -316,6 +316,7 @@ void main_window::setup_registration_dialog()
     registration_dialog_->setModal(true);
     registration_dialog_->setFixedWidth(chat_theme::auth_card_width);
     auto* registration_layout = new QVBoxLayout(registration_dialog_);
+    frame_dialog(*registration_dialog_, false);
     registration_layout->setContentsMargins(chat_theme::auth_padding, chat_theme::auth_padding, chat_theme::auth_padding, chat_theme::auth_padding);
     registration_layout->setSpacing(chat_theme::auth_spacing);
 

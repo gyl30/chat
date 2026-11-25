@@ -260,8 +260,7 @@ QHBoxLayout* make_contact_header(QDialog* dialog, QString title)
 {
     auto* header = new QHBoxLayout;
     header->setContentsMargins(18, 12, 12, 4);
-    auto* label = new QLabel(std::move(title), dialog);
-    label->setObjectName(QStringLiteral("dialogTitle"));
+    auto* label = dialog_title(*dialog, std::move(title));
     header->addWidget(label, 1);
     auto* close = new QToolButton(dialog);
     close->setObjectName(QStringLiteral("contactDialogCloseButton"));
@@ -509,6 +508,7 @@ QWidget* chat_widget::create_sidebar()
                 dialog.layout()->setContentsMargins(
                     chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
                 dialog.layout()->setSpacing(chat_theme::dialog_spacing);
+                frame_dialog(dialog, false);
                 auto* buttons = dialog.findChild<QDialogButtonBox*>();
                 buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("joinGroupButton"));
                 for (auto* button : buttons->buttons())
@@ -1036,12 +1036,10 @@ void chat_widget::setup_contacts_dialog()
                     return;
                 }
                 bool ok = false;
-                auto name = QInputDialog::getText(contacts_dialog_,
+                auto name = prompt_text(contacts_dialog_,
                                                   action->text(),
                                                   QStringLiteral("分组名称（最多 32 个字符）"),
-                                                  QLineEdit::Normal,
-                                                  action == rename ? group : QString{},
-                                                  &ok)
+                                                  action == rename ? group : QString{}, ok)
                                 .trimmed();
                 if (!ok)
                 {
@@ -1104,12 +1102,10 @@ void chat_widget::setup_contacts_dialog()
                     return;
                 }
                 bool ok = false;
-                auto value = QInputDialog::getText(contacts_dialog_,
+                auto value = prompt_text(contacts_dialog_,
                                                    QStringLiteral("编辑备注"),
                                                    QStringLiteral("备注（最多 32 个字符，留空恢复用户名）"),
-                                                   QLineEdit::Normal,
-                                                   current,
-                                                   &ok);
+                                                   current, ok);
                 if (!ok)
                 {
                     return;
@@ -2150,6 +2146,7 @@ void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows
     QDialog dialog(this);
     dialog.setWindowTitle(QStringLiteral("选择转发目标"));
     auto* layout = new QVBoxLayout(&dialog);
+    frame_dialog(dialog);
     auto* mode = new QComboBox(&dialog);
     mode->addItems({QStringLiteral("逐条转发"), QStringLiteral("合并转发")});
     mode->setVisible(rows.size() >= 2 && rows.size() <= 50);
@@ -2479,6 +2476,7 @@ void chat_widget::show_message_menu(QPoint position)
         dialog.layout()->setContentsMargins(
             chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
         dialog.layout()->setSpacing(chat_theme::dialog_spacing);
+        frame_dialog(dialog);
         auto* editor = dialog.findChild<QPlainTextEdit*>();
         editor->setObjectName(QStringLiteral("editMessageText"));
         editor->setAccessibleName(QStringLiteral("消息内容"));
@@ -4100,7 +4098,7 @@ void chat_widget::toggle_folder(qint64 folder)
 void chat_widget::edit_folder_name(qint64 folder, QString current)
 {
     bool ok = false;
-    auto name = QInputDialog::getText(this, QStringLiteral("会话分组"), QStringLiteral("分组名称（最多 32 个字符）"), QLineEdit::Normal, current, &ok)
+    auto name = prompt_text(this, QStringLiteral("会话分组"), QStringLiteral("分组名称（最多 32 个字符）"), current, ok)
                     .trimmed();
     if (!ok || name.isEmpty())
     {
@@ -4620,6 +4618,7 @@ void chat_widget::show_read_details(qint64 conversation, qint64 message)
     dialog.setWindowTitle(QStringLiteral("已读详情"));
     dialog.resize(chat_theme::dialog_small_width, 360);
     auto* layout = new QVBoxLayout(&dialog);
+    frame_dialog(dialog);
     layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
     layout->setSpacing(chat_theme::dialog_spacing);
     auto* count = new QLabel(&dialog);
@@ -5631,6 +5630,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
                 QDialog editor(&dialog);
                 editor.setWindowTitle(QStringLiteral("编辑个人资料"));
                 QVBoxLayout layout(&editor);
+                frame_dialog(editor, false);
                 QLineEdit nick(edit_profile->property("nickname").toString(), &editor);
                 QLineEdit text(signature->text(), &editor);
                 nick.setObjectName(QStringLiteral("profileNickname"));

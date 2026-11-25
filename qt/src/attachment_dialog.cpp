@@ -30,6 +30,7 @@ attachment_dialog::attachment_dialog(
     setWindowTitle(filename_);
     resize(preview ? QSize(700, 600) : QSize(500, 180));
     auto* layout = new QVBoxLayout(this);
+    frame_dialog(*this);
     layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
     layout->setSpacing(chat_theme::dialog_spacing);
     status_ = new QLabel(preview ? QStringLiteral("正在加载预览…") : filename_, this);

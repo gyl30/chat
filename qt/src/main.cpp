@@ -1,3 +1,4 @@
+#include "theme.hpp"
 #include <utility>
 
 #include <QApplication>
@@ -20,7 +21,9 @@ int main(int argc, char* argv[])
     themes.load_settings();
     if (!themes.valid())
     {
-        QMessageBox::critical(nullptr, QStringLiteral("无法加载主题"), themes.last_error());
+        QMessageBox error(QMessageBox::Critical, QStringLiteral("无法加载主题"), themes.last_error(), QMessageBox::Ok);
+        frame_dialog(error, false);
+        error.exec();
         return 1;
     }
 
@@ -39,6 +42,7 @@ int main(int argc, char* argv[])
                                       message + QStringLiteral("\n应用继续使用完整的有效主题。"),
                                       QMessageBox::Ok,
                                       &window);
+        frame_dialog(*error, false);
         error->setAttribute(Qt::WA_DeleteOnClose);
         error->open();
     };

@@ -57,6 +57,7 @@ message_search_dialog::message_search_dialog(
     setWindowTitle(title + QStringLiteral(" · 当前会话搜索"));
     resize(700, 600);
     auto* layout = new QVBoxLayout(this);
+    frame_dialog(*this);
     layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
     layout->setSpacing(chat_theme::dialog_spacing);
     auto* search_row = new QHBoxLayout;

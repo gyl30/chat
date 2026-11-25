@@ -1,3 +1,4 @@
+#include "theme.hpp"
 #include "bundle_dialog.hpp"
 #include "attachment_dialog.hpp"
 #include "download_tasks.hpp"
@@ -197,9 +198,7 @@ void show_bundle(client_bridge& client, chat_widget& chat, qint64 room, qint64 m
     dialog.setWindowTitle(QStringLiteral("聊天记录"));
     dialog.resize(560, 540);
     auto* layout = new QVBoxLayout(&dialog);
-    auto* title = new QLabel(dialog.windowTitle());
-    title->setObjectName(QStringLiteral("dialogTitle"));
-    layout->addWidget(title);
+    frame_dialog(dialog);
     auto* scroller = new QScrollArea;
     scroller->setWidgetResizable(true);
     scroller->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);

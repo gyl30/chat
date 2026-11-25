@@ -4,6 +4,12 @@
 #include <QAccessibleObject>
 #include <QApplication>
 #include <QLayout>
+#include <QHBoxLayout>
+#include <QInputDialog>
+#include <QMouseEvent>
+#include <QToolButton>
+#include <QWindow>
+#include "icons.hpp"
 #include <QMessageBox>
 #include <QPushButton>
 #include <QStyle>
@@ -55,6 +61,74 @@ void feedback_label::show_error(QString message)
     }
 }
 
+namespace
+{
+class draggable_title final : public QLabel
+{
+   public:
+    using QLabel::QLabel;
+
+   protected:
+    void mousePressEvent(QMouseEvent* event) override
+    {
+        if (event->button() == Qt::LeftButton && window()->windowHandle()->startSystemMove())
+        {
+            event->accept();
+            return;
+        }
+        QLabel::mousePressEvent(event);
+    }
+};
+}
+
+QLabel* dialog_title(QDialog& dialog, QString title)
+{
+    auto* label = new draggable_title(std::move(title), &dialog);
+    label->setTextFormat(Qt::PlainText);
+    label->setObjectName(QStringLiteral("dialogTitle"));
+    label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    return label;
+}
+
+void frame_dialog(QDialog& dialog, bool resizable)
+{
+    dialog.setWindowFlag(Qt::FramelessWindowHint);
+    dialog.setProperty("chatPopup", true);
+    auto* bar = new QWidget(&dialog);
+    auto* row = new QHBoxLayout(bar);
+    row->setContentsMargins(16, 6, 8, 4);
+    auto* title = dialog_title(dialog, dialog.windowTitle());
+    row->addWidget(title, 1);
+    QObject::connect(&dialog, &QWidget::windowTitleChanged, title, &QLabel::setText);
+    auto* close = new QToolButton(bar);
+    close->setObjectName(QStringLiteral("popupCloseButton"));
+    close->setAccessibleName(QStringLiteral("关闭"));
+    close->setToolTip(close->accessibleName());
+    close->setFixedSize(32, 32);
+    close->setAutoRaise(true);
+    auto recolor = [close] { close->setIcon(svg_icon(u"close", themed("text_secondary"), {16, 16})); };
+    recolor();
+    QObject::connect(&theme_manager::instance(), &theme_manager::changed, close, recolor);
+    QObject::connect(close, &QToolButton::clicked, &dialog, &QWidget::close);
+    row->addWidget(close);
+    dialog.layout()->setMenuBar(bar);
+    dialog.setSizeGripEnabled(resizable);
+}
+
+QString prompt_text(QWidget* parent, QString const& title, QString const& label, QString const& initial, bool& accepted, bool multiline)
+{
+    QInputDialog dialog(parent);
+    dialog.setWindowTitle(title);
+    dialog.setOption(QInputDialog::UsePlainTextEditForTextInput, multiline);
+    dialog.setLabelText(label);
+    dialog.setTextValue(initial);
+    dialog.setOkButtonText(QStringLiteral("确定"));
+    dialog.setCancelButtonText(QStringLiteral("取消"));
+    frame_dialog(dialog, multiline);
+    accepted = dialog.exec() == QDialog::Accepted;
+    return dialog.textValue();
+}
+
 bool confirm_action(QWidget* parent, QString const& title, QString const& text, QString const& action)
 {
     QMessageBox dialog(QMessageBox::NoIcon, title, text, QMessageBox::Yes | QMessageBox::No, parent);
@@ -75,6 +149,7 @@ bool confirm_action(QWidget* parent, QString const& title, QString const& text, 
     dialog.layout()->setContentsMargins(
         chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
     dialog.layout()->setSpacing(chat_theme::dialog_spacing);
+    frame_dialog(dialog, false);
     return dialog.exec() == QMessageBox::Yes;
 }
 

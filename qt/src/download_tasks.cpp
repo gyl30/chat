@@ -1,3 +1,4 @@
+#include "theme.hpp"
 #include "download_tasks.hpp"
 #include "client_bridge.hpp"
 #include <algorithm>
@@ -6,7 +7,6 @@
 #include <QFileInfo>
 #include <QLocale>
 #include <QMenu>
-#include <QMessageBox>
 #include <QToolButton>
 #include <QUrl>
 
@@ -222,7 +222,7 @@ void download_tasks::retry(qint64 id, QWidget* parent)
     }
     auto path = it->path;
     auto replace = QFileInfo::exists(path);
-    if (replace && QMessageBox::question(parent, QStringLiteral("覆盖文件"), QStringLiteral("“%1”已存在，是否覆盖？").arg(path)) != QMessageBox::Yes)
+    if (replace && !confirm_action(parent, QStringLiteral("覆盖文件"), QStringLiteral("“%1”已存在，是否覆盖？").arg(path), QStringLiteral("覆盖")))
     {
         return;
     }

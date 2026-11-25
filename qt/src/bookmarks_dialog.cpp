@@ -1,3 +1,4 @@
+#include "theme.hpp"
 #include "bookmarks_dialog.hpp"
 
 #include <QAbstractItemView>
@@ -71,6 +72,7 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, QWidget* parent)
     buttons->addStretch();
     buttons->addWidget(more_);
     auto* layout = new QVBoxLayout(this);
+    frame_dialog(*this);
     layout->addWidget(query_);
     layout->addWidget(results_);
     layout->addWidget(status_);

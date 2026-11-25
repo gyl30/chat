@@ -1,3 +1,4 @@
+#include "theme.hpp"
 #include "settings_dialog.hpp"
 
 #include "icons.hpp"
@@ -52,7 +53,7 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     back_->setFixedSize(40, 40);
     back_->setCursor(Qt::PointingHandCursor);
     header->addWidget(back_);
-    title_ = new QLabel(QStringLiteral("设置"), this);
+    title_ = dialog_title(*this, QStringLiteral("设置"));
     title_->setObjectName(QStringLiteral("settingsTitle"));
     header->addWidget(title_, 1);
     close_ = new QToolButton(this);

@@ -20,6 +20,7 @@ std::optional<std::pair<QString, QStringList>> compose_poll(QWidget* parent)
     QDialog dialog(parent);
     dialog.setWindowTitle(QStringLiteral("发起群投票"));
     auto* layout = new QVBoxLayout(&dialog);
+    frame_dialog(dialog);
     auto* question = new QLineEdit(&dialog);
     question->setPlaceholderText(QStringLiteral("投票问题（最多 256 字）"));
     auto* options = new QPlainTextEdit(&dialog);
@@ -117,6 +118,7 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
     QDialog dialog(parent);
     dialog.setWindowTitle(QStringLiteral("群投票"));
     auto* layout = new QVBoxLayout(&dialog);
+    frame_dialog(dialog);
     auto* question = new QLabel(&dialog);
     question->setWordWrap(true);
     question->setTextFormat(Qt::PlainText);
