@@ -190,6 +190,12 @@ async def run(
                     and initial["last"] == editable
                 )
                 assert requested("get_messages")[0]["capture_unread"] is True
+                await ui.call("reading", up=True)
+                geometry = await ui.call("desktop_environment", conversation=group)
+                x, y, w, h = geometry["viewport"]
+                bx, by, bw, bh = geometry["scrollbar"]
+                assert (bx + bw, by, bh) == (x + w, y, h), geometry
+                await ui.call("reading", bottom=True)
                 mark_count = len(requested("mark_read"))
                 await open_anchor(anchor)
                 assert len(requested("mark_read")) == mark_count

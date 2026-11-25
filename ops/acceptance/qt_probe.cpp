@@ -1727,7 +1727,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             out[name] = geometry(window.findChild<QWidget*>(name));
         }
         out["viewport"] = geometry(view->viewport());
-        auto const* scrollbar = view->verticalScrollBar();
+        auto const* scrollbar = view->findChild<QScrollBar*>("messageScrollOverlay");
         out["scrollbar"] = geometry(scrollbar);
         if (scrollbar->isVisible())
         {

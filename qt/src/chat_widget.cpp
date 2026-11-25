@@ -105,7 +105,7 @@ QString local_file_path(QUrl url)
 class message_list_view final : public QListView
 {
    public:
-    explicit message_list_view(QWidget* parent) : QListView(parent), overlay_(Qt::Vertical, viewport())
+    explicit message_list_view(QWidget* parent) : QListView(parent), overlay_(Qt::Vertical, this)
     {
         setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         overlay_.setObjectName(QStringLiteral("messageScrollOverlay"));
@@ -144,7 +144,8 @@ class message_list_view final : public QListView
     {
         QListView::resizeEvent(event);
         constexpr int width = 8;
-        overlay_.setGeometry(viewport()->width() - width, 0, width, viewport()->height());
+        auto const area = viewport()->geometry();
+        overlay_.setGeometry(area.right() + 1 - width, area.top(), width, area.height());
     }
 
    private:
