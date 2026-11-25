@@ -5,15 +5,17 @@
 
 std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database& db,
                                                                 std::int64_t user,
-                                                                std::optional<chat::conversation_cursor> before)
+                                                                std::optional<chat::conversation_cursor> before, bool include_hidden)
 {
     constexpr auto max = std::numeric_limits<std::int64_t>::max();
     auto query = db.prepare(R"SQL(
         WITH page AS (
-            SELECT c.*, own.folder_id, own.is_admin, own.pinned, own.notification_level, own.mute_until, own.unread_mark_message_id, own.last_read_message_id, own.visible_after,
+            SELECT c.*, (own.hidden_at IS NOT NULL AND c.activity<=own.hidden_at) AS hidden, own.folder_id, own.is_admin, own.pinned, own.notification_level, own.mute_until, own.unread_mark_message_id, own.last_read_message_id, own.visible_after,
                    CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END AS peer
-            FROM listed_conversation_members own JOIN conversations c ON c.id=own.conversation_id
-            WHERE own.user_id=?1
+            FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id
+            WHERE own.user_id=?1 AND (?5 OR own.hidden_at IS NULL OR c.activity>own.hidden_at)
+              AND (c.kind='group' OR EXISTS(SELECT 1 FROM contacts WHERE owner_id=?1 AND contact_id=
+                      CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END))
               AND (own.pinned,c.activity,c.id)<(?2,?3,?4)
             ORDER BY own.pinned DESC,c.activity DESC,c.id DESC LIMIT 51
         ), visible AS (
@@ -23,7 +25,10 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
             'folders',json((SELECT json_group_array(json_object('id',id,'name',name)) FROM
                 (SELECT id,name FROM conversation_folders WHERE owner_id=?1 AND (SELECT count(*) FROM page)<=50 ORDER BY position,id))),
             'conversations', json((SELECT json_group_array(json_object(
-                'id',c.id,'folder',coalesce(c.folder_id,0),'kind',c.kind,'user',c.peer,'username',coalesce(c.title,u.username),
+                'id',c.id,'hidden',json(CASE WHEN c.hidden THEN 'true' ELSE 'false' END),
+                'join_requests',CASE WHEN c.owner_id=?1 OR c.is_admin THEN
+                    (SELECT count(*) FROM group_join_requests r WHERE r.conversation_id=c.id) ELSE 0 END,
+                'folder',coalesce(c.folder_id,0),'kind',c.kind,'user',c.peer,'username',coalesce(c.title,u.username),
                 'nickname',coalesce(u.nickname,''),'remark',coalesce(ct.remark,''),'avatar_revision',coalesce(u.avatar_revision,c.avatar_revision),
                 'has_avatar',json(CASE WHEN avatar.user_id IS NULL AND ga.conversation_id IS NULL THEN 'false' ELSE 'true' END),
                 'activity',c.activity,'notification_level',c.notification_level,'mute_until',c.mute_until,
@@ -86,7 +91,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                             user,
                             before ? static_cast<int>(before->pinned) : 2,
                             before ? before->activity : max,
-                            before ? before->id : max);
+                            before ? before->id : max, static_cast<int>(include_hidden));
     if (!query)
     {
         return std::unexpected(std::move(query.error()));

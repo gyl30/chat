@@ -418,6 +418,8 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                                value.last_timestamp = item.last.timestamp;
                                                value.last_text = conversation_preview(item.last);
                                                value.unread = item.unread;
+                                               value.hidden = item.hidden;
+                                               value.join_requests = item.join_requests;
                                                value.notifications = item.notifications;
                                                value.mute_until = item.mute_until;
                                                value.marked_unread = item.marked_unread;
@@ -454,7 +456,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                                emit conversations_received(std::move(conversations), {});
                                            }
                                        });
-                               });
+                               }, true);
 }
 
 void client_bridge::change_history_view(qint64 conversation, bool hide)

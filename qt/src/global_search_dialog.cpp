@@ -5,6 +5,8 @@
 #include <QComboBox>
 #include <QDateEdit>
 #include <QGridLayout>
+#include <QInputDialog>
+#include <QHBoxLayout>
 #include <limits>
 #include <algorithm>
 #include <utf8proc.h>
@@ -60,7 +62,19 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
     query_->setPlaceholderText(QStringLiteral("输入关键词，按回车搜索全部聊天记录"));
     query_->setObjectName(QStringLiteral("globalSearchQuery"));
     query_->setClearButtonEnabled(true);
-    layout->addWidget(query_);
+    header_ = new QWidget(this);
+    auto* header = new QHBoxLayout(header_);
+    header->setContentsMargins(0,0,0,0);
+    header->addWidget(query_,1);
+    auto* submit = new QPushButton(QStringLiteral("搜索"),header_);
+    submit->setObjectName(QStringLiteral("submitGlobalSearch"));
+    header->addWidget(submit);
+    toggle_filters_ = new QPushButton(QStringLiteral("筛选条件"),header_);
+    toggle_filters_->setObjectName(QStringLiteral("toggleSearchFilters"));
+    toggle_filters_->setCheckable(true);
+    toggle_filters_->setChecked(mentions_me);
+    header->addWidget(toggle_filters_);
+    layout->addWidget(header_);
     filters_ = new QWidget(this);
     auto* fields = new QGridLayout(filters_);
     fields->setContentsMargins(0, 0, 0, 0);
@@ -78,11 +92,14 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
     {
         sender_->addItem(QStringLiteral("%1（我）").arg(self_name), self);
     }
-    auto* sender_name = new QLineEdit(filters_);
-    sender_name->setPlaceholderText(QStringLiteral("查找发送者用户名"));
-    auto* find_sender = new QPushButton(QStringLiteral("查找用户"), filters_);
-    auto* submit = new QPushButton(QStringLiteral("搜索"), filters_);
-    find_sender->setAutoDefault(false);
+    sender_->addItem(QStringLiteral("查找其他发送者…"),qint64(-1));
+    connect(sender_,&QComboBox::activated,this,[this](int index){
+        if(sender_->itemData(index).toLongLong()!=-1) return;
+        sender_->setCurrentIndex(0);
+        bool ok=false;
+        auto text=QInputDialog::getText(this,QStringLiteral("查找发送者"),QStringLiteral("用户名或昵称"),QLineEdit::Normal,{},&ok).trimmed();
+        if(ok && !text.isEmpty()) sender_request_=client_.find_search_senders(text);
+    });
     submit->setAutoDefault(false);
     start_enabled_ = new QCheckBox(QStringLiteral("起始日"), filters_);
     end_enabled_ = new QCheckBox(QStringLiteral("结束日"), filters_);
@@ -107,29 +124,33 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
     fields->addWidget(conversation_, 0, 0);
     fields->addWidget(category_, 0, 1);
     fields->addWidget(sender_, 0, 2);
-    fields->addWidget(sender_name, 0, 3);
-    fields->addWidget(find_sender, 0, 4);
-    fields->addWidget(start_enabled_, 1, 0);
-    fields->addWidget(start_date_, 1, 1);
-    fields->addWidget(end_enabled_, 1, 2);
-    fields->addWidget(end_date_, 1, 3);
-    fields->addWidget(mentions_me_, 2, 0, 1, 2);
-    fields->addWidget(submit, 2, 4);
+    period_ = new QComboBox(filters_);
+    period_->setObjectName(QStringLiteral("searchPeriod"));
+    period_->addItems({QStringLiteral("全部时间"),QStringLiteral("最近 7 天"),QStringLiteral("最近 30 天"),QStringLiteral("自定义日期")});
+    fields->addWidget(period_,1,0);
+    fields->addWidget(mentions_me_,1,1);
+    auto* reset = new QPushButton(QStringLiteral("重置筛选"),filters_);
+    reset->setAutoDefault(false);
+    fields->addWidget(reset,1,2);
+    auto* dates=new QWidget(filters_);
+    auto* dates_layout=new QHBoxLayout(dates);
+    dates_layout->setContentsMargins(0,0,0,0);
+    for (auto* w : {static_cast<QWidget*>(start_enabled_),static_cast<QWidget*>(start_date_),static_cast<QWidget*>(end_enabled_),static_cast<QWidget*>(end_date_)}) dates_layout->addWidget(w);
+    fields->addWidget(dates,2,0,1,3);
+    dates->hide();
+    connect(period_,&QComboBox::currentIndexChanged,this,[this,dates](int index){dates->setVisible(index==3);filter_changed();});
+    connect(toggle_filters_,&QPushButton::toggled,filters_,&QWidget::setVisible);
+    connect(reset,&QPushButton::clicked,this,[this]{
+        sender_request_=0;
+        for(auto* box:{conversation_,category_,sender_,period_}) box->setCurrentIndex(0);
+        start_enabled_->setChecked(false);end_enabled_->setChecked(false);mentions_me_->setChecked(false);
+        start_date_->setDate(QDate::currentDate());end_date_->setDate(QDate::currentDate());
+    });
     layout->addWidget(filters_);
     for (auto* box : {conversation_, category_, sender_})
     {
         connect(box, &QComboBox::currentIndexChanged, this, &global_search_dialog::filter_changed);
     }
-    auto lookup_sender = [this, sender_name]
-    {
-        auto const name = sender_name->text().trimmed();
-        if (!name.isEmpty())
-        {
-            sender_request_ = client_.find_search_senders(name);
-        }
-    };
-    connect(find_sender, &QPushButton::clicked, this, lookup_sender);
-    connect(sender_name, &QLineEdit::returnPressed, this, lookup_sender);
     connect(submit, &QPushButton::clicked, this, [this] { search(0); });
     back_ = new QPushButton(QStringLiteral("返回搜索结果"), this);
     back_->setAutoDefault(false);
@@ -146,6 +167,8 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
     layout->addWidget(context_);
     status_ = new QLabel(this);
     status_->setTextFormat(Qt::PlainText);
+    status_->setObjectName(QStringLiteral("globalSearchStatus"));
+    status_->setAlignment(Qt::AlignCenter);
     layout->addWidget(status_);
     more_ = new QPushButton(QStringLiteral("加载更多"), this);
     more_->setAutoDefault(false);
@@ -189,7 +212,7 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
             this,
             [this](QList<user_data> const& users, QString const& error, quint64 request)
             {
-                if (request != sender_request_)
+                if (!sender_request_ || request != sender_request_)
                 {
                     return;
                 }
@@ -275,8 +298,8 @@ void global_search_dialog::show_results()
     context_->clear();
     context_->hide();
     back_->hide();
-    query_->show();
-    filters_->show();
+    header_->show();
+    filters_->setVisible(toggle_filters_->isChecked());
     results_->show();
     more_->setVisible(next_before_ != 0);
     status_->clear();
@@ -293,6 +316,7 @@ void global_search_dialog::filter_changed()
 
 void global_search_dialog::search(qint64 before)
 {
+    if (request_) return;
     if (!before)
     {
         filter_changed();
@@ -308,11 +332,17 @@ void global_search_dialog::search(qint64 before)
                              {},
                              {},
                              mentions_me_->isChecked()};
-        if (start_enabled_->isChecked())
+        auto const period=period_->currentIndex();
+        if (period==1 || period==2)
+        {
+            submitted_filter_.start=QDate::currentDate().addDays(period==1 ? -6 : -29).startOfDay().toMSecsSinceEpoch();
+            submitted_filter_.end=QDate::currentDate().addDays(1).startOfDay().toMSecsSinceEpoch();
+        }
+        if (period==3 && start_enabled_->isChecked())
         {
             submitted_filter_.start = start_date_->date().startOfDay().toMSecsSinceEpoch();
         }
-        if (end_enabled_->isChecked())
+        if (period==3 && end_enabled_->isChecked())
         {
             submitted_filter_.end = end_date_->date().addDays(1).startOfDay().toMSecsSinceEpoch();
         }
@@ -356,7 +386,7 @@ void global_search_dialog::show_context(qint64 conversation, qint64 anchor, QStr
     context_conversation_ = conversation;
     context_anchor_ = anchor;
     setWindowTitle(title.isEmpty() ? QStringLiteral("消息上下文") : QStringLiteral("聊天记录 · %1").arg(title));
-    query_->hide();
+    header_->hide();
     filters_->hide();
     results_->hide();
     more_->hide();

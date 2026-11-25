@@ -1288,13 +1288,14 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     {
         if (cmd["open"].toBool())
         {
-            for (auto* action : window.findChildren<QAction*>())
-            {
-                if (action->text() == "消息收藏")
-                {
-                    QTimer::singleShot(0, action, &QAction::trigger);
-                }
-            }
+            auto* profile = window.findChild<QAction*>("selfProfileAction");
+            QTimer::singleShot(0, profile, [&window, profile] {
+                QTimer::singleShot(0, &window, [&window] {
+                    auto* open = window.findChild<QPushButton*>("profileBookmarks");
+                    if (open) open->click();
+                });
+                profile->trigger();
+            });
         }
         auto* dialog = window.findChild<QDialog*>("bookmarksDialog");
         if (dialog && dialog->isVisible())
@@ -1353,15 +1354,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     }
     else if (op == "searchui")
     {
-        if (cmd["open"].toBool() || cmd["shortcut"].toBool())
+        if (cmd["open"].toBool())
         {
-            for (auto* a : window.findChildren<QAction*>())
-            {
-                if (cmd["shortcut"].toBool() ? a->objectName() == "mentionsMeAction" : a->text() == "全局消息搜索")
-                {
-                    QTimer::singleShot(0, a, &QAction::trigger);
-                }
-            }
+            auto* advanced = window.findChild<QAction*>("advancedSearchAction");
+            QTimer::singleShot(0, advanced, &QAction::trigger);
         }
         auto* d = qobject_cast<QDialog*>(QApplication::activeModalWidget());
         if (d)
@@ -1372,13 +1368,14 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             if (l && q && ctx)
             {
                 auto* mentions = d->findChild<QCheckBox*>("searchMentionsMe");
+                if (cmd["filters"].toBool() && !mentions->isVisible()) d->findChild<QPushButton*>("toggleSearchFilters")->click();
                 if (cmd.contains("mentions"))
                 {
                     mentions->setChecked(cmd["mentions"].toBool());
                 }
                 out["mentions"] = mentions->isChecked();
                 out["open"] = true;
-                out["status"] = d->findChild<QLabel*>()->text();
+                out["status"] = d->findChild<QLabel*>("globalSearchStatus")->text();
                 for (auto* b : d->findChildren<QPushButton*>())
                 {
                     if (b->text() == "加载更多")
@@ -1499,15 +1496,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         }
         else if (!label.isEmpty())
         {
-            auto* menu = window.findChild<QMenu*>("mainNavigationMenu");
-            for (auto* action : menu->actions())
-            {
-                if (action->text() == label)
-                {
-                    action->trigger();
-                    break;
-                }
-            }
+            choose_menu_action(conv, QPoint(0, -1), label);
         }
     }
     else if (op == "mention")
@@ -1547,6 +1536,13 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             window.findChild<QLineEdit*>("conversationSearchEdit")->setText(cmd["query"].toString());
         }
         QJsonArray names;
+        auto* directory = window.findChild<QListWidget*>("searchDirectory");
+        if (directory && directory->isVisible())
+        {
+            for(int i=0; i<directory->count(); ++i)
+                if(directory->item(i)->data(Qt::UserRole).toLongLong()) names << directory->item(i)->text();
+        }
+        else if(conv->isVisible())
         for (int i = 0; i < conv->model()->rowCount(); ++i)
         {
             if (!conv->isRowHidden(i))

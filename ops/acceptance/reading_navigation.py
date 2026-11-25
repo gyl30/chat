@@ -300,7 +300,9 @@ async def run(
                     flush=True,
                 )
 
-                await ui.call("searchui", shortcut=True)
+                await ui.call("searchui", open=True)
+                await ui.wait("searchui", lambda state: state.get("open"))
+                await ui.call("searchui", filters=True, mentions=True, submit=True)
                 result = await ui.wait(
                     "searchui", lambda r: len(r.get("ids", [])) == 50
                 )
@@ -405,7 +407,7 @@ async def run(
                 )
                 await ui.call("searchui", close=True)
                 print(
-                    "PASS real Qt mention shortcut, live add/remove, 50/51 and next-page cursor, stale filters, permissions and late conversation reply",
+                    "PASS real Qt mention filter, live add/remove, 50/51 and next-page cursor, stale filters, permissions and late conversation reply",
                     flush=True,
                 )
             finally:

@@ -47,6 +47,9 @@ class global_search_dialog final : public QDialog
     client_bridge& client_;
     qint64 const self_;
     QLineEdit* query_;
+    QWidget* header_;
+    QPushButton* toggle_filters_;
+    QComboBox* period_;
     QWidget* filters_;
     QComboBox* conversation_;
     QComboBox* category_;

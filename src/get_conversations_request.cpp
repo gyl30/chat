@@ -24,6 +24,7 @@ struct[[= simdjson::deny_unknown_fields]] conversation_cursor
 struct[[= simdjson::deny_unknown_fields]] get_conversations_params
 {
     std::optional<conversation_cursor> before;
+    std::optional<bool> include_hidden;
 };
 
 }    // namespace
@@ -60,7 +61,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
     {
         cursor = chat::conversation_cursor{params.before->activity, params.before->id, *params.before->pinned};
     }
-    auto result = co_await run_db([=, user = *user_id_](sqlite_database& db) { return read_conversation_list(db, user, cursor); });
+    auto result = co_await run_db([cursor, user = *user_id_, include_hidden = params.include_hidden.value_or(false)](sqlite_database& db)
+                                  { return read_conversation_list(db, user, cursor, include_hidden); });
     if (!result)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);

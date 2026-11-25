@@ -57,6 +57,8 @@ struct conversation
     avatar_state avatar;
     notification_level notifications = notification_level::all;
     std::int64_t mute_until = 0;
+    bool hidden = false;
+    std::int64_t join_requests = 0;
     bool marked_unread = false;
     bool unread_mention = false;
     bool pinned = false;

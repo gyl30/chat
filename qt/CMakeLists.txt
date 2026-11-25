@@ -15,6 +15,8 @@ add_executable(client
     src/bookmarks_dialog.cpp
     src/chat_history_dialog.cpp
     src/chat_history_dialog.hpp
+    src/sidebar_search.cpp
+    src/sidebar_search.hpp
     src/chat_widget.cpp
     src/chat_widget.hpp
     src/create_group_dialog.cpp

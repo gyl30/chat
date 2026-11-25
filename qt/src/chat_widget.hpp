@@ -24,6 +24,7 @@
 #include "member_data.hpp"
 #include "message_images.hpp"
 
+class client_bridge;
 class QAction;
 class QDialog;
 class QComboBox;
@@ -52,6 +53,7 @@ class chat_widget final : public QWidget
    public:
     explicit chat_widget(QWidget* parent = nullptr);
 
+    void setup_unified_search(client_bridge& client);
     avatar_cache& avatars() { return avatars_; }
     message_images& images() { return images_; }
     void finish_avatar_update(QString error);

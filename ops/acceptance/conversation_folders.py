@@ -59,6 +59,9 @@ async def main(probe):
                 assert room not in [
                     c["id"] for c in (await a.ok("get_conversations"))["conversations"]
                 ]
+                directory = (await a.ok("get_conversations", include_hidden=True))["conversations"]
+                hidden = next(c for c in directory if c["id"] == room)
+                assert hidden["hidden"] and hidden["folder"] == work and hidden["speech_role"] == 2
                 await b.ok(
                     "send_message", conversation=room, text="重现", client_id=811
                 )

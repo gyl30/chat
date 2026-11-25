@@ -22,7 +22,7 @@ std::expected<std::optional<std::int64_t>, sqlite_error> create_group(sqlite_dat
 
 std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database& db,
                                                                 std::int64_t user,
-                                                                std::optional<chat::conversation_cursor> before);
+                                                                std::optional<chat::conversation_cursor> before, bool include_hidden);
 
 // No rows means the caller no longer has access to the conversation.
 std::expected<std::vector<chat::conversation_member>, sqlite_error> read_conversation_members(sqlite_database& db,

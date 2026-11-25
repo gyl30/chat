@@ -518,6 +518,11 @@ std::expected<conversation, error> parse_conversation(dom::element const& value)
     {
         item.remark = std::string(remark->get_string().value_unsafe());
     }
+    if (auto hidden = find_field(object, "hidden"); hidden && hidden->get(item.hidden))
+    {
+        return std::unexpected(make_error(error_kind::protocol, "Invalid conversation"));
+    }
+    item.join_requests = integer_field(object, "join_requests").value_or(0);
     item.unread = *unread;
     if (auto flag = find_field(object, "unread_mention"); flag && flag->get(item.unread_mention))
     {
@@ -1329,12 +1334,16 @@ struct client::impl
         co_return;
     }
 
-    boost::capy::task<> get_conversations(std::optional<conversation_cursor> before, conversations_handler handler)
+    boost::capy::task<> get_conversations(std::optional<conversation_cursor> before, conversations_handler handler, bool include_hidden)
     {
         request_params params;
         if (before)
         {
             params.add("before", *before);
+        }
+        if (include_hidden)
+        {
+            params.add("include_hidden", true);
         }
         send_request("get_conversations",
                      std::move(params),
@@ -3263,9 +3272,9 @@ void client::register_user(std::string username, std::string password, register_
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->register_user(std::move(username), std::move(password), std::move(handler)));
 }
 
-void client::get_conversations(std::optional<conversation_cursor> before, conversations_handler handler)
+void client::get_conversations(std::optional<conversation_cursor> before, conversations_handler handler, bool include_hidden)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_conversations(before, std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_conversations(before, std::move(handler), include_hidden));
 }
 
 void client::set_notification_level(std::int64_t conversation, notification_level level, std::int64_t until, group_action_handler handler)

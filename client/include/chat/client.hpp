@@ -155,7 +155,7 @@ class client
     void logout_session(group_action_handler handler);
     void change_password(std::string current, std::string replacement, group_action_handler handler);
     void register_user(std::string username, std::string password, register_handler handler);
-    void get_conversations(std::optional<conversation_cursor> before, conversations_handler handler);
+    void get_conversations(std::optional<conversation_cursor> before, conversations_handler handler, bool include_hidden = false);
     void set_notification_level(std::int64_t conversation, notification_level level, std::int64_t until, group_action_handler handler);
     void mark_conversations_read(std::optional<std::int64_t> conversation, std::optional<std::int64_t> folder, group_action_handler handler);
     void set_unread_mark(std::int64_t conversation, bool marked, group_action_handler handler);

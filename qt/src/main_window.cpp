@@ -368,6 +368,7 @@ void main_window::setup_registration_dialog()
 void main_window::setup_chat_page()
 {
     chat_page_ = new chat_widget(pages_);
+    chat_page_->setup_unified_search(*client_);
     client_->friend_remark = [this](qint64 id) { return chat_page_->friend_remark(id); };
     connect(client_.get(), &client_bridge::friendship_changed, chat_page_, &chat_widget::profile_access_changed);
     connect(client_.get(), &client_bridge::conversation_changed, chat_page_, &chat_widget::profile_access_changed);
@@ -1362,9 +1363,13 @@ void main_window::connect_group_actions()
                                                                                                 : QStringLiteral("入群申请被拒绝"));
                     }
                 }
-                else if (state == chat::group_join_request_state::pending)
+                else
                 {
-                    chat_page_->set_error(QStringLiteral("收到新的入群申请"));
+                    client_->get_conversations();
+                    if (state == chat::group_join_request_state::pending)
+                    {
+                        chat_page_->set_error(QStringLiteral("收到新的入群申请"));
+                    }
                 }
             });
     connect(client_.get(),
