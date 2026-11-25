@@ -17,6 +17,7 @@
 #include <QKeyEvent>
 #include <QInputMethodEvent>
 #include <QPlainTextEdit>
+#include <QLineEdit>
 #include <QListView>
 #include <QMenu>
 #include <QMouseEvent>
@@ -340,7 +341,8 @@ int main(int argc, char** argv)
         QKeyEvent key(QEvent::KeyPress, Qt::Key_F, modifiers);
         QApplication::sendEvent(editor, &key);
     }
-    assert(local == 1 && global == 1);
+    assert(local == 1 && global == 0);
+    assert(chat.findChild<QLineEdit*>("conversationSearchEdit")->hasFocus());
     chat.set_control_enter_send(true);
     assert(editor->toolTip().contains("Ctrl+Enter") && editor->toolTip() == editor->accessibleDescription());
     chat.set_control_enter_send(false);

@@ -1002,7 +1002,6 @@ void chat_widget::setup_contacts_dialog()
     {
         label->setAttribute(Qt::WA_TransparentForMouseEvents);
     }
-    contacts_requests_button_->hide();
     friends_layout->addWidget(contacts_requests_button_);
     connect(contacts_requests_button_, &QPushButton::clicked, this, [this] { show_friend_requests(); });
     contacts_status_ = new QLabel(QStringLiteral("暂无联系人，可点击“添加联系人”发起好友申请"), contacts_dialog_);
@@ -3574,23 +3573,20 @@ void chat_widget::set_friend_requests(QList<user_data> incoming, QList<user_data
     populate(outgoing_friends_, outgoing_requests_, QStringLiteral("等待对方确认"));
     incoming_friends_title_->setText(QStringLiteral("收到的申请 · %1").arg(incoming_requests_.size()));
     outgoing_friends_title_->setText(QStringLiteral("发出的申请 · %1").arg(outgoing_requests_.size()));
-    friend_requests_status_->clear();
-    friend_requests_status_->hide();
     auto const incoming_count = incoming_requests_.size();
     auto const outgoing_count = outgoing_requests_.size();
     auto const has_requests = incoming_count > 0 || outgoing_count > 0;
-    contacts_requests_button_->setVisible(has_requests);
+    friend_requests_status_->setText(has_requests ? QString{} : QStringLiteral("暂无好友申请"));
+    friend_requests_status_->setAlignment(Qt::AlignCenter);
+    friend_requests_status_->setVisible(!has_requests);
     contacts_requests_badge_->setText(incoming_count > 99 ? QStringLiteral("99+") : QString::number(incoming_count));
     contacts_requests_badge_->setVisible(incoming_count > 0);
-    contacts_requests_summary_->setText(incoming_count > 0 ? outgoing_count > 0
-                                                                 ? QStringLiteral("%1 条待处理 · %2 条已发送").arg(incoming_count).arg(outgoing_count)
-                                                                 : QStringLiteral("%1 条待处理").arg(incoming_count)
-                                                           : QStringLiteral("%1 条已发送，等待确认").arg(outgoing_count));
+    contacts_requests_summary_->setText(incoming_count > 0   ? outgoing_count > 0
+                                                                   ? QStringLiteral("%1 条待处理 · %2 条已发送").arg(incoming_count).arg(outgoing_count)
+                                                                   : QStringLiteral("%1 条待处理").arg(incoming_count)
+                                          : outgoing_count > 0 ? QStringLiteral("%1 条已发送，等待确认").arg(outgoing_count)
+                                                             : QStringLiteral("查看收到和已发送的申请"));
     contacts_requests_button_->setAccessibleDescription(contacts_requests_summary_->text());
-    if (!has_requests && pending_friend_actions_.isEmpty() && contacts_pages_->currentIndex() == 1)
-    {
-        show_contacts_home();
-    }
     update_main_menu();
     update_request_actions();
     update_compose_state();
@@ -3963,10 +3959,6 @@ void chat_widget::show_contacts_home()
 
 void chat_widget::show_friend_requests()
 {
-    if (incoming_requests_.isEmpty() && outgoing_requests_.isEmpty())
-    {
-        return;
-    }
     contacts_pages_->setCurrentIndex(1);
     contacts_title_->setText(QStringLiteral("好友申请"));
     contacts_back_button_->show();

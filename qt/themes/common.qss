@@ -63,18 +63,23 @@ QMainWindow {
             background: transparent;
             border: 0;
         }
-        QTabWidget#groupTabs QTabBar::tab {
+        QTabWidget#contactCategories::pane, QTabWidget#contactCategories > QStackedWidget,
+        QTabWidget#contactCategories QTabBar, QListWidget#joinedGroupsList {
+            background: ${panel};
+            border: 0;
+        }
+        QTabWidget#contactCategories QTabBar::tab, QTabWidget#groupTabs QTabBar::tab {
             background: transparent;
             color: ${text_secondary};
             border: 0;
             border-bottom: 2px solid transparent;
             padding: 10px 12px;
         }
-        QTabWidget#groupTabs QTabBar::tab:selected {
+        QTabWidget#contactCategories QTabBar::tab:selected, QTabWidget#groupTabs QTabBar::tab:selected {
             color: ${accent};
             border-bottom-color: ${accent};
         }
-        QTabWidget#groupTabs QTabBar::tab:hover {
+        QTabWidget#contactCategories QTabBar::tab:hover, QTabWidget#groupTabs QTabBar::tab:hover {
             background: ${subtle};
         }
         QLabel#groupOverviewTitle {

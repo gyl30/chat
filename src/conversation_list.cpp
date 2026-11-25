@@ -5,7 +5,8 @@
 
 std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database& db,
                                                                 std::int64_t user,
-                                                                std::optional<chat::conversation_cursor> before, bool include_hidden)
+                                                                std::optional<chat::conversation_cursor> before,
+                                                                bool include_hidden)
 {
     constexpr auto max = std::numeric_limits<std::int64_t>::max();
     auto query = db.prepare(R"SQL(
@@ -91,7 +92,8 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                             user,
                             before ? static_cast<int>(before->pinned) : 2,
                             before ? before->activity : max,
-                            before ? before->id : max, static_cast<int>(include_hidden));
+                            before ? before->id : max,
+                            static_cast<int>(include_hidden));
     if (!query)
     {
         return std::unexpected(std::move(query.error()));
