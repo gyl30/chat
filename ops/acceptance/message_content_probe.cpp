@@ -1,5 +1,6 @@
 // Exercise the actual bubble delegate and context menu without opening an external browser.
 #include "chat_widget.hpp"
+#include "conversation_model.hpp"
 #include "message_delegate.hpp"
 #include "message_card.hpp"
 #include <QPainter>
@@ -23,6 +24,48 @@
 #include <QTimer>
 #include <cassert>
 #include <iostream>
+
+static void check_sidebar_status(chat_widget& chat, conversation_data item)
+{
+    item.unread = 120;
+    item.pinned = true;
+    item.unread_mention = true;
+    item.notifications = chat::notification_level::muted;
+    item.mute_until = QDateTime::currentMSecsSinceEpoch() + 3600000;
+    chat.set_conversations({item});
+    auto* list = chat.findChild<QListView*>("conversationList");
+    auto index = list->model()->index(0, 0);
+    auto description = index.data(Qt::AccessibleTextRole).toString();
+    for (QString label : {"已置顶", "免打扰", "有人提及你", "120 条未读消息"})
+    {
+        assert(description.contains(label));
+        assert(index.data(Qt::ToolTipRole).toString().contains(label));
+    }
+    QTimer::singleShot(0,
+                       list,
+                       [&]
+                       {
+                           auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+                           assert(menu);
+                           auto actions = menu->actions();
+                           auto notify = std::ranges::find_if(actions, [](auto* action) { return action->text() == "通知"; });
+                           assert(notify != actions.end());
+                           QMenu* levels = (*notify)->menu();
+                           levels->aboutToShow();
+                           assert(levels->actions().last()->isChecked() && levels->actions().last()->text().startsWith("免打扰至"));
+                           chat.set_notifications(item.id, chat::notification_level::muted, QDateTime::currentMSecsSinceEpoch() - 1);
+                           assert(levels->actions().first()->isChecked() && !levels->actions().last()->isVisible());
+                           assert(!index.data(conversation_model::muted_role).toBool());
+                           menu->close();
+                       });
+    emit list->customContextMenuRequested(list->visualRect(index).center());
+    item.unread = 0;
+    item.unread_mention = false;
+    item.marked_unread = true;
+    chat.set_conversations({item});
+    description = list->model()->index(0, 0).data(Qt::AccessibleTextRole).toString();
+    assert(description.contains("已标记未读") && !description.contains("条未读消息"));
+}
 
 static void check_search_menu_copy()
 {
@@ -464,6 +507,7 @@ int main(int argc, char** argv)
     message_delegate card_delegate;
     check_card_actions(*view, card_delegate);
     check_code_cards(view->font());
+    check_sidebar_status(chat, conversation);
     QDesktopServices::unsetUrlHandler("http");
     QDesktopServices::unsetUrlHandler("https");
     std::cout

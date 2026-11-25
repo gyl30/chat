@@ -80,6 +80,33 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
     {
         case Qt::DisplayRole:
             return item->display_name();
+        case Qt::ToolTipRole:
+        case Qt::AccessibleTextRole:
+        {
+            QStringList labels{item->display_name()};
+            if (item->pinned)
+            {
+                labels << QStringLiteral("已置顶");
+            }
+            if (item->muted())
+            {
+                labels << QStringLiteral("免打扰");
+            }
+            if (item->unread_mention)
+            {
+                labels << QStringLiteral("有人提及你");
+            }
+            if (item->unread)
+            {
+                labels << QStringLiteral("%1 条未读消息").arg(item->unread);
+            }
+            if (item->marked_unread)
+            {
+                labels << QStringLiteral("已标记未读");
+            }
+            auto const description = labels.join(QStringLiteral(" · "));
+            return role == Qt::ToolTipRole ? QStringLiteral("<qt>%1</qt>").arg(description.toHtmlEscaped()) : description;
+        }
         case username_role:
             return item->username;
         case folder_role:

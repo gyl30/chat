@@ -31,6 +31,21 @@ std::string to_utf8(QString const& value)
 
 QString from_utf8(std::string const& value) { return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size())); }
 
+QString conversation_preview(chat::message const& last)
+{
+    if (last.deleted)
+    {
+        return QStringLiteral("消息已撤回");
+    }
+    if (last.attachment)
+    {
+        return (last.attachment->media_type.starts_with("image/") ? QStringLiteral("[图片] ") : QStringLiteral("[文件] ")) +
+               from_utf8(last.attachment->filename);
+    }
+    auto text = from_utf8(last.text);
+    return last.content == "poll" ? QStringLiteral("[投票] ") + text : text;
+}
+
 // Server and protocol errors are English identifiers; users see them in Chinese.
 QString display_error(chat::error const& value) { return from_utf8(chat::error_text(value)); }
 
@@ -401,7 +416,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                                value.member_count = item.member_count;
                                                value.last_message_id = item.last.id;
                                                value.last_timestamp = item.last.timestamp;
-                                               value.last_text = item.last.deleted ? QStringLiteral("消息已撤回") : from_utf8(item.last.text);
+                                               value.last_text = conversation_preview(item.last);
                                                value.unread = item.unread;
                                                value.notifications = item.notifications;
                                                value.mute_until = item.mute_until;

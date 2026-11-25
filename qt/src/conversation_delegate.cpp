@@ -13,6 +13,7 @@
 #include "avatar.hpp"
 #include "conversation_model.hpp"
 #include "emoji_text.hpp"
+#include "icons.hpp"
 #include "theme.hpp"
 
 namespace
@@ -45,7 +46,16 @@ QString timestamp_text(qint64 timestamp)
 
 }    // namespace
 
-conversation_delegate::conversation_delegate(QObject* parent) : QStyledItemDelegate(parent) {}
+conversation_delegate::conversation_delegate(QObject* parent) : QStyledItemDelegate(parent)
+{
+    auto update_icons = [this]
+    {
+        pin_ = svg_icon(u"pin", themed("text_secondary"), {16, 16});
+        mute_ = svg_icon(u"bell-off", themed("text_secondary"), {16, 16});
+    };
+    update_icons();
+    connect(&theme_manager::instance(), &theme_manager::changed, this, update_icons);
+}
 
 void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const
 {
@@ -118,18 +128,20 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     painter->setFont(username_font);
     painter->setPen(themed("text"));
     auto name_right = content_right - (date_width > 0 ? date_width + 8 : 0);
-    if (muted || pinned)
+    auto paint_status = [&](QIcon const& icon)
     {
-        auto const label = muted && pinned ? QStringLiteral("置顶 静音") : pinned ? QStringLiteral("置顶") : QStringLiteral("静音");
-        painter->setFont(date_font);
-        painter->setPen(themed("text_muted"));
-        auto const label_width = QFontMetrics(date_font).horizontalAdvance(label);
-        painter->drawText(QRect(name_right - label_width, rect.top() + chat_theme::dialog_name_top, label_width, QFontMetrics(date_font).height()),
-                          Qt::AlignVCenter,
-                          label);
-        name_right -= label_width + 8;
-        painter->setFont(username_font);
-        painter->setPen(themed("text"));
+        constexpr int side = 14;
+        QRect area(name_right - side, rect.top() + chat_theme::dialog_name_top + (QFontMetrics(username_font).height() - side) / 2, side, side);
+        icon.paint(painter, area);
+        name_right -= side + 3;
+    };
+    if (muted)
+    {
+        paint_status(mute_);
+    }
+    if (pinned)
+    {
+        paint_status(pin_);
     }
     QRect username_rect(
         content_left, rect.top() + chat_theme::dialog_name_top, std::max(0, name_right - content_left), QFontMetrics(username_font).height());

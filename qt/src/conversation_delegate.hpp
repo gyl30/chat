@@ -1,6 +1,7 @@
 #ifndef CHAT_QT_SRC_CONVERSATION_DELEGATE_HPP
 #define CHAT_QT_SRC_CONVERSATION_DELEGATE_HPP
 
+#include <QIcon>
 #include <QStyledItemDelegate>
 
 class conversation_delegate final : public QStyledItemDelegate
@@ -17,6 +18,10 @@ class conversation_delegate final : public QStyledItemDelegate
    signals:
     void avatar_clicked(QModelIndex const& index);
     void body_clicked(QModelIndex const& index);
+
+   private:
+    QIcon pin_;
+    QIcon mute_;
 };
 
 #endif

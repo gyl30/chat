@@ -80,6 +80,7 @@ qt_add_resources(client chat_icons
     FILES
         resources/icons/activity.svg
         resources/icons/attach.svg
+        resources/icons/bell-off.svg
         resources/icons/bookmark.svg
         resources/icons/chat.svg
         resources/icons/check.svg
@@ -94,6 +95,7 @@ qt_add_resources(client chat_icons
         resources/icons/history.svg
         resources/icons/menu.svg
         resources/icons/more.svg
+        resources/icons/pin.svg
         resources/icons/plus.svg
         resources/icons/screenshot.svg
         resources/icons/search.svg

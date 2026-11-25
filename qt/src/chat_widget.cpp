@@ -690,36 +690,61 @@ void chat_widget::show_conversation_menu(QPoint point)
         }
         add(0, QStringLiteral("未分组"));
     }
+    menu.addSeparator();
     auto* levels = menu.addMenu(QStringLiteral("通知"));
-    auto add_level = [&, conversation](QString title, chat::notification_level level, qint64 duration)
+    auto add_level = [this, levels, conversation](QString title, chat::notification_level level, qint64 duration = 0)
     {
-        auto* action = levels->addAction(
+        return levels->addAction(
             title,
             this,
             [this, conversation, level, duration]
             { emit notification_level_requested(conversation, level, duration ? QDateTime::currentMSecsSinceEpoch() + duration : 0); });
-        auto effective =
-            item->notifications == chat::notification_level::muted && !item->muted() ? chat::notification_level::all : item->notifications;
-        action->setCheckable(true);
-        action->setChecked(effective == level && (level != chat::notification_level::muted || (!duration && !item->mute_until)));
     };
-    add_level(QStringLiteral("全部通知"), chat::notification_level::all, 0);
-    add_level(item->group ? QStringLiteral("仅 @我") : QStringLiteral("仅直接发给我"), chat::notification_level::mentions, 0);
+    auto* all = add_level(QStringLiteral("全部通知"), chat::notification_level::all);
+    auto* mentions = add_level(item->group ? QStringLiteral("仅提及") : QStringLiteral("仅直接发给我"), chat::notification_level::mentions);
     add_level(QStringLiteral("免打扰 1 小时"), chat::notification_level::muted, 3600000);
     add_level(QStringLiteral("免打扰 8 小时"), chat::notification_level::muted, 28800000);
-    add_level(QStringLiteral("永久免打扰"), chat::notification_level::muted, 0);
-    if (item->muted() && item->mute_until > 0)
+    auto* permanent = add_level(QStringLiteral("永久免打扰"), chat::notification_level::muted);
+    auto* until = levels->addAction(QString{});
+    until->setEnabled(false);
+    for (auto* action : {all, mentions, permanent, until})
     {
-        levels->addAction(QStringLiteral("静音至 %1").arg(QDateTime::fromMSecsSinceEpoch(item->mute_until).toString("MM-dd HH:mm")))
-            ->setEnabled(false);
+        action->setCheckable(true);
     }
+    auto refresh_levels = [this, conversation, all, mentions, permanent, until, &menu]
+    {
+        auto const* room = conversations_->conversation_at(conversations_->index_for_conversation(conversation));
+        if (!room || !connection_available_)
+        {
+            menu.close();
+            return;
+        }
+        auto const muted = room->muted();
+        mentions->setChecked(room->notifications == chat::notification_level::mentions);
+        all->setChecked(!muted && !mentions->isChecked());
+        permanent->setChecked(muted && !room->mute_until);
+        until->setVisible(muted && room->mute_until > 0);
+        if (until->isVisible())
+        {
+            until->setChecked(true);
+            until->setText(QStringLiteral("免打扰至 %1").arg(QDateTime::fromMSecsSinceEpoch(room->mute_until).toString("MM-dd HH:mm")));
+        }
+    };
+    connect(levels, &QMenu::aboutToShow, &menu, refresh_levels);
+    connect(mute_expiry_timer_, &QTimer::timeout, &menu, refresh_levels);
+    connect(conversations_, &QAbstractItemModel::modelReset, &menu, refresh_levels);
+    connect(conversations_, &QAbstractItemModel::dataChanged, &menu, refresh_levels);
+    menu.addSeparator();
     menu.addAction(QStringLiteral("标为已读"), this, [this, conversation] { emit mark_read_scope(conversation, -1); });
     auto const mark = !item->marked_unread;
     menu.addAction(mark ? QStringLiteral("标记未读") : QStringLiteral("清除未读标记"),
                    this,
                    [this, conversation, mark] { emit unread_mark_requested(conversation, mark); });
+    menu.addSeparator();
     menu.addAction(QStringLiteral("隐藏会话"), [this, conversation] { emit history_view_requested(conversation, true); });
-    menu.addAction(QStringLiteral("清空聊天记录"), [this, conversation] { emit history_view_requested(conversation, false); });
+    menu.addAction(svg_icon(u"close", themed("danger")),
+                   QStringLiteral("清空聊天记录"),
+                   [this, conversation] { emit history_view_requested(conversation, false); });
     menu.exec(conversations_view_->viewport()->mapToGlobal(point));
 }
 
@@ -3832,7 +3857,9 @@ void chat_widget::folder_menu(QPoint point, QModelIndex const& index)
     auto id = index.data(conversation_model::folder_role).toLongLong();
     auto name = index.data().toString();
     QMenu menu(this);
+    resume_reading_after_menu(menu);
     menu.addAction(QStringLiteral("全部标为已读"), this, [this, id] { emit mark_read_scope(0, id); });
+    menu.addSeparator();
     menu.addAction(QStringLiteral("新建分组"), this, [this] { edit_folder_name(0); });
     if (id)
     {
@@ -3841,6 +3868,7 @@ void chat_widget::folder_menu(QPoint point, QModelIndex const& index)
             ->setEnabled(conversations_->folders().front().first != id);
         menu.addAction(QStringLiteral("下移"), this, [this, id] { emit reorder_conversation_folder(id, false); })
             ->setEnabled(conversations_->folders().back().first != id);
+        menu.addSeparator();
         menu.addAction(QStringLiteral("删除分组"), this, [this, id] { emit delete_conversation_folder(id); });
     }
     menu.exec(conversations_view_->viewport()->mapToGlobal(point));
