@@ -963,7 +963,7 @@ QToolButton#settingsBackButton, QToolButton#settingsCloseButton {
 QToolButton#settingsBackButton:hover, QToolButton#settingsCloseButton:hover { background: ${subtle}; }
 QToolButton#settingsBackButton:pressed, QToolButton#settingsCloseButton:pressed { background: ${selected}; }
 QToolButton#settingsBackButton:focus, QToolButton#settingsCloseButton:focus { border-color: ${focus}; }
-QPushButton#settingsLogoutButton {
+QDialog#profileDialog QPushButton#profileLogoutButton, QPushButton#settingsLogoutButton {
     background: transparent; color: ${danger}; border: 1px solid transparent;
     border-radius: 8px; text-align: left; padding: 8px 16px;
 }

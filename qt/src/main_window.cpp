@@ -1261,16 +1261,18 @@ void main_window::connect_group_actions()
                 }
             });
     connect(chat_page_,
-            &chat_widget::bookmarks_requested,
+            &chat_widget::profile_bookmarks_requested,
             this,
-            [this]
+            [this](QWidget* parent)
             {
                 if (connected_ && !reconnecting_)
                 {
-                    bookmarks_dialog dialog(*client_, this);
+                    bookmarks_dialog dialog(*client_, parent);
                     dialog.exec();
                 }
             });
+    connect(chat_page_, &chat_widget::profile_devices_requested, this, &main_window::show_devices);
+    connect(chat_page_, &chat_widget::logout_requested, this, &main_window::confirm_logout);
     connect(chat_page_,
             &chat_widget::bookmark_menu_requested,
             this,
@@ -1788,6 +1790,25 @@ bool main_window::confirm_quit()
            confirm_action(this, QStringLiteral("退出 Chat"), QStringLiteral("正在保存一条消息，仍要退出？"), QStringLiteral("退出"));
 }
 
+void main_window::show_devices(QWidget* parent)
+{
+    if (connected_ && !reconnecting_)
+    {
+        login_sessions_dialog dialog(*client_, parent);
+        dialog.exec();
+    }
+}
+
+void main_window::confirm_logout(QWidget* parent)
+{
+    auto const warning = chat_page_->saving_text() ? QStringLiteral("正在保存一条消息。") : QString{};
+    if (confirm_action(parent, QStringLiteral("退出登录"), warning + QStringLiteral("退出当前账号？应用会返回登录页。"), QStringLiteral("退出登录")))
+    {
+        parent->close();
+        logout();
+    }
+}
+
 void main_window::show_settings()
 {
     if (!settings_)
@@ -1797,31 +1818,8 @@ void main_window::show_settings()
                 &settings_dialog::account_requested,
                 this,
                 [this] { chat_page_->show_user_details(chat_page_->self_user(), session_username_, settings_); });
-        connect(settings_,
-                &settings_dialog::devices_requested,
-                this,
-                [this]
-                {
-                    if (connected_ && !reconnecting_)
-                    {
-                        login_sessions_dialog dialog(*client_, settings_);
-                        dialog.exec();
-                    }
-                });
-        connect(settings_,
-                &settings_dialog::logout_requested,
-                this,
-                [this]
-                {
-                    auto const warning = chat_page_->saving_text() ? QStringLiteral("正在保存一条消息。") : QString{};
-                    if (confirm_action(settings_,
-                                       QStringLiteral("退出登录"),
-                                       warning + QStringLiteral("退出当前账号？应用会返回登录页。"),
-                                       QStringLiteral("退出登录")))
-                    {
-                        logout();
-                    }
-                });
+        connect(settings_, &settings_dialog::devices_requested, this, [this] { show_devices(settings_); });
+        connect(settings_, &settings_dialog::logout_requested, this, [this] { confirm_logout(settings_); });
         connect(settings_,
                 &settings_dialog::desktop_notifications_changed,
                 this,

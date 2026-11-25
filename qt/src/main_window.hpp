@@ -91,6 +91,8 @@ class main_window final : public QMainWindow
     void register_user();
     void logout();
     void show_settings();
+    void show_devices(QWidget* parent);
+    void confirm_logout(QWidget* parent);
     void set_login_busy(bool busy);
     void set_registration_busy(bool busy);
     void show_login_error(QString message);

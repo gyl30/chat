@@ -314,10 +314,6 @@ QWidget* chat_widget::create_sidebar()
     message_search_action_->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     message_search_action_->setEnabled(false);
     addAction(message_search_action_);
-    auto* bookmarks = main_menu->addAction(QStringLiteral("消息收藏"));
-    bookmarks->setObjectName(QStringLiteral("bookmarksAction"));
-    bookmarks->setEnabled(connection_available_);
-    connect(bookmarks, &QAction::triggered, this, &chat_widget::bookmarks_requested);
     auto* mentions = main_menu->addAction(QStringLiteral("提及我"));
     mentions->setObjectName(QStringLiteral("mentionsMeAction"));
     mentions->setEnabled(connection_available_);
@@ -2912,7 +2908,7 @@ void chat_widget::set_connection_available(bool available)
     }
     for (auto* action : main_menu_button_->menu()->actions())
     {
-        if (action->objectName() == QStringLiteral("globalSearchAction") || action->objectName() == QStringLiteral("bookmarksAction") ||
+        if (action->objectName() == QStringLiteral("globalSearchAction") ||
             action->objectName() == QStringLiteral("mentionsMeAction") || action->objectName() == QStringLiteral("addFriendAction") ||
             action->objectName() == QStringLiteral("createGroupAction") || action->objectName() == QStringLiteral("joinGroupAction"))
         {
@@ -5303,6 +5299,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     info_layout->setSpacing(12);
 
     auto* account = new QLabel(header);
+    account->hide();
     account->setTextFormat(Qt::PlainText);
     account->setAlignment(Qt::AlignCenter);
     header_layout->insertWidget(header_layout->indexOf(name) + 1, account);
@@ -5327,6 +5324,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
                 }
                 account->setText(login);
                 name->setText(user_display_name(login, nick, friend_remark(id)));
+                account->setVisible(name->text() != login);
                 signature->setText(text);
                 edit_profile->setProperty("nickname", nick);
                 edit_profile->setEnabled(connection_available_);
@@ -5339,6 +5337,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
                 if (!account->text().isEmpty())
                 {
                     name->setText(user_display_name(account->text(), edit_profile->property("nickname").toString(), friend_remark(user)));
+                    account->setVisible(name->text() != account->text());
                 }
             });
     connect(copy_username_button, &QToolButton::clicked, &dialog, [account] { QGuiApplication::clipboard()->setText(account->text()); });
@@ -5383,6 +5382,17 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     if (user == self_user_)
     {
         setup_profile_avatar(dialog, info_layout, user);
+        auto* bookmarks = new QPushButton(QStringLiteral("消息收藏"), info);
+        bookmarks->setObjectName(QStringLiteral("profileBookmarks"));
+        info_layout->addWidget(bookmarks);
+        connect(bookmarks, &QPushButton::clicked, &dialog, [this, &dialog] { emit profile_bookmarks_requested(&dialog); });
+        auto* devices = new QPushButton(QStringLiteral("账号安全与登录设备"), info);
+        info_layout->addWidget(devices);
+        connect(devices, &QPushButton::clicked, &dialog, [this, &dialog] { emit profile_devices_requested(&dialog); });
+        auto* logout = new QPushButton(QStringLiteral("退出登录"), info);
+        logout->setObjectName(QStringLiteral("profileLogoutButton"));
+        info_layout->addWidget(logout);
+        connect(logout, &QPushButton::clicked, &dialog, [this, &dialog] { emit logout_requested(&dialog); });
     }
     layout->addWidget(info);
 

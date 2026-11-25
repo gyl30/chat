@@ -180,7 +180,9 @@ class chat_widget final : public QWidget
     void group_join_requested(QString token);
     void members_requested(qint64 conversation, qint64 self_user, QString title);
     void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title, QString query);
-    void bookmarks_requested();
+    void profile_bookmarks_requested(QWidget* parent);
+    void profile_devices_requested(QWidget* parent);
+    void logout_requested(QWidget* parent);
     void bookmark_menu_requested(qint64 message, QAction* action);
     void bookmark_requested(qint64 message, bool bookmarked);
     void global_search_requested(bool mentions_me = false);
