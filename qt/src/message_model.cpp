@@ -151,7 +151,7 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             if (!message.deleted && message.reply.id > 0)
             {
                 parts.push_back(QStringLiteral("回复 %1：%2")
-                                    .arg(message.reply.username, message.reply.deleted ? QStringLiteral("消息已删除") : message.reply.text));
+                                    .arg(message.reply.username, message.reply.deleted ? QStringLiteral("消息已撤回") : message.reply.text));
             }
             parts.push_back(data(index, text_role).toString());
             if (pending)
@@ -183,7 +183,7 @@ QVariant message_model::data(QModelIndex const& index, int role) const
                 }
                 for (auto const& reaction : message.reactions)
                 {
-                    parts.push_back(QStringLiteral("反应 %1 %2 人").arg(reaction.emoji).arg(reaction.users.size()));
+                    parts.push_back(QStringLiteral("表情回应 %1 %2 人").arg(reaction.emoji).arg(reaction.users.size()));
                 }
             }
             return parts.join(QStringLiteral("；"));
@@ -204,7 +204,7 @@ QVariant message_model::data(QModelIndex const& index, int role) const
         case text_role:
             if (message.deleted)
             {
-                return QStringLiteral("消息已删除");
+                return QStringLiteral("消息已撤回");
             }
             if (message.attachment)
             {
@@ -259,7 +259,7 @@ QVariant message_model::data(QModelIndex const& index, int role) const
         case reply_text_role:
             return !message.deleted && message.reply.id > 0
                        ? QStringLiteral("↪ %1\n%2")
-                             .arg(message.reply.username, message.reply.deleted ? QStringLiteral("消息已删除") : message.reply.text)
+                             .arg(message.reply.username, message.reply.deleted ? QStringLiteral("消息已撤回") : message.reply.text)
                        : QString{};
         case read_role:
             if (!outgoing)

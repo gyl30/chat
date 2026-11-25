@@ -155,7 +155,7 @@ async def scenario(probe, mode):
                             if x["id"] == mid
                         )
                         assert (
-                            row["text"] == "消息已删除" and not row["poll"]
+                            row["text"] == "消息已撤回" and not row["poll"]
                         ), "late creation redisplayed a withdrawn poll"
                     elif mode == "withdraw":
                         n = await count("edit")
@@ -166,7 +166,7 @@ async def scenario(probe, mode):
                             "state",
                             lambda r: any(
                                 x["id"] == mid
-                                and x["text"] == "消息已删除"
+                                and x["text"] == "消息已撤回"
                                 and not x["poll"]
                                 for x in r["rows"]
                             ),

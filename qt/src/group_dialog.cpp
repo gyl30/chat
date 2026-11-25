@@ -1089,7 +1089,7 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
     overview_pin_->setText(
         pin_id_ > cleared_through_
             ? QStringLiteral("置顶消息 · %1：%2")
-                  .arg(found->pinned_message.username, found->pinned_message.deleted ? QStringLiteral("消息已删除") : found->pinned_message.text)
+                  .arg(found->pinned_message.username, found->pinned_message.deleted ? QStringLiteral("消息已撤回") : found->pinned_message.text)
             : QStringLiteral("暂无置顶消息"));
     approval_->setChecked(found->join_approval);
     group_muted_ = found->group_muted;

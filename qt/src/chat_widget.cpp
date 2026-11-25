@@ -1949,47 +1949,32 @@ void chat_widget::show_message_menu(QPoint position)
     QMenu menu(this);
     resume_reading_after_menu(menu);
     auto const message_id = index.data(message_model::id_role).toLongLong();
-    auto* copy = !index.data(message_model::text_role).toString().isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
-    QStyleOptionViewItem option;
-    option.initFrom(messages_view_);
-    option.font = messages_view_->font();
-    option.rect = messages_view_->visualRect(index);
-    auto const url =
-        messages_view_->selectionMode() == QAbstractItemView::ExtendedSelection ? QUrl{} : message_delegate::link_at(option, index, position);
-    auto const code = message_delegate::code_at(option, index, position);
-    auto* copy_code = code.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制代码"));
-    auto* open_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("打开链接"));
-    auto* copy_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制链接"));
+    auto const conversation = active_conversation_;
+    auto const target_index = QPersistentModelIndex(index);
+    auto valid_target = [this, target_index, conversation, message_id, visit = conversation_visit_]
+    {
+        return visit == conversation_visit_ && conversation == active_conversation_ && message_id > history_floor(conversation) &&
+               target_index.isValid() && !target_index.data(message_model::deleted_role).toBool();
+    };
     auto const ordinary = index.data(message_model::content_role).toString() == QStringLiteral("message");
-    auto* details =
-        ordinary ? nullptr
-                 : menu.addAction(index.data(message_model::content_role).toString() == QStringLiteral("poll") ? QStringLiteral("查看投票")
-                                                                                                               : QStringLiteral("查看聊天记录"));
-    auto* forward = ordinary ? menu.addAction(QStringLiteral("转发")) : nullptr;
-    auto* bookmark = menu.addAction(QStringLiteral("正在查询收藏状态…"));
-    bookmark->setEnabled(false);
-    emit bookmark_menu_requested(message_id, bookmark);
-    auto* multi = menu.addAction(QStringLiteral("多选"));
     auto* reply = can_send() ? menu.addAction(QStringLiteral("回复")) : nullptr;
-    auto const current = conversation(active_conversation_);
-    auto const unpin = current && current->pinned_message.id == message_id;
-    auto* group_pin = messages_->can_manage_group() ? menu.addAction(unpin ? QStringLiteral("取消置顶消息") : QStringLiteral("置顶消息")) : nullptr;
+    auto* copy = !index.data(message_model::text_role).toString().isEmpty()
+                     ? menu.addAction(svg_icon(u"copy", themed("text_secondary")), QStringLiteral("复制"))
+                     : nullptr;
+    auto* forward = ordinary ? menu.addAction(QStringLiteral("转发")) : nullptr;
     auto* picker = can_send() ? menu.addMenu(QStringLiteral("表情回应")) : nullptr;
     auto const own_reaction = index.data(message_model::own_reaction_role).toString();
-    auto const target_index = QPersistentModelIndex(index);
     if (!picker && !own_reaction.isEmpty())
     {
-        auto const group = active_conversation_;
-        menu.addAction(QStringLiteral("取消表态"),
-                       [this, group, target_index]
+        menu.addAction(QStringLiteral("取消表情回应"),
+                       [this, &valid_target, conversation, message_id]
                        {
-                           if (connection_available_ && active_conversation_ == group && target_index.isValid())
+                           if (connection_available_ && valid_target())
                            {
-                               emit reaction_requested(group, target_index.data(message_model::id_role).toLongLong(), {});
+                               emit reaction_requested(conversation, message_id, {});
                            }
                        });
     }
-    auto const conversation = active_conversation_;
     for (auto emoji : chat::reaction_choices)
     {
         if (!picker)
@@ -2003,10 +1988,9 @@ void chat_widget::show_message_menu(QPoint position)
         connect(action,
                 &QAction::triggered,
                 &menu,
-                [this, target_index, text, conversation]
+                [this, &valid_target, target_index, text, conversation]
                 {
-                    if (can_send() && conversation == active_conversation_ && target_index.isValid() &&
-                        !target_index.data(message_model::deleted_role).toBool())
+                    if (can_send() && valid_target())
                     {
                         emit reaction_requested(conversation,
                                                 target_index.data(message_model::id_role).toLongLong(),
@@ -2014,8 +1998,35 @@ void chat_widget::show_message_menu(QPoint position)
                     }
                 });
     }
-    auto* readers = index.data(message_model::read_count_role).isValid() ? menu.addAction(QStringLiteral("已读详情")) : nullptr;
+    menu.addSeparator();
+    QStyleOptionViewItem option;
+    option.initFrom(messages_view_);
+    option.font = messages_view_->font();
+    option.rect = messages_view_->visualRect(index);
+    auto const url =
+        messages_view_->selectionMode() == QAbstractItemView::ExtendedSelection ? QUrl{} : message_delegate::link_at(option, index, position);
+    auto const code = message_delegate::code_at(option, index, position);
+    auto* copy_code = code.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制代码"));
+    auto* open_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("打开链接"));
+    auto* copy_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制链接"));
     auto const filename = index.data(message_model::attachment_name_role).toString();
+    auto* download = !filename.isEmpty() ? menu.addAction(QStringLiteral("下载文件")) : nullptr;
+    auto* preview = index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/"))
+                        ? menu.addAction(QStringLiteral("查看图片"))
+                        : nullptr;
+    auto* details =
+        ordinary ? nullptr
+                 : menu.addAction(index.data(message_model::content_role).toString() == QStringLiteral("poll") ? QStringLiteral("查看投票")
+                                                                                                               : QStringLiteral("查看聊天记录"));
+    menu.addSeparator();
+    auto* bookmark = menu.addAction(QStringLiteral("正在查询收藏状态…"));
+    bookmark->setEnabled(false);
+    emit bookmark_menu_requested(message_id, bookmark);
+    auto const current = this->conversation(active_conversation_);
+    auto const unpin = current && current->pinned_message.id == message_id;
+    auto* group_pin = messages_->can_manage_group() ? menu.addAction(unpin ? QStringLiteral("取消置顶消息") : QStringLiteral("置顶消息")) : nullptr;
+    auto* multi = menu.addAction(QStringLiteral("多选"));
+    auto* readers = index.data(message_model::read_count_role).isValid() ? menu.addAction(QStringLiteral("已读详情")) : nullptr;
     auto const key = index.data(message_model::attachment_key_role).toString();
     if (!key.isEmpty() && index.data(message_model::outgoing_role).toBool() && connection_available_)
     {
@@ -2025,20 +2036,28 @@ void chat_widget::show_message_menu(QPoint position)
             auto const* group = conversations_->conversation_at(conversations_->index(row, 0));
             if (group && group->group && !group->speech_blocked())
             {
-                groups->addAction(group->username, this, [this, key, id = group->id] { emit add_file_requested(id, key); });
+                groups->addAction(group->username,
+                                  &menu,
+                                  [this, &valid_target, key, id = group->id]
+                                  {
+                                      auto const target = this->conversation(id);
+                                      if (connection_available_ && valid_target() && target && !target->speech_blocked())
+                                      {
+                                          emit add_file_requested(id, key);
+                                      }
+                                  });
             }
         }
-        groups->setEnabled(!groups->isEmpty());
+        groups->menuAction()->setVisible(!groups->isEmpty());
     }
-    auto* download = !filename.isEmpty() ? menu.addAction(QStringLiteral("下载文件")) : nullptr;
-    auto* preview = index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/"))
-                        ? menu.addAction(QStringLiteral("查看图片"))
-                        : nullptr;
+    menu.addSeparator();
     auto* edit = ordinary && can_send() && filename.isEmpty() && index.data(message_model::forwarded_from_role).toString().isEmpty() &&
                          index.data(message_model::outgoing_role).toBool()
                      ? menu.addAction(QStringLiteral("编辑"))
                      : nullptr;
-    auto* remove = index.data(message_model::outgoing_role).toBool() ? menu.addAction(QStringLiteral("删除")) : nullptr;
+    auto* remove = index.data(message_model::outgoing_role).toBool()
+                       ? menu.addAction(svg_icon(u"close", themed("danger")), QStringLiteral("撤回消息"))
+                       : nullptr;
     connect(this,
             &chat_widget::history_discarded,
             &menu,
@@ -2050,8 +2069,7 @@ void chat_widget::show_message_menu(QPoint position)
                 }
             });
     auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
-    if (conversation != active_conversation_ || message_id <= history_floor(conversation) || !target_index.isValid() ||
-        target_index.data(message_model::deleted_role).toBool())
+    if (!selected || !valid_target())
     {
         return;
     }
@@ -2118,7 +2136,8 @@ void chat_widget::show_message_menu(QPoint position)
     }
     if (group_pin && selected == group_pin)
     {
-        if (connection_available_ && conversation == active_conversation_ && messages_->can_manage_group())
+        if (auto const room = this->conversation(conversation);
+            room && messages_->can_manage_group() && (!unpin || room->pinned_message.id == message_id))
         {
             emit group_message_pin_requested(conversation, unpin ? std::nullopt : std::optional<qint64>(message_id));
         }
@@ -2137,8 +2156,8 @@ void chat_widget::show_message_menu(QPoint position)
     if (remove && selected == remove)
     {
         if (confirm_action(
-                this, QStringLiteral("删除消息"), QStringLiteral("删除后所有成员均显示“消息已删除”。确认删除？"), QStringLiteral("删除")) &&
-            connection_available_ && conversation == active_conversation_)
+                this, QStringLiteral("撤回消息"), QStringLiteral("撤回后，所有成员的聊天记录都将显示撤回提示。"), QStringLiteral("撤回消息")) &&
+            connection_available_ && valid_target())
         {
             emit delete_message_requested(conversation, message_id);
         }
@@ -2195,7 +2214,7 @@ void chat_widget::show_message_menu(QPoint position)
             return;
         }
         auto text = dialog.textValue();
-        if (!text.isEmpty() && can_send() && conversation == active_conversation_)
+        if (!text.isEmpty() && can_send() && valid_target())
         {
             emit edit_message_requested(conversation, message_id, std::move(text));
         }

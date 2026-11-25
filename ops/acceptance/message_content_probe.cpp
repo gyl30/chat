@@ -56,7 +56,7 @@ static void check_display_roles()
     m.poll = chat::poll_summary{1, false, {{1, 0, "选项"}}};
     assert(check("问题") == "问题");
     m.deleted = true;
-    assert(check("问题") == "消息已删除");
+    assert(check("问题") == "消息已撤回");
     m = {};
     m.client_id = 42;
     m.text = "本地正文";
