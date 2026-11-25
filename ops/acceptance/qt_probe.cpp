@@ -1024,7 +1024,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             {
                 dialog->findChild<QLineEdit*>()->setText(cmd["question"].toString());
                 dialog->findChild<QPlainTextEdit*>()->setPlainText(cmd["options"].toString());
-                dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
+                auto* ok = dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok);
+                out["valid"] = ok->isEnabled();
+                out["feedback"] = dialog->findChild<QLabel*>("pollFeedback")->text();
+                ok->click();
             }
             if (dialog->windowTitle() == QStringLiteral("群投票"))
             {
@@ -1033,6 +1036,13 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 {
                     lists[0]->setCurrentRow(cmd["choose"].toInt() - 1);
                 }
+                auto* viewing = dialog->findChild<QComboBox*>();
+                if (cmd.contains("view"))
+                {
+                    viewing->setCurrentIndex(cmd["view"].toInt() - 1);
+                }
+                out["view"] = viewing->currentIndex() + 1;
+                out["candidate"] = lists[0]->currentRow() + 1;
                 QJsonArray rows, names;
                 for (int i = 0; i < lists[0]->count(); ++i)
                 {
@@ -1791,7 +1801,14 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             QJsonObject row{{"text", idx.data(message_model::text_role).toString()}, {"id", idx.data(message_model::id_role).toLongLong()}};
             if (cmd["polls"].toBool())
             {
-                row["poll"] = idx.data(message_model::poll_role).toString();
+                auto poll = idx.data(message_model::poll_role);
+                QJsonArray counts;
+                for (auto const& choice : poll.value<chat::poll_summary>().options)
+                {
+                    counts.append(QJsonObject{{"label", QString::fromStdString(choice.label)}, {"votes", qint64(choice.votes)}});
+                }
+                row["poll"] = counts;
+                row["pollClosed"] = poll.isValid() && poll.value<chat::poll_summary>().closed;
             }
             if (cmd["authors"].toBool())
             {

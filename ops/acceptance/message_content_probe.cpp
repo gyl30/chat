@@ -1,6 +1,8 @@
 // Exercise the actual bubble delegate and context menu without opening an external browser.
 #include "chat_widget.hpp"
 #include "message_delegate.hpp"
+#include "message_card.hpp"
+#include <QPainter>
 #include "message_links.hpp"
 #include "message_markdown.hpp"
 #include <QAbstractTextDocumentLayout>
@@ -295,6 +297,41 @@ int main(int argc, char** argv)
             auto point = adjacent.documentLayout()->blockBoundingRect(b).topLeft() + QPointF(3, 5);
             assert(adjacent.code_at(point) == (b.text() == "line 2" ? QStringLiteral("line 1\nline 2") : QStringLiteral("next block")));
         }
+    }
+    for (auto theme : {chat_appearance::light, chat_appearance::dark})
+    {
+        theme_manager::instance().set_appearance(theme);
+        chat::poll_summary poll{1, false, {{1, 0, "A"}, {2, 0, "B"}}};
+        int const width = 270;
+        auto draw = [&]
+        {
+            auto const height = layout_poll_card(nullptr, view->font(), width, QStringLiteral("投票问题"), poll);
+            QImage image(width, height, QImage::Format_RGB32);
+            image.fill(themed("bubble_in"));
+            QPainter painter(&image);
+            assert(layout_poll_card(&painter, view->font(), width, QStringLiteral("投票问题"), poll) == height);
+            painter.end();
+            return image;
+        };
+        auto zero = draw();
+        poll.options[0].votes = 1;
+        auto voted = draw();
+        assert(voted.size() == zero.size());
+        int full_width_bar = 0;
+        for (int y = 0; y < voted.height(); ++y)
+        {
+            if (voted.pixelColor(4, y) == themed("accent") && voted.pixelColor(width - 5, y) == themed("accent"))
+            {
+                assert(zero.pixelColor(4, y) == themed("border"));
+                ++full_width_bar;
+            }
+        }
+        assert(full_width_bar >= 2);
+        for (int i = 3; i <= 10; ++i)
+        {
+            poll.options.push_back({i, 0, QString(80, QChar(0x754c)).toStdString()});
+        }
+        assert(draw().height() > 3 * voted.height());
     }
     check_code_cards(view->font());
     QDesktopServices::unsetUrlHandler("http");

@@ -1443,6 +1443,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     auto* chat_panel = chat_layout->parentWidget();
     messages_ = new message_model(this, &avatars_, &images_);
     messages_view_ = new QListView(chat_panel);
+    messages_view_->setMouseTracking(true);
     messages_view_->setObjectName(QStringLiteral("messageList"));
     messages_view_->setAccessibleName(QStringLiteral("消息记录"));
     connect(messages_, &QAbstractItemModel::modelReset, this, [this] { QTimer::singleShot(0, messages_view_, [this] { load_visible_images(); }); });
@@ -2648,6 +2649,16 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
     if (object == messages_view_ && event->type() == QEvent::KeyPress && messages_view_->selectionMode() == QAbstractItemView::NoSelection)
     {
         auto const* key = static_cast<QKeyEvent*>(event);
+        if (key->modifiers() == Qt::NoModifier && (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter))
+        {
+            auto index = messages_view_->currentIndex();
+            auto kind = index.data(message_model::content_role).toString();
+            if (kind == QStringLiteral("bundle") || kind == QStringLiteral("poll"))
+            {
+                emit content_requested(active_conversation_, index.data(message_model::id_role).toLongLong(), kind);
+                return true;
+            }
+        }
         if (key->modifiers() == Qt::NoModifier && (key->key() == Qt::Key_PageUp || key->key() == Qt::Key_PageDown))
         {
             messages_view_->verticalScrollBar()->triggerAction(key->key() == Qt::Key_PageUp ? QAbstractSlider::SliderPageStepSub

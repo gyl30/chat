@@ -132,8 +132,8 @@ async def scenario(probe, mode):
                         def correct(r):
                             return any(
                                 x["id"] == mid
-                                and "A  ·  2 票" in x["poll"]
-                                and "已结束" in x["poll"]
+                                and {"label": "A", "votes": 2} in x["poll"]
+                                and x["pollClosed"]
                                 for x in r["rows"]
                             )
 
@@ -202,9 +202,9 @@ async def scenario(probe, mode):
                         gate.hold.discard(
                             "get_poll_voters"
                         )  # Retain the captured empty option A page.
-                        await ui.call("poll_ui", choose=2)
+                        await ui.call("poll_ui", view=2)
                         await b.ok("vote_poll", choice=1, **args)
-                        await ui.call("poll_ui", choose=1)
+                        await ui.call("poll_ui", view=1)
                         await ui.wait("poll_ui", lambda r: r.get("members") == ["b"])
                         n = await count("voters")
                         await gate.release("get_poll_voters")

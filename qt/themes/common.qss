@@ -924,13 +924,13 @@ QToolButton#contactDialogCloseButton:pressed, QToolButton#contactsAddButton:pres
 QToolButton#contactDialogCloseButton:focus, QToolButton#contactsAddButton:focus {
     border-color: ${focus};
 }
-QPushButton#addContactSearchButton {
+QPushButton#addContactSearchButton, QPushButton#pollSubmit {
     background: ${accent}; color: ${on_accent}; border: 1px solid ${accent};
 }
-QPushButton#addContactSearchButton:hover { background: ${accent_hover}; }
-QPushButton#addContactSearchButton:pressed { background: ${accent_pressed}; }
-QPushButton#addContactSearchButton:focus { border-color: ${on_accent}; }
-QPushButton#addContactSearchButton:disabled {
+QPushButton#addContactSearchButton:hover, QPushButton#pollSubmit:hover { background: ${accent_hover}; }
+QPushButton#addContactSearchButton:pressed, QPushButton#pollSubmit:pressed { background: ${accent_pressed}; }
+QPushButton#addContactSearchButton:focus, QPushButton#pollSubmit:focus { border-color: ${on_accent}; }
+QPushButton#addContactSearchButton:disabled, QPushButton#pollSubmit:disabled {
     background: ${accent_disabled}; color: ${text_muted}; border-color: ${border};
 }
 
@@ -1041,3 +1041,5 @@ QDialog#contactsDialog QPushButton#friendRequestCancelButton:disabled { color: $
 QLabel#snapshotAuthor { color: ${message_sender}; font-weight: bold; }
 QLabel#snapshotTime { color: ${text_secondary}; font-size: 12px; }
 QTextBrowser#snapshotBody { background: transparent; border: 0; padding: 0; }
+
+QLabel#pollFeedback, QLabel#pollSummary { color: ${text_secondary}; }

@@ -194,13 +194,7 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             {
                 return {};
             }
-            QStringList lines;
-            for (auto const& o : message.poll->options)
-            {
-                lines << QStringLiteral("○ %1  ·  %2 票").arg(QString::fromStdString(o.label)).arg(o.votes);
-            }
-            lines << (message.poll->closed ? QStringLiteral("投票已结束 · 查看结果") : QStringLiteral("参与投票 · 查看详情"));
-            return lines.join(u'\n');
+            return QVariant::fromValue(*message.poll);
         }
         case content_role:
             return message.deleted ? QString{} : message.content;

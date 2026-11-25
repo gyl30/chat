@@ -170,6 +170,7 @@ struct message_layout
     std::unique_ptr<message_markdown> markdown;
     int prefix_height = 0;
     bool bundle = false;
+    std::optional<chat::poll_summary> poll;
 
     QPoint text_origin(QRect const& row) const
     {
@@ -215,9 +216,9 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
 {
     message_layout result;
     result.text = index.data(message_model::text_role).toString();
-    if (auto poll = index.data(message_model::poll_role).toString(); !poll.isEmpty())
+    if (auto poll = index.data(message_model::poll_role); poll.isValid())
     {
-        result.text += u'\n' + poll;
+        result.poll = poll.value<chat::poll_summary>();
     }
     result.outgoing = outgoing_at(index);
     auto const bubble_max = maximum_bubble_width(option, result.outgoing);
@@ -296,7 +297,7 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     auto const mentions = index.data(message_model::mentions_role).value<QList<mention_data>>();
     auto text = result.text;
     result.bundle = index.data(message_model::content_role).toString() == QStringLiteral("bundle");
-    if (result.bundle)
+    if (result.bundle || result.poll)
     {
         text.clear();
     }
@@ -362,12 +363,14 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         result.text_width = std::max(result.text_width, qCeil(result.markdown->size().width()));
         result.text_height = result.prefix_height + qCeil(result.markdown->size().height());
     }
-    if (result.bundle)
+    if (result.bundle || result.poll)
     {
-        result.text_width = std::min(320, inner_max);
-        result.text_height = layout_bundle_card(nullptr, option.font, result.text_width, result.text);
+        result.text_width = std::min(result.poll ? 350 : 320, inner_max);
+        result.text_height = result.poll ? layout_poll_card(nullptr, option.font, result.text_width, result.text, *result.poll)
+                                         : layout_bundle_card(nullptr, option.font, result.text_width, result.text);
     }
-    auto const single_line = !result.bundle && !result.markdown && !result.text.contains(QLatin1Char('\n')) && result.text_layout->lineCount() <= 1;
+    auto const single_line =
+        !result.bundle && !result.poll && !result.markdown && !result.text.contains(QLatin1Char('\n')) && result.text_layout->lineCount() <= 1;
     result.time_on_text_line = single_line && (metadata_width == 0 || result.text_width + chat_theme::message_time_gap + metadata_width <= inner_max);
 
     auto content_width = result.text_width;
@@ -571,7 +574,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     painter->setPen(Qt::NoPen);
     painter->setBrush(layout.outgoing ? themed("bubble_out") : themed("bubble_in"));
     auto const path = bubble_path(bubble, layout.outgoing, layout.group_start, layout.group_end);
-    if (layout.bundle && (option.state & (QStyle::State_MouseOver | QStyle::State_HasFocus)))
+    if ((layout.bundle || layout.poll) && (option.state & (QStyle::State_MouseOver | QStyle::State_HasFocus)))
     {
         painter->setPen(themed("focus"));
     }
@@ -618,11 +621,18 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     auto const metadata_width = layout.time_width + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0) + layout.receipt_width;
     auto origin = layout.text_origin(option.rect);
     layout.text_layout->draw(painter, origin);
-    if (layout.bundle)
+    if (layout.bundle || layout.poll)
     {
         painter->save();
         painter->translate(origin);
-        layout_bundle_card(painter, option.font, layout.text_width, layout.text);
+        if (layout.poll)
+        {
+            layout_poll_card(painter, option.font, layout.text_width, layout.text, *layout.poll);
+        }
+        else
+        {
+            layout_bundle_card(painter, option.font, layout.text_width, layout.text);
+        }
         painter->restore();
     }
     else if (layout.markdown)
@@ -685,10 +695,6 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         painter->setBrush(Qt::NoBrush);
         // Attached bubbles meet the row's top edge; keep the centered stroke in its own item.
         painter->setClipRect(option.rect, Qt::IntersectClip);
-        if (layout.bundle && (option.state & (QStyle::State_MouseOver | QStyle::State_HasFocus)))
-        {
-            painter->setPen(themed("focus"));
-        }
         painter->drawPath(path);
     }
 
