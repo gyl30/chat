@@ -47,7 +47,8 @@
 #include "chat_history_dialog.hpp"
 #include "global_search_dialog.hpp"
 #include "bookmarks_dialog.hpp"
-#include "download_dialog.hpp"
+#include "download_tasks.hpp"
+#include "group_files_page.hpp"
 #include "chat_widget.hpp"
 #include "attachment_dialog.hpp"
 #include "bundle_dialog.hpp"
@@ -737,7 +738,7 @@ void main_window::connect_authentication()
             server_edit_->setEnabled(true);
             if (pages_->currentWidget() == chat_page_)
             {
-                downloads_->clear_tasks();
+                client_->downloads().clear_tasks();
                 chat_page_->set_user({});
                 pages_->setCurrentWidget(login_page_);
                 password_edit_->clear();
@@ -1023,7 +1024,7 @@ void main_window::connect_conversations_and_contacts()
         Qt::AutoConnection);
 }
 
-void main_window::show_group_details(qint64 conversation, qint64 self_user, QString const& title)
+void main_window::show_group_details(qint64 conversation, qint64 self_user, QString const& title, bool requests)
 {
     auto const snapshot = chat_page_->conversation(conversation);
     if (!snapshot || !snapshot->group)
@@ -1031,6 +1032,8 @@ void main_window::show_group_details(qint64 conversation, qint64 self_user, QStr
         return;
     }
     group_dialog dialog(*client_, conversation, self_user, title, snapshot->announcement, snapshot->join_approval, this, &chat_page_->avatars());
+    dialog.open_requests_on_load(requests);
+    dialog.files().bind_uploads(*chat_page_);
     dialog.discard_history(conversation, chat_page_->history_floor(conversation));
     dialog.set_conversations({*snapshot}, {});
     connect(chat_page_, &chat_widget::history_discarded, &dialog, &group_dialog::discard_history);
@@ -1341,10 +1344,7 @@ void main_window::connect_group_actions()
                 chat_page_->open_conversation(std::move(conversation));
                 client_->get_conversations();
             });
-    connect(client_.get(),
-            &client_bridge::group_join_pending,
-            this,
-            [this](QString const& title) { chat_page_->set_error(QStringLiteral("已申请加入 %1，等待管理员处理").arg(title)); });
+    connect(client_.get(), &client_bridge::group_join_feedback, chat_page_, &chat_widget::set_error);
     connect(client_.get(),
             &client_bridge::group_join_request_changed,
             this,
@@ -1438,16 +1438,7 @@ void main_window::connect_messages()
             this,
             [this](qint64 conversation) { client_->get_messages(conversation, {}, chat_page_->recovery_cursor(), chat_page_->capture_unread()); });
 
-    downloads_ = new download_dialog(*client_, *chat_page_, this);
-    connect(chat_page_,
-            &chat_widget::download_tasks_requested,
-            this,
-            [this]
-            {
-                downloads_->show();
-                downloads_->raise();
-                downloads_->activateWindow();
-            });
+    chat_page_->set_downloads(client_->downloads());
     connect(chat_page_, &chat_widget::older_messages_requested, this, [this](qint64 user, qint64 before) { client_->get_messages(user, before); });
 
     connect(chat_page_, &chat_widget::send_message_requested, client_.get(), &client_bridge::send_message);
@@ -1530,7 +1521,8 @@ void main_window::connect_messages()
                 {
                     return;
                 }
-                attachment_dialog dialog(conversation, message, filename, preview, this, preview ? chat_page_->images().image(message) : QPixmap{});
+                attachment_dialog dialog(
+                    client_->downloads(), conversation, message, filename, preview, this, preview ? chat_page_->images().image(message) : QPixmap{});
                 connect(client_.get(), &client_bridge::attachment_received, &dialog, &attachment_dialog::download_finished, Qt::AutoConnection);
                 connect(chat_page_,
                         &chat_widget::history_discarded,
@@ -1971,7 +1963,7 @@ main_window::~main_window()
     qApp->removeNativeEventFilter(this);
 #endif
     chat_page_->flush_draft();
-    downloads_->clear_tasks();
+    client_->downloads().clear_tasks();
     clear_desktop_notifications();
     client_.reset();
 }
@@ -2502,7 +2494,7 @@ void main_window::return_to_login(QString message)
     session_server_.clear();
     session_username_.clear();
     chat_page_->set_connection_available(false);
-    downloads_->clear_tasks();
+    client_->downloads().clear_tasks();
     chat_page_->set_user({});
     pages_->setCurrentWidget(login_page_);
     username_edit_->setText(username);

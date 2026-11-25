@@ -1,4 +1,5 @@
 #include "client_bridge.hpp"
+#include "download_tasks.hpp"
 
 #include <QSysInfo>
 #include "clipboard_image.hpp"
@@ -158,6 +159,7 @@ QList<message_data> client_bridge::to_messages(std::vector<chat::message> const&
 client_bridge::client_bridge(QObject* parent)
     : QObject(parent), client_(std::make_unique<chat::client>(to_utf8(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))))
 {
+    downloads_ = new download_tasks(*this);
     qRegisterMetaType<chat::avatar_state>();
     qRegisterMetaType<chat::group_join_request_state>();
     qRegisterMetaType<QList<conversation_data>>();
@@ -386,77 +388,78 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                            std::uint64_t generation,
                                            std::uint64_t connection)
 {
-    client_->get_conversations(before,
-                               [this, generation, connection, conversations = std::move(conversations)](auto result) mutable
-                               {
-                                   post_result(
-                                       connection,
-                                       [this, generation, connection, conversations = std::move(conversations), result = std::move(result)]() mutable
-                                       {
-                                           if (generation != conversations_generation_)
-                                           {
-                                               return;
-                                           }
-                                           if (!result)
-                                           {
-                                               emit conversations_received({}, display_error(result.error()));
-                                               return;
-                                           }
-                                           for (auto const& item : result->conversations)
-                                           {
-                                               conversation_data value;
-                                               value.id = item.id;
-                                               value.folder = item.folder;
-                                               value.nickname = from_utf8(item.nickname);
-                                               value.group = item.kind == chat::conversation_kind::group;
-                                               value.user = item.user;
-                                               value.username = from_utf8(item.username);
-                                               value.remark = from_utf8(item.remark);
-                                               value.avatar = item.avatar;
-                                               value.member_count = item.member_count;
-                                               value.last_message_id = item.last.id;
-                                               value.last_timestamp = item.last.timestamp;
-                                               value.last_text = conversation_preview(item.last);
-                                               value.unread = item.unread;
-                                               value.hidden = item.hidden;
-                                               value.join_requests = item.join_requests;
-                                               value.notifications = item.notifications;
-                                               value.mute_until = item.mute_until;
-                                               value.marked_unread = item.marked_unread;
-                                               value.unread_mention = item.unread_mention;
-                                               value.pinned = item.pinned;
-                                               value.pinned_message = to_reply_data(item.pinned_message);
-                                               value.announcement = from_utf8(item.announcement);
-                                               value.description = from_utf8(item.description);
-                                               value.join_approval = item.join_approval;
-                                               value.speech_role = item.speech_role;
-                                               value.group_muted = item.group_muted;
-                                               value.speech_until = item.speech_until;
-                                               value.server_clock_delta = item.server_time - QDateTime::currentMSecsSinceEpoch();
-                                               if (std::ranges::find(conversations, value.id, &conversation_data::id) == conversations.end())
-                                               {
-                                                   conversations.push_back(std::move(value));
-                                               }
-                                           }
-                                           if (result->next)
-                                           {
-                                               if (connection == connection_generation_)
-                                               {
-                                                   get_conversations_page(result->next, std::move(conversations), generation, connection);
-                                               }
-                                           }
-                                           else
-                                           {
-                                               conversation_folder_list folders;
-                                               for (auto const& folder : result->folders)
-                                               {
-                                                   folders.append({folder.id, from_utf8(folder.name)});
-                                               }
-                                               emit conversation_folders_received(std::move(folders));
-                                               emit conversations_received(std::move(conversations), {});
-                                           }
-                                       });
-                               }, true);
+    client_->get_conversations(
+        before,
+        [this, generation, connection, conversations = std::move(conversations)](auto result) mutable
+        {
+            post_result(connection,
+                        [this, generation, connection, conversations = std::move(conversations), result = std::move(result)]() mutable
+                        {
+                            if (generation != conversations_generation_)
+                            {
+                                return;
+                            }
+                            if (!result)
+                            {
+                                emit conversations_received({}, display_error(result.error()));
+                                return;
+                            }
+                            for (auto const& item : result->conversations)
+                            {
+                                conversation_data value;
+                                value.id = item.id;
+                                value.folder = item.folder;
+                                value.nickname = from_utf8(item.nickname);
+                                value.group = item.kind == chat::conversation_kind::group;
+                                value.user = item.user;
+                                value.username = from_utf8(item.username);
+                                value.remark = from_utf8(item.remark);
+                                value.avatar = item.avatar;
+                                value.member_count = item.member_count;
+                                value.last_message_id = item.last.id;
+                                value.last_timestamp = item.last.timestamp;
+                                value.last_text = conversation_preview(item.last);
+                                value.unread = item.unread;
+                                value.hidden = item.hidden;
+                                value.join_requests = item.join_requests;
+                                value.notifications = item.notifications;
+                                value.mute_until = item.mute_until;
+                                value.marked_unread = item.marked_unread;
+                                value.unread_mention = item.unread_mention;
+                                value.pinned = item.pinned;
+                                value.pinned_message = to_reply_data(item.pinned_message);
+                                value.announcement = from_utf8(item.announcement);
+                                value.description = from_utf8(item.description);
+                                value.join_approval = item.join_approval;
+                                value.speech_role = item.speech_role;
+                                value.group_muted = item.group_muted;
+                                value.speech_until = item.speech_until;
+                                value.server_clock_delta = item.server_time - QDateTime::currentMSecsSinceEpoch();
+                                if (std::ranges::find(conversations, value.id, &conversation_data::id) == conversations.end())
+                                {
+                                    conversations.push_back(std::move(value));
+                                }
+                            }
+                            if (result->next)
+                            {
+                                if (connection == connection_generation_)
+                                {
+                                    get_conversations_page(result->next, std::move(conversations), generation, connection);
+                                }
+                            }
+                            else
+                            {
+                                conversation_folder_list folders;
+                                for (auto const& folder : result->folders)
+                                {
+                                    folders.append({folder.id, from_utf8(folder.name)});
+                                }
+                                emit conversation_folders_received(std::move(folders));
+                                emit conversations_received(std::move(conversations), {});
+                            }
+                        });
+        },
+        true);
 }
 
 void client_bridge::change_history_view(qint64 conversation, bool hide)
@@ -632,7 +635,8 @@ void client_bridge::join_group(QString token)
                                             conversation_data value;
                                             if (result && result->state == chat::group_join_state::pending)
                                             {
-                                                emit group_join_pending(from_utf8(result->title));
+                                                emit group_join_feedback(
+                                                    QStringLiteral("已申请加入 %1，等待管理员处理").arg(from_utf8(result->title)));
                                                 return;
                                             }
                                             if (result)
@@ -644,6 +648,13 @@ void client_bridge::join_group(QString token)
                                                 value.member_count = result->member_count;
                                             }
                                             emit conversation_opened(value, result ? QString{} : display_error(result.error()));
+                                            if (result)
+                                            {
+                                                emit group_join_feedback((result->state == chat::group_join_state::member
+                                                                              ? QStringLiteral("你已是 %1 的成员")
+                                                                              : QStringLiteral("已加入 %1"))
+                                                                             .arg(value.username));
+                                            }
                                         });
                         });
 }

@@ -35,6 +35,8 @@ class group_dialog final : public QDialog
                  bool join_approval,
                  QWidget* parent,
                  avatar_cache* avatars = nullptr);
+    void open_requests_on_load(bool requests) { open_requests_ = requests; }
+    group_files_page& files() { return *files_; }
     void set_members(qint64 conversation, QList<member_data> members, QString const& error);
     void finish_action(qint64 conversation, bool left, QString const& error);
     void set_contacts(QList<user_data> contacts, QString const& error);
@@ -81,6 +83,7 @@ class group_dialog final : public QDialog
     void refresh_speech();
     void update_actions();
 
+    bool open_requests_ = false;
     group_files_page* files_;
     avatar_cache* avatars_;
     qint64 conversation_;

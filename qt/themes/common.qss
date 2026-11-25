@@ -102,7 +102,7 @@ QMainWindow {
         QPlainTextEdit#groupAnnouncementEdit:focus, QPlainTextEdit#editMessageText:focus {
             border-color: ${focus};
         }
-        QDialog QPushButton, QToolButton#unpinMessageButton {
+        QDialog QPushButton, QWidget#sidebarSearchPanel QPushButton, QToolButton#unpinMessageButton {
             min-height: 32px;
             padding: 0 12px;
             background: ${surface};
@@ -114,13 +114,13 @@ QMainWindow {
             color: ${text_muted};
             border-color: ${border};
         }
-        QToolButton#unpinMessageButton:hover {
+        QWidget#sidebarSearchPanel QPushButton:hover, QToolButton#unpinMessageButton:hover {
             background: ${subtle};
         }
         QToolButton#unpinMessageButton:pressed {
             background: ${selected};
         }
-        QToolButton#unpinMessageButton:focus {
+        QWidget#sidebarSearchPanel QPushButton:focus, QToolButton#unpinMessageButton:focus {
             border-color: ${focus};
         }
         QDialog#createGroupDialog QPushButton:hover, QDialog#joinGroupDialog QPushButton:hover,
@@ -885,17 +885,21 @@ QLabel#groupOverviewAnnouncement[empty="true"] { color: ${text_secondary}; font-
 
 
 /* Sidebar navigation uses the native menu beside search. */
-QToolButton#mainMenuButton {
+QToolButton[navigationTool="true"] {
     padding: 0;
     border: 1px solid transparent;
     border-radius: 8px;
     background: transparent;
     color: ${text_secondary};
 }
-QToolButton#mainMenuButton:hover { background: ${subtle}; }
-QToolButton#mainMenuButton:pressed, QToolButton#mainMenuButton:open { background: ${selected}; }
-QToolButton#mainMenuButton:focus { border-color: ${focus}; }
-QToolButton#mainMenuButton::menu-indicator { image: none; width: 0; }
+QToolButton[navigationTool="true"]:hover { background: ${subtle}; }
+QToolButton[navigationTool="true"]:pressed, QToolButton[navigationTool="true"]:open { background: ${selected}; }
+QToolButton[navigationTool="true"]:focus { border-color: ${focus}; }
+QToolButton[navigationTool="true"]::menu-indicator { image: none; width: 0; }
+QToolButton#attachmentDownloadState, QToolButton#uploadRowActions {
+    background: ${subtle}; color: ${text}; border: 1px solid ${border}; border-radius: 5px; padding: 3px 9px;
+}
+QToolButton#attachmentDownloadState:hover, QToolButton#uploadRowActions:hover { background: ${selected}; }
 QMenu#mainNavigationMenu { min-width: 180px; }
 QMenu#mainNavigationMenu::item:checked { background: ${subtle}; color: ${text}; }
 QMenu#mainNavigationMenu::item:selected {

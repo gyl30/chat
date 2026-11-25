@@ -236,6 +236,11 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         auto const end = result.text.lastIndexOf(u'\n');
         result.text.replace(0, end, QFontMetrics(option.font).elidedText(result.text.left(end), Qt::ElideMiddle, inner_max));
     }
+    auto download_state = index.data(message_model::download_status_role).toString();
+    if (!download_state.isEmpty())
+    {
+        result.text += u'\n' + download_state;
+    }
     auto const reply = index.data(message_model::reply_text_role).toString();
     if (!reply.isEmpty())
     {

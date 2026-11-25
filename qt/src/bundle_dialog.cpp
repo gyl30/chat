@@ -1,5 +1,7 @@
 #include "bundle_dialog.hpp"
 #include "attachment_dialog.hpp"
+#include "download_tasks.hpp"
+#include <QToolButton>
 #include "chat_widget.hpp"
 #include "client_bridge.hpp"
 #include "message_markdown.hpp"
@@ -38,7 +40,7 @@ class snapshot_body final : public QTextBrowser
 
 void show_attachment(client_bridge& client, QDialog& dialog, qint64 room, qint64 message, qint64 position, QString const& name, bool image)
 {
-    attachment_dialog preview(room, message, name, image, &dialog, {});
+    attachment_dialog preview(client.downloads(), room, message, name, image, &dialog, {}, position);
     QObject::connect(&dialog, &QDialog::finished, &preview, &QDialog::reject);
     QObject::connect(&preview,
                      &attachment_dialog::save_requested,
@@ -92,6 +94,7 @@ void append_entry(QVBoxLayout& stream, chat::forwarded_item const& item, QDialog
         auto* file = new QPushButton(image ? QStringLiteral("查看图片") : QStringLiteral("查看文件"));
         file->setObjectName(QStringLiteral("snapshotAttachment"));
         layout->addWidget(file, 0, Qt::AlignLeft);
+        layout->addWidget(client.downloads().source_button(entry, [source = download_source{room, message, item.position, {}}] { return source; }));
         QObject::connect(file,
                          &QPushButton::clicked,
                          &dialog,

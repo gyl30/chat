@@ -3,6 +3,8 @@
 
 #include <QWidget>
 
+class chat_widget;
+class QToolButton;
 class client_bridge;
 class QComboBox;
 class QLabel;
@@ -15,6 +17,7 @@ class group_files_page final : public QWidget
     Q_OBJECT
    public:
     group_files_page(client_bridge& client, qint64 conversation, qint64 user, QWidget* parent);
+    void bind_uploads(chat_widget& chat);
     void set_access(bool member, bool manager, bool can_publish);
     void refresh();
    signals:
@@ -28,6 +31,10 @@ class group_files_page final : public QWidget
     client_bridge& client_;
     qint64 conversation_;
     qint64 user_;
+    chat_widget* chat_ = nullptr;
+    QToolButton* upload_actions_;
+    QToolButton* download_actions_;
+    void refresh_uploads();
     bool manager_ = false;
     QComboBox* category_;
     QLineEdit* search_;

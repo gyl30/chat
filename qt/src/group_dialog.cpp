@@ -964,9 +964,14 @@ void group_dialog::set_members(qint64 conversation, QList<member_data> members, 
     auto const self = std::find_if(members_.begin(), members_.end(), [this](auto const& member) { return member.id == self_user_; });
     if (self != members_.end() && self->role != chat::member_role::member)
     {
+        if (open_requests_)
+        {
+            tabs_->setCurrentWidget(requests_->parentWidget());
+        }
         emit invite_link_requested(std::nullopt);
         refresh_requests();
     }
+    open_requests_ = false;
 }
 
 void group_dialog::finish_action(qint64 conversation, bool left, QString const& error)

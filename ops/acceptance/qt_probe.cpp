@@ -37,7 +37,7 @@
 #include "main_window.hpp"
 #include "chat_widget.hpp"
 #include "client_bridge.hpp"
-#include "download_dialog.hpp"
+#include "download_tasks.hpp"
 #include <optional>
 #include <tuple>
 #include <utility>
@@ -552,9 +552,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     }
     else if (op == "recover_local")
     {
-        auto* menu = window.findChild<QMenu*>("unavailableLocalMessages");
-        auto* parent_menu = qobject_cast<QMenu*>(menu->parentWidget());
-        QMetaObject::invokeMethod(parent_menu, "aboutToShow");
+        auto* parent_menu = new QMenu(chat);
+        chat->add_local_content(*parent_menu);
+        auto* menu = parent_menu->findChild<QMenu*>("unavailableLocalMessages");
+
         QJsonArray rows;
         for (auto* action : menu->actions())
         {
@@ -579,6 +580,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             }
         }
         out["rows"] = rows;
+        QTimer::singleShot(0, parent_menu, &QObject::deleteLater);
         out["clipboard"] = QApplication::clipboard()->text();
     }
     else if (op == "pin")
@@ -617,34 +619,43 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     }
     else if (op == "transfers")
     {
-        QJsonArray labels;
-        for (auto* menu : chat->findChildren<QMenu*>())
+        QJsonArray labels, resumable;
+        // Inspect the SDK-owned journal projection and invoke the actions shared by the
+        // attachment bubble and the selected local group-file row.
+        for (auto const& task : chat->outgoing_)
         {
-            if (menu->title() != "附件上传")
+            if (task.path.isEmpty())
             {
                 continue;
             }
-            QMetaObject::invokeMethod(menu, "aboutToShow");
-            for (auto* action : menu->actions())
+            auto const room = chat->conversation(task.conversation);
+            auto const name = room && !room->hidden ? room->display_name() : QStringLiteral("会话 #%1").arg(task.conversation);
+            auto label = name + QStringLiteral(" · ") + (task.group_only ? QStringLiteral("群文件 · ") : QString{}) + task.filename +
+                         QStringLiteral(" · ") +
+                         (room && room->speech_blocked() && !task.unavailable ? QStringLiteral("群聊禁言，上传已暂停") : task.error);
+            labels << label;
+
+            QMenu menu(chat);
+            chat->add_upload_actions(menu, task.client_id);
+            for (auto* action : menu.actions())
             {
-                if (!action->menu())
+                if (action->text() == QStringLiteral("继续上传") && action->isEnabled())
+                {
+                    resumable << label;
+                }
+                if (label != cmd["label"].toString())
                 {
                     continue;
                 }
-                labels << action->text();
-                if (action->text() == cmd["label"].toString())
+                if (action->text() == cmd["action"].toString() && action->isEnabled())
                 {
-                    for (auto* button : action->menu()->actions())
-                    {
-                        if (button->text() == cmd["action"].toString() && button->isEnabled())
-                        {
-                            button->trigger();
-                            out["triggered"] = true;
-                        }
-                    }
+                    action->trigger();
+                    out["triggered"] = true;
+                    break;
                 }
             }
         }
+        out["resumable"] = resumable;
         out["labels"] = labels;
     }
     else if (op == "clear")
@@ -782,57 +793,50 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     }
     else if (op == "downloads")
     {
-        if (cmd["open"].toBool())
+        auto& downloads = window.client_->downloads();
+        QJsonArray rows;
+        for (auto it = downloads.tasks_.cbegin(); it != downloads.tasks_.cend(); ++it)
         {
-            for (auto* action : window.findChildren<QAction*>())
+            auto const& task = it.value();
+            if (cmd.contains("row") && cmd["row"].toInt() == rows.size())
             {
-                if (action->text() == "下载任务")
+                QMenu menu(chat);
+                downloads.add_actions(menu, task.source);
+                for (auto* target : menu.actions())
                 {
-                    action->trigger();
-                }
-            }
-        }
-        if (auto* dialog = window.findChild<QDialog*>("downloadTasksDialog"))
-        {
-            auto* list = dialog->findChild<QTreeWidget*>("downloadTaskList");
-            if (cmd.contains("row"))
-            {
-                list->setCurrentItem(list->topLevelItem(cmd["row"].toInt()));
-            }
-            if (cmd.contains("enabled"))
-            {
-                for (auto* button : dialog->findChildren<QPushButton*>())
-                {
-                    if (button->text() == cmd["enabled"].toString())
+                    if (target->data().toLongLong() != it.key())
                     {
-                        out["enabled"] = button->isEnabled();
+                        continue;
+                    }
+                    for (auto* action : target->menu()->actions())
+                    {
+                        if (action->text() == cmd["enabled"].toString())
+                        {
+                            out["enabled"] = action->isEnabled();
+                        }
+                        if (action->text() == cmd["action"].toString() && action->isEnabled())
+                        {
+                            action->trigger();
+                            out["triggered"] = true;
+                        }
                     }
                 }
             }
-            if (cmd.contains("action"))
-            {
-                for (auto* button : dialog->findChildren<QPushButton*>())
-                {
-                    if (button->text() == cmd["action"].toString() && button->isEnabled())
-                    {
-                        button->click();
-                        out["triggered"] = true;
-                    }
-                }
-            }
-            QJsonArray rows;
-            for (int i = 0; i < list->topLevelItemCount(); ++i)
-            {
-                auto* row = list->topLevelItem(i);
-                rows.append(QJsonObject{{"id", row->data(0, Qt::UserRole).toString()},
-                                        {"filename", row->text(0)},
-                                        {"source", row->text(1)},
-                                        {"path", row->text(2)},
-                                        {"progress", row->text(3)},
-                                        {"status", row->text(4)}});
-            }
-            out["rows"] = rows;
+            rows.append(QJsonObject{{"id", QString::number(it.key())},
+                                    {"filename", task.filename},
+                                    {"source",
+                                     QStringLiteral("%1 · %2")
+                                         .arg(task.source.conversation)
+                                         .arg(task.source.message ? QStringLiteral("消息") : QStringLiteral("群文件"))},
+                                    {"path", task.path},
+                                    {"progress", task.progress},
+                                    {"status", task.description()}});
         }
+        if (cmd.contains("enabled") && !out.contains("enabled"))
+        {
+            out["enabled"] = false;
+        }
+        out["rows"] = rows;
     }
     else if (op == "history")
     {
@@ -1289,13 +1293,22 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         if (cmd["open"].toBool())
         {
             auto* profile = window.findChild<QAction*>("selfProfileAction");
-            QTimer::singleShot(0, profile, [&window, profile] {
-                QTimer::singleShot(0, &window, [&window] {
-                    auto* open = window.findChild<QPushButton*>("profileBookmarks");
-                    if (open) open->click();
-                });
-                profile->trigger();
-            });
+            QTimer::singleShot(0,
+                               profile,
+                               [&window, profile]
+                               {
+                                   QTimer::singleShot(0,
+                                                      &window,
+                                                      [&window]
+                                                      {
+                                                          auto* open = window.findChild<QPushButton*>("profileBookmarks");
+                                                          if (open)
+                                                          {
+                                                              open->click();
+                                                          }
+                                                      });
+                                   profile->trigger();
+                               });
         }
         auto* dialog = window.findChild<QDialog*>("bookmarksDialog");
         if (dialog && dialog->isVisible())
@@ -1368,7 +1381,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             if (l && q && ctx)
             {
                 auto* mentions = d->findChild<QCheckBox*>("searchMentionsMe");
-                if (cmd["filters"].toBool() && !mentions->isVisible()) d->findChild<QPushButton*>("toggleSearchFilters")->click();
+                if (cmd["filters"].toBool() && !mentions->isVisible())
+                {
+                    d->findChild<QPushButton*>("toggleSearchFilters")->click();
+                }
                 if (cmd.contains("mentions"))
                 {
                     mentions->setChecked(cmd["mentions"].toBool());
@@ -1539,15 +1555,22 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         auto* directory = window.findChild<QListWidget*>("searchDirectory");
         if (directory && directory->isVisible())
         {
-            for(int i=0; i<directory->count(); ++i)
-                if(directory->item(i)->data(Qt::UserRole).toLongLong()) names << directory->item(i)->text();
-        }
-        else if(conv->isVisible())
-        for (int i = 0; i < conv->model()->rowCount(); ++i)
-        {
-            if (!conv->isRowHidden(i))
+            for (int i = 0; i < directory->count(); ++i)
             {
-                names << conv->model()->index(i, 0).data().toString();
+                if (directory->item(i)->data(Qt::UserRole).toLongLong())
+                {
+                    names << directory->item(i)->text();
+                }
+            }
+        }
+        else if (conv->isVisible())
+        {
+            for (int i = 0; i < conv->model()->rowCount(); ++i)
+            {
+                if (!conv->isRowHidden(i))
+                {
+                    names << conv->model()->index(i, 0).data().toString();
+                }
             }
         }
         out["names"] = names;
@@ -1561,7 +1584,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         }
         if (cmd["release"].toBool())
         {
-            barrier.release([&window](qint64 id, quint64 attempt, QString const& error) { window.downloads_->finish(id, attempt, error); });
+            barrier.release([&window](qint64 id, quint64 attempt, QString const& error) { window.client_->downloads().finish(id, attempt, error); });
         }
         out["pending"] = barrier.completion.has_value();
     }
@@ -1864,7 +1887,7 @@ int main(int argc, char** argv)
     observe(&client_bridge::message_updated, "edit");
     observe(&client_bridge::messages_received, "history");
     observe(&client_bridge::message_received, "new");
-    auto* downloads = window.downloads_;
+    auto* downloads = &bridge->downloads();
     QObject::disconnect(bridge, &client_bridge::text_saved, chat, &chat_widget::finish_text_save);
     QObject::connect(
         bridge,
@@ -1872,7 +1895,7 @@ int main(int argc, char** argv)
         chat,
         [&](qint64 id, QString const& error)
         { controls.text_save.receive([chat](qint64 task, QString result) { chat->finish_text_save(task, std::move(result)); }, id, error); });
-    QObject::disconnect(bridge, &client_bridge::download_finished, downloads, &download_dialog::finish);
+    QObject::disconnect(bridge, &client_bridge::download_finished, downloads, &download_tasks::finish);
     QObject::connect(
         bridge,
         &client_bridge::download_finished,

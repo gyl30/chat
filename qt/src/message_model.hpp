@@ -8,6 +8,7 @@
 #include "message_data.hpp"
 #include "member_data.hpp"
 
+class download_tasks;
 class avatar_cache;
 class message_images;
 
@@ -33,6 +34,7 @@ class message_model final : public QAbstractListModel
         deleted_role,
         attachment_name_role,
         attachment_key_role,
+        download_status_role,
         attachment_type_role,
         reactions_role,
         own_reaction_role,
@@ -67,6 +69,7 @@ class message_model final : public QAbstractListModel
     QVariant data(QModelIndex const& index, int role) const override;
     Qt::ItemFlags flags(QModelIndex const& index) const override;
 
+    void set_downloads(download_tasks& downloads);
     void set_self_user(qint64 user);
     void reset(qint64 conversation, bool group = false);
     void set_pending(QList<pending_message> pending);
@@ -92,6 +95,7 @@ class message_model final : public QAbstractListModel
     qint64 last_message_id() const;
 
    private:
+    download_tasks* downloads_ = nullptr;
     std::optional<QHash<qint64, message_data>> page_changes_;
     void reconcile_page_row(message_data& message) const;
     avatar_cache* avatars_;

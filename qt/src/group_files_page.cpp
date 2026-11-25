@@ -1,10 +1,14 @@
 #include "group_files_page.hpp"
 #include "client_bridge.hpp"
 #include "theme.hpp"
+#include "chat_widget.hpp"
+#include "download_tasks.hpp"
+#include <QToolButton>
+#include <QMenu>
+#include <QSignalBlocker>
 
 #include <QComboBox>
 #include <QDateTime>
-#include <QDesktopServices>
 #include <QFileDialog>
 #include <QHeaderView>
 #include <QLabel>
@@ -23,6 +27,7 @@ enum file_role
     key_role = Qt::UserRole,
     uploader_role,
     created_role,
+    local_upload_role,
 };
 QString category_name(std::string const& category)
 {
@@ -82,6 +87,31 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
         actions->addWidget(b);
     }
     layout->addLayout(actions);
+    auto selected_source = [this]
+    {
+        auto const* row = list_->currentItem();
+        return download_source{conversation_, 0, 0, row ? row->data(0, key_role).toString() : QString{}};
+    };
+    download_actions_ = client_.downloads().source_button(this, selected_source);
+    layout->addWidget(download_actions_, 0, Qt::AlignLeft);
+    upload_actions_ = new QToolButton(this);
+    upload_actions_->setObjectName(QStringLiteral("uploadRowActions"));
+    upload_actions_->setText(QStringLiteral("上传操作"));
+    upload_actions_->setPopupMode(QToolButton::InstantPopup);
+    auto* upload_menu = new QMenu(upload_actions_);
+    upload_actions_->setMenu(upload_menu);
+    connect(upload_menu,
+            &QMenu::aboutToShow,
+            this,
+            [this, upload_menu]
+            {
+                upload_menu->clear();
+                if (auto* row = list_->currentItem(); chat_ && row)
+                {
+                    chat_->add_upload_actions(*upload_menu, row->data(0, local_upload_role).toLongLong());
+                }
+            });
+    actions->addWidget(upload_actions_);
     auto* uploads = new QHBoxLayout;
     auto* upload = upload_only_ = new QPushButton(QStringLiteral("只上传到群文件"), this);
     auto* send = upload_send_ = new QPushButton(QStringLiteral("发送到聊天"), this);
@@ -169,9 +199,10 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
     connect(&client_,
             &client_bridge::file_downloaded,
             this,
-            [this](qint64 group, QString const& path, bool open, QString const& error)
+            [this](qint64 group, QString const& key, QString const& path, QString const& error)
             {
-                if (group != conversation_ || !isEnabled())
+                auto const* selected = list_->currentItem();
+                if (group != conversation_ || !isEnabled() || !selected || selected->data(0, key_role).toString() != key)
                 {
                     return;
                 }
@@ -181,14 +212,49 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
                     return;
                 }
                 status_->setText(QStringLiteral("已保存到 %1").arg(path));
-                if (open && !QDesktopServices::openUrl(QUrl::fromLocalFile(path)))
-                {
-                    status_->setText(QStringLiteral("文件已保存，系统未能打开它"));
-                }
             });
     setEnabled(false);
     update_selection();
     more_->setEnabled(false);
+}
+void group_files_page::bind_uploads(chat_widget& chat)
+{
+    chat_ = &chat;
+    connect(&chat, &chat_widget::uploads_changed, this, &group_files_page::refresh_uploads);
+    refresh_uploads();
+}
+void group_files_page::refresh_uploads()
+{
+    if (!isEnabled() || !chat_)
+    {
+        return;
+    }
+    auto rows = chat_->group_uploads(conversation_);
+    for (int i = list_->topLevelItemCount() - 1; i >= 0; --i)
+    {
+        auto* row = list_->topLevelItem(i);
+        auto id = row->data(0, local_upload_role).toLongLong();
+        if (!id)
+        {
+            continue;
+        }
+        auto found = std::ranges::find(rows, id, &chat_widget::upload_row::id);
+        if (found == rows.end())
+        {
+            delete list_->takeTopLevelItem(i);
+            continue;
+        }
+        row->setText(1, found->status);
+        rows.erase(found);
+    }
+    for (auto const& task : rows)
+    {
+        auto* row =
+            new QTreeWidgetItem(QStringList{task.filename, task.status, QLocale().formattedDataSize(task.size), QStringLiteral("本机待上传")});
+        row->setData(0, local_upload_role, task.id);
+        list_->insertTopLevelItem(0, row);
+    }
+    update_selection();
 }
 void group_files_page::set_access(bool member, bool manager, bool can_publish)
 {
@@ -210,9 +276,14 @@ void group_files_page::set_access(bool member, bool manager, bool can_publish)
 void group_files_page::update_selection()
 {
     auto const* item = list_->currentItem();
-    save_->setEnabled(item != nullptr);
-    open_->setEnabled(item != nullptr);
-    remove_->setEnabled(item && (manager_ || item->data(0, uploader_role).toLongLong() == user_));
+    bool const local = item && item->data(0, local_upload_role).isValid();
+    save_->setEnabled(item && !local);
+    open_->setEnabled(item && !local);
+    remove_->setEnabled(item && !local && (manager_ || item->data(0, uploader_role).toLongLong() == user_));
+    upload_actions_->setVisible(local);
+    auto state = client_.downloads().summary({conversation_, 0, 0, item ? item->data(0, key_role).toString() : QString{}});
+    download_actions_->setText(state);
+    download_actions_->setVisible(!local && !state.isEmpty());
 }
 void group_files_page::refresh() { request_page(false); }
 void group_files_page::request_page(bool older)
@@ -224,6 +295,7 @@ void group_files_page::request_page(bool older)
     if (!older)
     {
         list_->clear();
+        refresh_uploads();
     }
     auto const* last = list_->topLevelItem(list_->topLevelItemCount() - 1);
     more_->setEnabled(false);

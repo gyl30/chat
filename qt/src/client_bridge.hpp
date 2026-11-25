@@ -32,6 +32,7 @@ class client;
 struct pending_text;
 }    // namespace chat
 
+class download_tasks;
 class client_bridge final : public QObject
 {
     Q_OBJECT
@@ -39,6 +40,7 @@ class client_bridge final : public QObject
    public:
     explicit client_bridge(QObject* parent = nullptr);
     ~client_bridge() override;
+    download_tasks& downloads() const { return *downloads_; }
 
     void connect_to_server(QString const& url);
     void close(bool keep_local_account = false);
@@ -192,7 +194,7 @@ class client_bridge final : public QObject
     void members_received(qint64 conversation, QList<member_data> members, QString error_message);
     void group_action_finished(qint64 conversation, bool left, QString error_message);
     void group_invite_received(qint64 conversation, QString token, QString error_message);
-    void group_join_pending(QString title);
+    void group_join_feedback(QString text);
     void group_join_request_changed(qint64 conversation, qint64 user, chat::group_join_request_state state);
     void group_join_requests_received(qint64 conversation, QList<user_data> users, qint64 next, bool older, QString error_message);
     void group_pin_finished(qint64 conversation, QString error_message);
@@ -235,9 +237,9 @@ class client_bridge final : public QObject
     void download_requested(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open, qint64 item = 0);
     void download_progress(qint64 id, quint64 attempt, qint64 bytes, qint64 total);
     void download_finished(qint64 id, quint64 attempt, QString error);
-    void file_downloaded(qint64 conversation, QString path, bool open, QString error);
+    void file_downloaded(qint64 conversation, QString key, QString path, QString error);
     void attachment_cancelled(qint64 id);
-    void attachment_received(qint64 conversation, qint64 message, QString path, QString error_message);
+    void attachment_received(qint64 conversation, qint64 message, QString path, QString error_message, qint64 item);
     void message_image_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
     void message_search_scopes_received(quint64 request, std::vector<chat::message_search_scope> scopes, QString error);
     void bookmark_changed(qint64 message);
@@ -257,6 +259,7 @@ class client_bridge final : public QObject
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:
+    download_tasks* downloads_;
     chat::client::poll_handler poll_result(quint64 request, qint64 room, qint64 message, bool write);
     std::function<void(std::expected<bool, chat::error>)> settings_result();
     void publish_pending_text(chat::pending_text const& item);

@@ -8,7 +8,8 @@ add_executable(client
     src/main.cpp
     src/avatar.cpp
     src/attachment_dialog.cpp
-    src/download_dialog.cpp
+    src/download_tasks.cpp
+    src/download_tasks.hpp
     src/attachment_dialog.hpp
     src/avatar.hpp
     src/global_search_dialog.cpp

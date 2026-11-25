@@ -25,6 +25,7 @@
 #include "message_images.hpp"
 
 class client_bridge;
+class download_tasks;
 class QAction;
 class QDialog;
 class QComboBox;
@@ -53,6 +54,16 @@ class chat_widget final : public QWidget
    public:
     explicit chat_widget(QWidget* parent = nullptr);
 
+    struct upload_row
+    {
+        qint64 id;
+        QString filename;
+        qint64 size;
+        QString status;
+    };
+    QList<upload_row> group_uploads(qint64 conversation) const;
+    void add_upload_actions(QMenu& menu, qint64 id);
+    void set_downloads(download_tasks& downloads);
     void setup_unified_search(client_bridge& client);
     avatar_cache& avatars() { return avatars_; }
     message_images& images() { return images_; }
@@ -144,6 +155,7 @@ class chat_widget final : public QWidget
     bool control_enter_send() const { return control_enter_send_; }
 
    signals:
+    void uploads_changed();
     void avatar_set_requested(QByteArray data);
     void avatar_clear_requested();
     void avatar_update_finished(QString error);
@@ -175,12 +187,11 @@ class chat_widget final : public QWidget
     void contact_remove_requested(qint64 user);
     void contact_add_finished(qint64 user, QString error);
     void settings_requested();
-    void download_tasks_requested();
     void reconnect_requested();
     void direct_conversation_requested(qint64 user, QString username);
     void group_create_requested(QString title, QList<qint64> members);
     void group_join_requested(QString token);
-    void members_requested(qint64 conversation, qint64 self_user, QString title);
+    void members_requested(qint64 conversation, qint64 self_user, QString title, bool requests = false);
     void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title, QString query);
     void profile_bookmarks_requested(QWidget* parent);
     void profile_devices_requested(QWidget* parent);
@@ -219,6 +230,7 @@ class chat_widget final : public QWidget
 
    private:
     QWidget* create_sidebar();
+    void add_local_content(QMenu& menu);
     void show_conversation_menu(QPoint point);
     void setup_contacts_dialog();
     void setup_add_contact_dialog();
@@ -239,6 +251,7 @@ class chat_widget final : public QWidget
     void connect_chat_controls();
 
     // A send owns its text or file and its reply from the moment it is made (docs/outgoing-messages-design.md).
+    download_tasks* downloads_ = nullptr;
     struct outgoing
     {
         qint64 client_id = 0;

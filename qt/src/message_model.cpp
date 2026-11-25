@@ -1,4 +1,5 @@
 #include "message_model.hpp"
+#include "download_tasks.hpp"
 #include "avatar.hpp"
 #include "emoji_segments.hpp"
 #include "message_images.hpp"
@@ -74,6 +75,24 @@ message_model::message_model(QObject* parent, avatar_cache* avatars, message_ima
                     }
                 });
     }
+}
+
+void message_model::set_downloads(download_tasks& downloads)
+{
+    downloads_ = &downloads;
+    connect(&downloads,
+            &download_tasks::changed,
+            this,
+            [this]
+            {
+                for (int row = 0; row < messages_.size(); ++row)
+                {
+                    if (messages_[row].attachment && !messages_[row].deleted)
+                    {
+                        emit dataChanged(index(row), index(row), {download_status_role});
+                    }
+                }
+            });
 }
 
 bool message_model::can_manage_group() const
@@ -215,6 +234,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
                          QString::number(file.size / 1024.0, 'f', 1));
             }
             return message.text;
+        case download_status_role:
+            return downloads_ && message.attachment && !message.deleted ? downloads_->summary({message.conversation, message.id, 0, {}}) : QString{};
         case attachment_key_role:
             return message.attachment ? message.attachment->object_key : QString{};
         case attachment_name_role:

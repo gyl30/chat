@@ -818,7 +818,17 @@ async def qt_scenarios(root, probe, url, owner, member, db):
                     if filename in x and x.startswith(prefix)
                 )
 
-            label = await transfer_label(path.name, f"会话 #{conv}")
+            label = await transfer_label(path.name + " · 群聊禁言", f"会话 #{conv}")
+            assert not (await ui.call("transfers", label=label, action="继续上传")).get("triggered")
+            # The directory now includes hidden memberships. Hold its refresh after
+            # unmuting so the server can revoke speech before this device retries.
+            await muted(owner, conv, 3, 0)
+            available = await ui.wait("transfers", lambda r: any(
+                path.name in v for v in r["resumable"]))
+            label = next(v for v in available["resumable"] if path.name in v)
+            gate.hold.add("get_conversations")
+            await muted(owner, conv, 3, -1)
+            await gate.caught("get_conversations")
             gate.hold.add("resume_attachment")
             assert (await ui.call("transfers", label=label, action="继续上传"))[
                 "triggered"
@@ -831,9 +841,12 @@ async def qt_scenarios(root, probe, url, owner, member, db):
             )
             assert not read(db, "SELECT id FROM messages WHERE client_id=?", task)
             await gate.release("resume_attachment")
+            await gate.release("get_conversations")
             label = await transfer_label(path.name + " · 群聊禁言", f"会话 #{conv}")
 
             await muted(owner, conv, 3, 0)
+            available = await ui.wait("transfers", lambda r: any(path.name in v for v in r["resumable"]))
+            label = next(v for v in available["resumable"] if path.name in v)
             assert (await ui.call("transfers", label=label, action="继续上传"))[
                 "triggered"
             ]

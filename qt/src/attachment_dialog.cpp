@@ -1,5 +1,7 @@
 #include "attachment_dialog.hpp"
 #include "theme.hpp"
+#include "download_tasks.hpp"
+#include <QToolButton>
 #include <utility>
 
 #include <QBuffer>
@@ -14,10 +16,12 @@
 #include <QStandardPaths>
 #include <QVBoxLayout>
 
-attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QString filename, bool preview, QWidget* parent, QPixmap image)
+attachment_dialog::attachment_dialog(
+    download_tasks& downloads, qint64 conversation, qint64 message, QString filename, bool preview, QWidget* parent, QPixmap image, qint64 item)
     : QDialog(parent),
       conversation_(conversation),
       message_(message),
+      item_(item),
       filename_(std::move(filename)),
       preview_(preview),
       preview_image_(std::move(image))
@@ -48,6 +52,7 @@ attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QStrin
     buttons->addButton(save_button_, QDialogButtonBox::ActionRole);
     buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
     buttons->button(QDialogButtonBox::Close)->setIcon({});
+    layout->addWidget(downloads.source_button(this, [=] { return download_source{conversation, message, item, {}}; }));
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(save_button_,
@@ -74,9 +79,9 @@ attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QStrin
             });
 }
 
-void attachment_dialog::download_finished(qint64 conversation, qint64 message, QString path, QString error)
+void attachment_dialog::download_finished(qint64 conversation, qint64 message, QString path, QString error, qint64 item)
 {
-    if (conversation != conversation_ || message != message_ || saving_to_ != path)
+    if (conversation != conversation_ || message != message_ || item != item_ || saving_to_ != path)
     {
         return;
     }

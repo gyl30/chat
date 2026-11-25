@@ -5,6 +5,7 @@
 #include <QDialog>
 #include <QPixmap>
 
+class download_tasks;
 class QLabel;
 class QPushButton;
 
@@ -13,10 +14,17 @@ class attachment_dialog final : public QDialog
     Q_OBJECT
 
    public:
-    attachment_dialog(qint64 conversation, qint64 message, QString filename, bool preview, QWidget* parent, QPixmap image);
+    attachment_dialog(download_tasks& downloads,
+                      qint64 conversation,
+                      qint64 message,
+                      QString filename,
+                      bool preview,
+                      QWidget* parent,
+                      QPixmap image,
+                      qint64 item = 0);
     void set_data(qint64 conversation, qint64 message, QByteArray data, QString const& error_message);
 
-    void download_finished(qint64 conversation, qint64 message, QString path, QString error);
+    void download_finished(qint64 conversation, qint64 message, QString path, QString error, qint64 item);
    signals:
     void save_requested(qint64 conversation, qint64 message, QString path);
 
@@ -26,6 +34,7 @@ class attachment_dialog final : public QDialog
    private:
     qint64 conversation_;
     qint64 message_;
+    qint64 item_;
     QString filename_;
     QString saving_to_;
     bool preview_;

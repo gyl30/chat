@@ -1,5 +1,6 @@
 #include "chat_widget.hpp"
 #include "sidebar_search.hpp"
+#include "download_tasks.hpp"
 #include "poll_dialog.hpp"
 #include "theme_manager.hpp"
 #include <chat/invite.hpp>
@@ -112,16 +113,28 @@ class message_list_view final : public QListView
         overlay_.hide();
         timer_.setSingleShot(true);
         timer_.setInterval(900);
-        connect(&timer_, &QTimer::timeout, this, [this] { if (!overlay_.isSliderDown()) overlay_.hide(); });
+        connect(&timer_,
+                &QTimer::timeout,
+                this,
+                [this]
+                {
+                    if (!overlay_.isSliderDown())
+                    {
+                        overlay_.hide();
+                    }
+                });
         auto* scroll = verticalScrollBar();
         connect(scroll, &QScrollBar::rangeChanged, &overlay_, &QScrollBar::setRange);
-        connect(scroll, &QScrollBar::valueChanged, this, [this, scroll](int value)
-        {
-            overlay_.setPageStep(scroll->pageStep());
-            overlay_.setValue(value);
-            overlay_.setVisible(scroll->maximum() > scroll->minimum());
-            timer_.start();
-        });
+        connect(scroll,
+                &QScrollBar::valueChanged,
+                this,
+                [this, scroll](int value)
+                {
+                    overlay_.setPageStep(scroll->pageStep());
+                    overlay_.setValue(value);
+                    overlay_.setVisible(scroll->maximum() > scroll->minimum());
+                    timer_.start();
+                });
         connect(&overlay_, &QScrollBar::valueChanged, scroll, &QScrollBar::setValue);
         connect(&overlay_, &QScrollBar::sliderReleased, &timer_, qOverload<>(&QTimer::start));
     }
@@ -323,6 +336,7 @@ QWidget* chat_widget::create_sidebar()
     conversation_header_layout->setSpacing(6);
     main_menu_button_ = new QToolButton(conversation_header);
     main_menu_button_->setObjectName(QStringLiteral("mainMenuButton"));
+    main_menu_button_->setProperty("navigationTool", true);
     main_menu_button_->setAccessibleName(QStringLiteral("主菜单"));
     main_menu_button_->setToolTip(QStringLiteral("主菜单"));
     main_menu_button_->setIcon(svg_icon(u"menu", themed("text_secondary"), QSize(22, 22)));
@@ -345,7 +359,14 @@ QWidget* chat_widget::create_sidebar()
     auto* search_messages = new QAction(QStringLiteral("全局消息搜索"), this);
     search_messages->setObjectName(QStringLiteral("globalSearchAction"));
     search_messages->setEnabled(connection_available_);
-    connect(search_messages, &QAction::triggered, this, [this] { conversation_search_->setFocus(); conversation_search_->selectAll(); });
+    connect(search_messages,
+            &QAction::triggered,
+            this,
+            [this]
+            {
+                conversation_search_->setFocus();
+                conversation_search_->selectAll();
+            });
     search_messages->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F));
     search_messages->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     addAction(search_messages);
@@ -357,6 +378,7 @@ QWidget* chat_widget::create_sidebar()
     addAction(message_search_action_);
     auto* add_button = new QToolButton(conversation_header);
     add_button->setObjectName(QStringLiteral("sidebarAddButton"));
+    add_button->setProperty("navigationTool", true);
     add_button->setAccessibleName(QStringLiteral("创建或添加"));
     add_button->setToolTip(add_button->accessibleName());
     add_button->setFixedSize(36, 36);
@@ -373,140 +395,6 @@ QWidget* chat_widget::create_sidebar()
     auto* join_group = add_menu->addAction(QStringLiteral("加入群聊"));
     join_group->setObjectName(QStringLiteral("joinGroupAction"));
     join_group->setIcon(svg_icon(u"groups", themed("text"), QSize(20, 20)));
-    main_menu->addSeparator();
-    auto* unavailable_texts = main_menu->addMenu(QStringLiteral("未显示会话的本地内容"));
-    unavailable_texts->setObjectName(QStringLiteral("unavailableLocalMessages"));
-    connect(main_menu,
-            &QMenu::aboutToShow,
-            this,
-            [this, unavailable_texts]
-            {
-                unavailable_texts->clear();
-                for (auto it = drafts_.cbegin(); it != drafts_.cend(); ++it)
-                {
-                    if (it->text.isEmpty() || conversation(it.key()))
-                    {
-                        continue;
-                    }
-                    auto* actions = unavailable_texts->addMenu(QStringLiteral("草稿 · ") + grapheme_prefix(it->text, 40));
-                    auto const id = it.key();
-                    connect(actions->addAction(QStringLiteral("复制")),
-                            &QAction::triggered,
-                            this,
-                            [this, id] { QGuiApplication::clipboard()->setText(drafts_.value(id).text); });
-                    connect(actions->addAction(QStringLiteral("删除草稿")),
-                            &QAction::triggered,
-                            this,
-                            [this, id]
-                            {
-                                auto const owner = self_user_;
-                                auto const revision = drafts_.value(id).revision;
-                                if (!confirm_action(this,
-                                                    QStringLiteral("删除草稿"),
-                                                    QStringLiteral("删除这台设备上该会话的草稿？已发送的消息会保留。"),
-                                                    QStringLiteral("删除草稿")) ||
-                                    owner != self_user_ || !drafts_.contains(id) || drafts_.value(id).revision != revision)
-                                {
-                                    return;
-                                }
-                                drafts_.remove(id);
-                                emit draft_save_requested(self_user_, id, chat::client::new_client_id(), 0, {}, {});
-                            });
-                }
-                for (auto const& item : outgoing_)
-                {
-                    if (!item.path.isEmpty() || (!item.failed && !item.waiting) || conversation(item.conversation))
-                    {
-                        continue;
-                    }
-                    auto* actions = unavailable_texts->addMenu(grapheme_prefix(item.text, 40));
-                    auto const id = item.client_id;
-                    actions->addAction(QStringLiteral("会话 #%1").arg(item.conversation))->setEnabled(false);
-                    if (!item.error.isEmpty())
-                    {
-                        actions->addAction(item.error)->setEnabled(false);
-                    }
-                    if (item.failed && !item.unavailable)
-                    {
-                        auto* retry = actions->addAction(QStringLiteral("重新发送"));
-                        retry->setEnabled(connection_available_);
-                        connect(retry, &QAction::triggered, this, [this, id] { emit pending_text_action_requested(id, false); });
-                    }
-                    connect(actions->addAction(QStringLiteral("复制")),
-                            &QAction::triggered,
-                            this,
-                            [this, id]
-                            {
-                                auto const found = std::ranges::find(outgoing_, id, &outgoing::client_id);
-                                if (found != outgoing_.end())
-                                {
-                                    QGuiApplication::clipboard()->setText(found->text);
-                                }
-                            });
-                    auto* discard = actions->addAction(QStringLiteral("删除待发消息"));
-                    connect(discard, &QAction::triggered, this, [this, id] { emit pending_text_action_requested(id, true); });
-                }
-                unavailable_texts->menuAction()->setVisible(!unavailable_texts->isEmpty());
-            });
-    auto* transfers = main_menu->addMenu(QStringLiteral("附件上传"));
-    connect(transfers,
-            &QMenu::aboutToShow,
-            this,
-            [this, transfers]
-            {
-                transfers->clear();
-                for (auto const& item : outgoing_)
-                {
-                    if (item.path.isEmpty())
-                    {
-                        continue;
-                    }
-                    auto const name = conversations_->index_for_conversation(item.conversation).data(Qt::DisplayRole).toString();
-                    auto const destination = name.isEmpty() ? QStringLiteral("会话 #%1").arg(item.conversation) : name;
-                    auto const target = conversation(item.conversation);
-                    auto const muted = target && target->speech_blocked();
-                    auto const state = muted && !item.unavailable ? QStringLiteral("群聊禁言，上传已暂停") : item.error;
-                    auto* actions =
-                        transfers->addMenu(destination + QStringLiteral(" · ") + (item.group_only ? QStringLiteral("群文件 · ") : QString{}) +
-                                           item.filename + QStringLiteral(" · ") + state);
-                    auto id = item.client_id;
-                    auto* toggle = actions->addAction(item.failed ? QStringLiteral("继续上传") : QStringLiteral("暂停上传"));
-                    // A hidden conversation has no sidebar row. The resume RPC still checks membership and speech.
-                    toggle->setEnabled(connection_available_ && (!item.failed || (!item.unavailable && !muted)));
-                    connect(toggle,
-                            &QAction::triggered,
-                            this,
-                            [this, id]
-                            {
-                                auto it = std::ranges::find(outgoing_, id, &outgoing::client_id);
-                                if (it == outgoing_.end())
-                                {
-                                    return;
-                                }
-                                if (it->failed)
-                                {
-                                    it->failed = false;
-                                    it->error = QStringLiteral("正在校验文件…");
-                                    show_outgoing();
-                                    submit(*it);
-                                }
-                                else
-                                {
-                                    emit attachment_interrupt_requested(id, false, it->path);
-                                }
-                            });
-                    auto* cancel = actions->addAction(QStringLiteral("取消上传"));
-                    cancel->setEnabled(connection_available_);
-                    connect(cancel, &QAction::triggered, this, [this, id, path = item.path] { emit attachment_interrupt_requested(id, true, path); });
-                }
-                if (transfers->isEmpty())
-                {
-                    transfers->addAction(QStringLiteral("没有未完成的上传"))->setEnabled(false);
-                }
-            });
-    auto* downloads = main_menu->addAction(QStringLiteral("下载任务"));
-    connect(downloads, &QAction::triggered, this, &chat_widget::download_tasks_requested);
-    main_menu->addSeparator();
     self_profile_action_ = main_menu->addAction(QStringLiteral("我的资料"));
     self_profile_action_->setObjectName(QStringLiteral("selfProfileAction"));
     auto* settings = main_menu->addAction(QStringLiteral("设置"));
@@ -549,15 +437,18 @@ QWidget* chat_widget::create_sidebar()
     conversations_status_->setObjectName(QStringLiteral("subtleText"));
     conversations_status_->setContentsMargins(18, 0, 14, 6);
     auto* list_header = new QHBoxLayout;
-    list_header->addWidget(conversations_status_, 1);
+    list_header->addWidget(conversations_status_);
+    list_header->addStretch();
+    list_header->setContentsMargins(0, 0, 12, 0);
     auto* list_actions = new QToolButton(conversations_page);
     list_actions->setObjectName(QStringLiteral("conversationListActions"));
+    list_actions->setProperty("navigationTool", true);
     list_actions->setToolTip(QStringLiteral("会话列表操作"));
     list_actions->setAccessibleName(list_actions->toolTip());
     auto list_icon = [list_actions] { list_actions->setIcon(svg_icon(u"more", themed("text_secondary"), QSize(16, 16))); };
     list_icon();
     connect(&theme_manager::instance(), &theme_manager::changed, list_actions, list_icon);
-    connect(list_actions, &QToolButton::clicked, this, [this] { show_conversation_menu(QPoint(0,-1)); });
+    connect(list_actions, &QToolButton::clicked, this, [this] { show_conversation_menu(QPoint(0, -1)); });
     list_header->addWidget(list_actions);
     conversations_layout->addLayout(list_header);
 
@@ -662,13 +553,16 @@ QWidget* chat_widget::create_sidebar()
                 input->setAccessibleName(QStringLiteral("邀请码"));
                 auto* ok = buttons->button(QDialogButtonBox::Ok);
                 ok->setEnabled(false);
-                connect(input, &QLineEdit::textChanged, &dialog, [&dialog, ok](QString const& text)
-                {
-                    auto const valid = chat::normalize_invite_token(text.toStdString()).has_value();
-                    ok->setEnabled(valid);
-                    dialog.setLabelText(!text.isEmpty() && !valid ? QStringLiteral("邀请码格式不正确，请检查后重试")
-                                                                : QStringLiteral("输入群主或管理员分享的邀请码"));
-                });
+                connect(input,
+                        &QLineEdit::textChanged,
+                        &dialog,
+                        [&dialog, ok](QString const& text)
+                        {
+                            auto const valid = chat::normalize_invite_token(text.toStdString()).has_value();
+                            ok->setEnabled(valid);
+                            dialog.setLabelText(!text.isEmpty() && !valid ? QStringLiteral("邀请码格式不正确，请检查后重试")
+                                                                          : QStringLiteral("输入群主或管理员分享的邀请码"));
+                        });
                 if (dialog.exec() != QDialog::Accepted || !connection_available_)
                 {
                     return;
@@ -719,31 +613,141 @@ QWidget* chat_widget::create_sidebar()
     return conversation_panel;
 }
 
+void chat_widget::set_downloads(download_tasks& downloads)
+{
+    downloads_ = &downloads;
+    messages_->set_downloads(downloads);
+}
 void chat_widget::setup_unified_search(client_bridge& client)
 {
     auto* rooms = findChild<QWidget*>(QStringLiteral("sidebarRooms"));
     auto* layout = qobject_cast<QVBoxLayout*>(rooms->parentWidget()->layout());
     auto* panel = new sidebar_search(client, *conversation_search_, *contacts_, *conversations_, avatars_, rooms->parentWidget());
-    layout->addWidget(panel,1);
+    layout->addWidget(panel, 1);
     panel->hide();
-    connect(conversation_search_, &QLineEdit::textChanged, panel, [rooms,panel](QString const& query){
-        rooms->setVisible(query.isEmpty());
-        panel->setVisible(!query.isEmpty());
-    });
-    connect(panel, &sidebar_search::contact_requested,this,[this](qint64 user,QString name){
-        conversation_search_->clear(); open_chat(user,std::move(name));
-    });
-    connect(panel, &sidebar_search::room_requested,this,[this](qint64 id){
-        if(auto room=conversation(id)){conversation_search_->clear(); open_conversation(*room);}
-    });
-    connect(panel,&sidebar_search::message_requested,this,&chat_widget::message_context_requested);
-    connect(panel,&sidebar_search::advanced_requested,this,[this]{emit global_search_requested();});
-    auto* advanced = conversation_search_->addAction(svg_icon(u"history",themed("text_secondary"),QSize(16,16)),QLineEdit::TrailingPosition);
+    connect(conversation_search_,
+            &QLineEdit::textChanged,
+            panel,
+            [rooms, panel](QString const& query)
+            {
+                rooms->setVisible(query.isEmpty());
+                panel->setVisible(!query.isEmpty());
+            });
+    connect(panel,
+            &sidebar_search::contact_requested,
+            this,
+            [this](qint64 user, QString name)
+            {
+                conversation_search_->clear();
+                open_chat(user, std::move(name));
+            });
+    connect(panel,
+            &sidebar_search::room_requested,
+            this,
+            [this](qint64 id)
+            {
+                if (auto room = conversation(id))
+                {
+                    conversation_search_->clear();
+                    open_conversation(*room);
+                }
+            });
+    connect(panel, &sidebar_search::message_requested, this, &chat_widget::message_context_requested);
+    connect(panel, &sidebar_search::advanced_requested, this, [this] { emit global_search_requested(); });
+    auto* advanced = conversation_search_->addAction(svg_icon(u"history", themed("text_secondary"), QSize(16, 16)), QLineEdit::TrailingPosition);
     advanced->setObjectName(QStringLiteral("advancedSearchAction"));
     advanced->setText(QStringLiteral("高级聊天记录搜索"));
     advanced->setToolTip(advanced->text());
-    connect(advanced,&QAction::triggered,this,[this]{emit global_search_requested();});
-    connect(&theme_manager::instance(),&theme_manager::changed,advanced,[advanced]{advanced->setIcon(svg_icon(u"history",themed("text_secondary"),QSize(16,16)));});
+    connect(advanced, &QAction::triggered, this, [this] { emit global_search_requested(); });
+    connect(&theme_manager::instance(),
+            &theme_manager::changed,
+            advanced,
+            [advanced] { advanced->setIcon(svg_icon(u"history", themed("text_secondary"), QSize(16, 16))); });
+}
+
+void chat_widget::add_local_content(QMenu& menu)
+{
+    auto listed = [this](qint64 id)
+    {
+        auto room = conversation(id);
+        return room && !room->hidden;
+    };
+    auto* unavailable_texts = menu.addMenu(QStringLiteral("未显示会话的本地内容"));
+    unavailable_texts->setObjectName(QStringLiteral("unavailableLocalMessages"));
+    unavailable_texts->clear();
+    for (auto it = drafts_.cbegin(); it != drafts_.cend(); ++it)
+    {
+        if (it->text.isEmpty() || listed(it.key()))
+        {
+            continue;
+        }
+        auto* actions = unavailable_texts->addMenu(QStringLiteral("草稿 · ") + grapheme_prefix(it->text, 40));
+        auto const id = it.key();
+        connect(actions->addAction(QStringLiteral("复制")),
+                &QAction::triggered,
+                this,
+                [this, id] { QGuiApplication::clipboard()->setText(drafts_.value(id).text); });
+        connect(actions->addAction(QStringLiteral("删除草稿")),
+                &QAction::triggered,
+                this,
+                [this, id]
+                {
+                    auto const owner = self_user_;
+                    auto const revision = drafts_.value(id).revision;
+                    if (!confirm_action(this,
+                                        QStringLiteral("删除草稿"),
+                                        QStringLiteral("删除这台设备上该会话的草稿？已发送的消息会保留。"),
+                                        QStringLiteral("删除草稿")) ||
+                        owner != self_user_ || !drafts_.contains(id) || drafts_.value(id).revision != revision)
+                    {
+                        return;
+                    }
+                    drafts_.remove(id);
+                    emit draft_save_requested(self_user_, id, chat::client::new_client_id(), 0, {}, {});
+                });
+    }
+    for (auto const& item : outgoing_)
+    {
+        if (!item.path.isEmpty() || (!item.failed && !item.waiting) || listed(item.conversation))
+        {
+            continue;
+        }
+        auto* actions = unavailable_texts->addMenu(grapheme_prefix(item.text, 40));
+        auto const id = item.client_id;
+        actions->addAction(QStringLiteral("会话 #%1").arg(item.conversation))->setEnabled(false);
+        if (!item.error.isEmpty())
+        {
+            actions->addAction(item.error)->setEnabled(false);
+        }
+        if (item.failed && !item.unavailable)
+        {
+            auto* retry = actions->addAction(QStringLiteral("重新发送"));
+            retry->setEnabled(connection_available_);
+            connect(retry, &QAction::triggered, this, [this, id] { emit pending_text_action_requested(id, false); });
+        }
+        connect(actions->addAction(QStringLiteral("复制")),
+                &QAction::triggered,
+                this,
+                [this, id]
+                {
+                    auto const found = std::ranges::find(outgoing_, id, &outgoing::client_id);
+                    if (found != outgoing_.end())
+                    {
+                        QGuiApplication::clipboard()->setText(found->text);
+                    }
+                });
+        auto* discard = actions->addAction(QStringLiteral("删除待发消息"));
+        connect(discard, &QAction::triggered, this, [this, id] { emit pending_text_action_requested(id, true); });
+    }
+    for (auto const& item : outgoing_)
+    {
+        if (!item.path.isEmpty() && !conversation(item.conversation))
+        {
+            auto* local = unavailable_texts->addMenu(QStringLiteral("会话 #%1 · %2").arg(item.conversation).arg(item.filename));
+            add_upload_actions(*local, item.client_id);
+        }
+    }
+    unavailable_texts->menuAction()->setVisible(!unavailable_texts->isEmpty());
 }
 
 void chat_widget::show_conversation_menu(QPoint point)
@@ -755,17 +759,18 @@ void chat_widget::show_conversation_menu(QPoint point)
         return;
     }
     auto const* item = conversations_->conversation_at(ix);
-    if (!connection_available_)
-    {
-        return;
-    }
     if (!item)
     {
         QMenu menu(this);
         resume_reading_after_menu(menu);
-        menu.addAction(QStringLiteral("新建会话分组"), this, [this] { edit_folder_name(0); });
-        menu.addAction(QStringLiteral("所有会话标为已读"), this, [this] { emit mark_read_scope(0, -1); });
+        menu.addAction(QStringLiteral("新建会话分组"), this, [this] { edit_folder_name(0); })->setEnabled(connection_available_);
+        menu.addAction(QStringLiteral("所有会话标为已读"), this, [this] { emit mark_read_scope(0, -1); })->setEnabled(connection_available_);
+        add_local_content(menu);
         menu.exec(conversations_view_->viewport()->mapToGlobal(point));
+        return;
+    }
+    if (!connection_available_)
+    {
         return;
     }
     auto const conversation = item->id;
@@ -1011,7 +1016,7 @@ void chat_widget::setup_contacts_dialog()
     friend_groups_->setObjectName(QStringLiteral("friendGroupFilter"));
     friend_groups_->hide();
     auto* manage = new QPushButton(QStringLiteral("管理分组"), contacts_home);
-    contacts_header->insertWidget(contacts_header->count()-1, manage);
+    contacts_header->insertWidget(contacts_header->count() - 1, manage);
     contacts_filter_ = new contact_filter(*friend_groups_);
     connect(friend_groups_,
             &QComboBox::currentIndexChanged,
@@ -1161,48 +1166,102 @@ void chat_widget::setup_contacts_dialog()
     auto* groups = new QListWidget(groups_page);
     groups->setObjectName(QStringLiteral("joinedGroupsList"));
     groups->setContextMenuPolicy(Qt::CustomContextMenu);
-    groups->setIconSize(QSize(34,34));
+    groups->setIconSize(QSize(34, 34));
     groups_layout->addWidget(groups, 1);
     auto* empty_groups = new QLabel(groups_page);
     empty_groups->setAlignment(Qt::AlignCenter);
     groups_layout->addWidget(empty_groups, 1);
     tabs->addTab(groups_page, QStringLiteral("群聊"));
-    auto refresh_groups = [this, groups, empty_groups]
+    auto* pending = new QToolButton(groups_page);
+    pending->setObjectName(QStringLiteral("groupApplicationsButton"));
+    pending->setProperty("navigationTool", true);
+    pending->setText(QStringLiteral("待处理入群申请"));
+    pending->setPopupMode(QToolButton::InstantPopup);
+    groups_layout->insertWidget(0, pending);
+    auto* applications = new QMenu(pending);
+    pending->setMenu(applications);
+    connect(applications,
+            &QMenu::aboutToShow,
+            this,
+            [this, applications]
+            {
+                applications->clear();
+                for (auto const& room : conversations_->items())
+                {
+                    if (room.join_requests > 0)
+                    {
+                        applications->addAction(QStringLiteral("%1 (%2)").arg(room.username).arg(room.join_requests),
+                                                this,
+                                                [this, id = room.id]
+                                                {
+                                                    if (auto current = conversation(id); current && current->join_requests > 0)
+                                                    {
+                                                        contacts_dialog_->accept();
+                                                        emit members_requested(id, self_user_, current->username, true);
+                                                    }
+                                                });
+                    }
+                }
+            });
+    auto refresh_groups = [this, groups, empty_groups, pending]
     {
         groups->clear();
+        pending->setVisible(std::ranges::any_of(conversations_->items(), [](auto const& room) { return room.join_requests > 0; }));
         auto const query = contact_search_->text().trimmed();
-        for (bool owned : {true,false})
+        for (bool owned : {true, false})
         {
             QListWidgetItem* heading = nullptr;
             for (auto const& room : conversations_->items())
             {
-                if (!room.group || (room.speech_role == chat::member_role::owner) != owned || !room.username.contains(query,Qt::CaseInsensitive)) continue;
+                if (!room.group || (room.speech_role == chat::member_role::owner) != owned || !room.username.contains(query, Qt::CaseInsensitive))
+                {
+                    continue;
+                }
                 if (!heading)
                 {
                     heading = new QListWidgetItem(owned ? QStringLiteral("我创建的群聊") : QStringLiteral("我加入的群聊"), groups);
                     heading->setFlags(Qt::NoItemFlags);
                 }
                 QString label = room.username + QStringLiteral("  ·  %1 人").arg(room.member_count);
-                if (room.join_requests) label += QStringLiteral("  ·  %1 个入群申请").arg(room.join_requests);
-                auto* row = new QListWidgetItem(avatar_icon(room.username,34,avatars_.image(room.avatar_key())),label,groups);
-                row->setData(Qt::UserRole,room.id);
+                if (room.speech_role == chat::member_role::admin)
+                {
+                    label += QStringLiteral(" · 管理员");
+                }
+                if (room.join_requests)
+                {
+                    label += QStringLiteral("  ·  %1 个入群申请").arg(room.join_requests);
+                }
+                auto* row = new QListWidgetItem(avatar_icon(room.username, 34, avatars_.image(room.avatar_key())), label, groups);
+                row->setData(Qt::UserRole, room.id);
                 row->setToolTip(label);
-                row->setSizeHint(QSize(0,46));
+                row->setSizeHint(QSize(0, 46));
             }
         }
         groups->setVisible(groups->count() > 0);
         empty_groups->setVisible(groups->count() == 0);
         empty_groups->setText(query.isEmpty() ? QStringLiteral("暂无群聊") : QStringLiteral("没有匹配的群聊"));
     };
-    connect(tabs,&QTabWidget::currentChanged,this,[this,refresh_groups,manage](int tab)
-    {
-        manage->setVisible(tab==0);
-        contact_search_->setPlaceholderText(tab ? QStringLiteral("搜索群聊") : QStringLiteral("搜索联系人"));
-        refresh_groups();
-    });
+    connect(tabs,
+            &QTabWidget::currentChanged,
+            this,
+            [this, refresh_groups, manage](int tab)
+            {
+                manage->setVisible(tab == 0);
+                contact_search_->setPlaceholderText(tab ? QStringLiteral("搜索群聊") : QStringLiteral("搜索联系人"));
+                refresh_groups();
+            });
     connect(contact_search_, &QLineEdit::textChanged, groups, refresh_groups);
     connect(conversations_, &QAbstractItemModel::modelReset, groups, refresh_groups);
-    connect(&avatars_, &avatar_cache::changed, groups, [groups,refresh_groups](qint64 key){ if (key<0 && groups->isVisible()) refresh_groups(); });
+    connect(&avatars_,
+            &avatar_cache::changed,
+            groups,
+            [groups, refresh_groups](qint64 key)
+            {
+                if (key < 0 && groups->isVisible())
+                {
+                    refresh_groups();
+                }
+            });
     auto open = [this](QListWidgetItem* row)
     {
         if (auto room = conversation(row->data(Qt::UserRole).toLongLong()))
@@ -1211,25 +1270,34 @@ void chat_widget::setup_contacts_dialog()
             open_conversation(*room);
         }
     };
-    connect(groups,&QListWidget::itemClicked,this,open);
-    connect(groups,&QListWidget::itemActivated,this,open);
-    connect(groups,&QWidget::customContextMenuRequested,this,[this,groups](QPoint pos)
-    {
-        auto* row = groups->itemAt(pos);
-        if (!row) return;
-        auto const id = row->data(Qt::UserRole).toLongLong();
-        if (!id) return;
-        QMenu menu(groups);
-        auto* info = menu.addAction(QStringLiteral("群资料"));
-        if (menu.exec(groups->viewport()->mapToGlobal(pos)) == info)
-        {
-            if (auto room = conversation(id))
+    connect(groups, &QListWidget::itemClicked, this, open);
+    connect(groups, &QListWidget::itemActivated, this, open);
+    connect(groups,
+            &QWidget::customContextMenuRequested,
+            this,
+            [this, groups](QPoint pos)
             {
-                contacts_dialog_->accept();
-                emit members_requested(id, self_user_, room->username);
-            }
-        }
-    });
+                auto* row = groups->itemAt(pos);
+                if (!row)
+                {
+                    return;
+                }
+                auto const id = row->data(Qt::UserRole).toLongLong();
+                if (!id)
+                {
+                    return;
+                }
+                QMenu menu(groups);
+                auto* info = menu.addAction(QStringLiteral("群资料"));
+                if (menu.exec(groups->viewport()->mapToGlobal(pos)) == info)
+                {
+                    if (auto room = conversation(id))
+                    {
+                        contacts_dialog_->accept();
+                        emit members_requested(id, self_user_, room->username);
+                    }
+                }
+            });
     auto* footer = new QHBoxLayout;
     auto* group_create = new QPushButton(QStringLiteral("创建群聊"), groups_page);
     auto* group_join = new QPushButton(QStringLiteral("加入群聊"), groups_page);
@@ -1237,11 +1305,25 @@ void chat_widget::setup_contacts_dialog()
     footer->addWidget(group_join);
     footer->addStretch();
     groups_layout->addLayout(footer);
-    connect(group_create,&QPushButton::clicked,this,[this]{ contacts_dialog_->accept(); create_group(); });
-    connect(group_join,&QPushButton::clicked,this,[this]{ contacts_dialog_->accept(); findChild<QAction*>(QStringLiteral("joinGroupAction"))->trigger(); });
+    connect(group_create,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                contacts_dialog_->accept();
+                create_group();
+            });
+    connect(group_join,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                contacts_dialog_->accept();
+                findChild<QAction*>(QStringLiteral("joinGroupAction"))->trigger();
+            });
     auto* close = new QPushButton(QStringLiteral("关闭"), contacts_home);
     auto* footer_row = new QHBoxLayout;
-    footer_row->setContentsMargins(12,6,12,8);
+    footer_row->setContentsMargins(12, 6, 12, 8);
     footer_row->addWidget(contacts_add_button_);
     contacts_add_button_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     contacts_add_button_->setText(QStringLiteral("添加联系人"));
@@ -1249,8 +1331,8 @@ void chat_widget::setup_contacts_dialog()
     footer_row->addStretch();
     footer_row->addWidget(close);
     contacts_home_layout->addLayout(footer_row);
-    connect(close,&QPushButton::clicked,contacts_dialog_,&QDialog::reject);
-    connect(tabs,&QTabWidget::currentChanged,contacts_add_button_,[this](int tab){ contacts_add_button_->setVisible(tab==0); });
+    connect(close, &QPushButton::clicked, contacts_dialog_, &QDialog::reject);
+    connect(tabs, &QTabWidget::currentChanged, contacts_add_button_, [this](int tab) { contacts_add_button_->setVisible(tab == 0); });
     refresh_groups();
     connect(contact_search_,
             &QLineEdit::returnPressed,
@@ -1560,6 +1642,7 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
     auto* search = new QToolButton(header);
     search->setDefaultAction(message_search_action_);
     search->setObjectName(QStringLiteral("searchChatButton"));
+    search->setProperty("navigationTool", true);
     search->setToolTip(QStringLiteral("当前会话搜索 (Ctrl+F)"));
     auto search_icon = [this] { message_search_action_->setIcon(svg_icon(u"search", themed("text"), QSize(20, 20))); };
     search_icon();
@@ -2272,6 +2355,10 @@ void chat_widget::show_message_menu(QPoint position)
     auto* copy_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制链接"));
     auto const filename = index.data(message_model::attachment_name_role).toString();
     auto* download = !filename.isEmpty() ? menu.addAction(QStringLiteral("下载文件")) : nullptr;
+    if (download && downloads_)
+    {
+        downloads_->add_actions(menu, {conversation, message_id, 0, {}});
+    }
     auto* preview = index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/"))
                         ? menu.addAction(QStringLiteral("查看图片"))
                         : nullptr;
@@ -3124,9 +3211,9 @@ void chat_widget::set_connection_available(bool available)
     }
     for (auto* action : findChildren<QAction*>())
     {
-        if (action->objectName() == QStringLiteral("globalSearchAction") ||
-            action->objectName() == QStringLiteral("mentionsMeAction") || action->objectName() == QStringLiteral("addFriendAction") ||
-            action->objectName() == QStringLiteral("createGroupAction") || action->objectName() == QStringLiteral("joinGroupAction"))
+        if (action->objectName() == QStringLiteral("globalSearchAction") || action->objectName() == QStringLiteral("mentionsMeAction") ||
+            action->objectName() == QStringLiteral("addFriendAction") || action->objectName() == QStringLiteral("createGroupAction") ||
+            action->objectName() == QStringLiteral("joinGroupAction"))
         {
             action->setEnabled(available);
         }
@@ -3780,7 +3867,7 @@ void chat_widget::finish_send(qint64 conversation, qint64 client_id, message_dat
         return;
     }
     show_outgoing();
-    set_message_error(conversation, QStringLiteral("%1。可在附件上传菜单继续或取消。").arg(error));
+    set_message_error(conversation, QStringLiteral("%1。可在对应文件上继续或取消上传。").arg(error));
 }
 
 void chat_widget::restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed, bool group_only)
@@ -3800,6 +3887,7 @@ void chat_widget::restore_attachment(qint64 conversation, qint64 id, QString pat
     item.failed = true;
     item.error = QStringLiteral("已暂停，已确认 %1 / %2 字节").arg(confirmed).arg(size);
     outgoing_.push_back(std::move(item));
+    emit uploads_changed();
     if (active_conversation_ == conversation)
     {
         show_outgoing();
@@ -3816,6 +3904,10 @@ void chat_widget::attachment_progress(qint64 id, qint64 bytes, qint64 total)
     if (item->error != label)
     {
         item->error = std::move(label);
+        if (item->group_only)
+        {
+            emit uploads_changed();
+        }
         if (item->conversation == active_conversation_)
         {
             show_outgoing();
@@ -4165,7 +4257,10 @@ void chat_widget::update_main_menu()
             continue;
         }
         requests += item->join_requests;
-        if (item->hidden) continue;
+        if (item->hidden)
+        {
+            continue;
+        }
         if (item->notifications == chat::notification_level::muted && item->mute_until > now && (nearest == 0 || item->mute_until < nearest))
         {
             nearest = item->mute_until;
@@ -4722,7 +4817,6 @@ void chat_widget::update_reading_navigation()
 {
     unread_start_button_->setVisible(unread_start_ > 0);
     unread_start_button_->setEnabled(connection_available_);
-
 }
 
 void chat_widget::invalidate_unread_start(qint64 conversation, qint64 anchor)
@@ -5080,6 +5174,70 @@ void chat_widget::choose_attachment(qint64 conversation, bool group_only, QWidge
         send_files(conversation, paths, 0, group_only);
     }
 }
+QList<chat_widget::upload_row> chat_widget::group_uploads(qint64 room) const
+{
+    QList<upload_row> result;
+    for (auto const& item : outgoing_)
+    {
+        if (item.conversation == room && item.group_only)
+        {
+            result.push_back({item.client_id, item.filename, item.size, item.error});
+        }
+    }
+    return result;
+}
+
+void chat_widget::add_upload_actions(QMenu& menu, qint64 id)
+{
+    auto item = std::ranges::find(outgoing_, id, &outgoing::client_id);
+    if (item == outgoing_.end() || item->path.isEmpty())
+    {
+        return;
+    }
+    auto room = conversation(item->conversation);
+    auto paused = item->failed;
+    auto* toggle = menu.addAction(paused ? QStringLiteral("继续上传") : QStringLiteral("暂停上传"));
+    toggle->setEnabled(connection_available_ && (!paused || (!item->unavailable && room && !room->speech_blocked())));
+    connect(toggle,
+            &QAction::triggered,
+            this,
+            [this, id, paused]
+            {
+                auto item = std::ranges::find(outgoing_, id, &outgoing::client_id);
+                if (!connection_available_ || item == outgoing_.end() || item->failed != paused)
+                {
+                    return;
+                }
+                if (!paused)
+                {
+                    emit attachment_interrupt_requested(id, false, item->path);
+                    return;
+                }
+                auto room = conversation(item->conversation);
+                if (!room || room->speech_blocked() || item->unavailable)
+                {
+                    return;
+                }
+                item->failed = false;
+                item->error = QStringLiteral("正在校验文件…");
+                show_outgoing();
+                submit(*item);
+            });
+    auto* cancel = menu.addAction(QStringLiteral("取消上传"));
+    cancel->setEnabled(connection_available_);
+    connect(cancel,
+            &QAction::triggered,
+            this,
+            [this, id]
+            {
+                auto item = std::ranges::find(outgoing_, id, &outgoing::client_id);
+                if (connection_available_ && item != outgoing_.end())
+                {
+                    emit attachment_interrupt_requested(id, true, item->path);
+                }
+            });
+}
+
 void chat_widget::finish_group_file(qint64 id, QString error, bool unavailable)
 {
     if (error.isEmpty())
@@ -5096,6 +5254,7 @@ void chat_widget::finish_group_file(qint64 id, QString error, bool unavailable)
             item->unavailable = unavailable;
             item->error = error;
         }
+        emit uploads_changed();
     }
 }
 void chat_widget::send_files(qint64 target, QStringList const& paths, qint64 clipboard_id, bool group_only)
@@ -5159,6 +5318,7 @@ void chat_widget::queue_outgoing(outgoing item)
     outgoing_.push_back(std::move(item));
     if (outgoing_.back().group_only || outgoing_.back().conversation != active_conversation_)
     {
+        emit uploads_changed();
         submit(outgoing_.back());
         return;
     }
@@ -5182,6 +5342,7 @@ void chat_widget::submit(outgoing const& item)
 
 void chat_widget::show_outgoing()
 {
+    emit uploads_changed();
     QList<message_model::pending_message> pending;
     for (auto const& item : outgoing_)
     {
@@ -5288,11 +5449,13 @@ void chat_widget::show_outgoing_menu(QModelIndex const& index, QPoint position)
     auto* copy = menu.addAction(QStringLiteral("复制"));
     // Sending again needs the connection; discarding is local and works offline too.
     bool const attachment = !found->path.isEmpty();
-    auto* pause = attachment && !failed ? menu.addAction(QStringLiteral("暂停上传")) : nullptr;
-    auto* retry = failed && can_send() ? menu.addAction(attachment ? QStringLiteral("继续上传") : QStringLiteral("重新发送")) : nullptr;
+    if (attachment)
+    {
+        add_upload_actions(menu, client_id);
+    }
+    auto* retry = !attachment && failed && can_send() ? menu.addAction(QStringLiteral("重新发送")) : nullptr;
     auto const* retry_plain = attachment && failed && can_send() && has_reply ? menu.addAction(QStringLiteral("不带回复重新发送")) : nullptr;
-    auto* discard = attachment ? (connection_available_ ? menu.addAction(QStringLiteral("取消上传")) : nullptr)
-                               : (failed || found->waiting ? menu.addAction(QStringLiteral("删除待发消息")) : nullptr);
+    auto* discard = !attachment && (failed || found->waiting) ? menu.addAction(QStringLiteral("删除待发消息")) : nullptr;
     auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
     auto item = std::ranges::find(outgoing_, client_id, &outgoing::client_id);
     if (!selected || item == outgoing_.end() || visit != conversation_visit_)
@@ -5302,11 +5465,6 @@ void chat_widget::show_outgoing_menu(QModelIndex const& index, QPoint position)
     if (selected == copy)
     {
         QGuiApplication::clipboard()->setText(item->filename.isEmpty() ? item->text : item->filename);
-        return;
-    }
-    if (attachment && (selected == pause || selected == discard))
-    {
-        emit attachment_interrupt_requested(client_id, selected == discard, item->path);
         return;
     }
     if (!attachment)
