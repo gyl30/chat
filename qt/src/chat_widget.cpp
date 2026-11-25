@@ -1947,6 +1947,7 @@ void chat_widget::show_message_menu(QPoint position)
     auto* copy = !index.data(message_model::text_role).toString().isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
     QStyleOptionViewItem option;
     option.initFrom(messages_view_);
+    option.font = messages_view_->font();
     option.rect = messages_view_->visualRect(index);
     auto const url =
         messages_view_->selectionMode() == QAbstractItemView::ExtendedSelection ? QUrl{} : message_delegate::link_at(option, index, position);

@@ -7,6 +7,8 @@
 #include <QRegularExpression>
 #include <QTextBlock>
 #include <QTextCursor>
+#include <QTextFrame>
+#include <QUrl>
 
 QVariant message_markdown::loadResource(int, QUrl const&)
 {
@@ -30,7 +32,6 @@ message_markdown::message_markdown(QString const& source, QFont const& font, int
         if (fenced)
         {
             format.setNonBreakableLines(false);
-            format.setBackground(themed("subtle"));
             cursor.setBlockFormat(format);
         }
         QList<QTextFragment> fragments;
@@ -87,95 +88,173 @@ message_markdown::message_markdown(QString const& source, QFont const& font, int
             }
         }
     }
+    format_code_blocks(source);
     setTextWidth(width);
     setLayoutEnabled(true);
     setTextWidth(qBound(1., idealWidth(), qreal(width)));
 }
 
-QString message_markdown::code_at(QPointF point, QString const& source) const
+namespace
 {
-    int pos = documentLayout()->hitTest(point, Qt::ExactHit);
-    if (pos < 0)
+constexpr int kCodeBlock = QTextFormat::UserProperty + 1;
+
+bool is_code(QTextBlock const& block) { return block.isValid() && block.blockFormat().hasProperty(QTextFormat::BlockCodeLanguage); }
+
+void decorate_code_block(QTextBlock const& block, QTextBlock const& last, QString const& language)
+{
+    QTextCursor cursor(block);
+    cursor.setPosition(last.position() + last.length() - 1, QTextCursor::KeepAnchor);
+    QTextFrameFormat frame_format;
+    frame_format.setBackground(themed("subtle"));
+    frame_format.setPadding(7);
+    frame_format.setTopMargin(4);
+    frame_format.setBottomMargin(4);
+    frame_format.setProperty(kCodeBlock, true);
+    auto* frame = cursor.insertFrame(frame_format);
+
+    cursor = frame->firstCursorPosition();
+    auto const body_format = cursor.blockFormat();
+    cursor.insertBlock(body_format);
+    cursor = frame->firstCursorPosition();
+    QTextBlockFormat header;
+    header.setAlignment(Qt::AlignRight);
+    header.setBottomMargin(4);
+    cursor.setBlockFormat(header);
+    QTextCharFormat label;
+    label.setForeground(themed("text_secondary"));
+    if (!language.isEmpty())
     {
-        return {};
+        cursor.insertText(language + QStringLiteral("   "), label);
     }
-    auto block = findBlock(pos);
-    auto code = [](QTextBlock const& b) { return b.isValid() && b.blockFormat().hasProperty(QTextFormat::BlockCodeLanguage); };
-    if (!code(block))
+    label.setAnchor(true);
+    label.setAnchorHref(QStringLiteral("chat-copy:%1").arg(frame->objectIndex()));
+    label.setFontUnderline(true);
+    label.setForeground(themed("link"));
+    cursor.insertText(QStringLiteral("复制代码"), label);
+    // insertFrame leaves an empty separator paragraph on each side of the selected lines.
+    for (auto separator : {frame->firstCursorPosition().block().previous(), frame->lastCursorPosition().block().next()})
     {
-        return {};
+        if (separator.isValid() && separator.length() == 1)
+        {
+            QTextBlockFormat gap;
+            gap.setLineHeight(1, QTextBlockFormat::FixedHeight);
+            QTextCursor(separator).setBlockFormat(gap);
+        }
     }
-    // Qt gives adjacent fences identical block formats, even when they were separate in the source.
-    // Match its rendered lines back to the enclosing fence only when the user asks to copy code.
+}
+}    // namespace
+
+void message_markdown::format_code_blocks(QString const& source)
+{
+    // Qt preserves the language and delimiter character, but merges the formats of adjacent fences.
+    // Use the original delimiters to partition only the lines its Markdown reader marked as code.
     static QRegularExpression const fence(QStringLiteral(R"(^[ \t>]*(?:(?:[-+*]|\d+[.)])\s+)?(\x60{3,}|~{3,})(.*)$)"));
-    auto lines = QStringView(source).split(u'\n');
-    auto rendered = begin();
+    auto const lines = QStringView(source).split(u'\n');
+    auto block = begin();
     for (qsizetype i = 0; i < lines.size(); ++i)
     {
-        while (rendered.isValid() && !code(rendered))
+        while (block.isValid() && !block.blockFormat().hasProperty(QTextFormat::BlockCodeFence))
         {
-            rendered = rendered.next();
+            block = block.next();
         }
-        if (!rendered.isValid())
+        if (!block.isValid())
         {
             break;
         }
-        auto open = fence.matchView(lines[i]);
-        if (!open.hasMatch())
+        auto const open = fence.matchView(lines[i]);
+        auto const marker = open.capturedView(1);
+        auto const language = block.blockFormat().stringProperty(QTextFormat::BlockCodeLanguage);
+        if (!open.hasMatch() || !marker.startsWith(block.blockFormat().stringProperty(QTextFormat::BlockCodeFence)) ||
+            open.captured(2).simplified().section(u' ', 0, 0) != language)
         {
             continue;
         }
-        auto marker = open.capturedView(1);
-        if (!marker.startsWith(rendered.blockFormat().stringProperty(QTextFormat::BlockCodeFence)))
+        auto const prefix = lines[i].first(open.capturedStart(1));
+        bool const in_list = block.textList() || block.blockFormat().indent() > 0;
+        auto next = block;
+        qsizetype end = i + 1;
+        for (; end < lines.size(); ++end)
         {
-            continue;
-        }
-        auto next = rendered;
-        QStringList contents;
-        bool hit = false;
-        qsizetype j = i + 1;
-        for (; j < lines.size(); ++j)
-        {
-            auto line = lines[j];
+            auto line = lines[end];
             if (line.endsWith(u'\r'))
             {
                 line.chop(1);
             }
-            auto end = fence.matchView(line);
-            if (end.hasMatch() && end.capturedView(1).startsWith(marker) && end.capturedView(2).trimmed().isEmpty())
+            auto const close = fence.matchView(line);
+            if (close.hasMatch() && close.capturedView(1).startsWith(marker) && close.capturedView(2).trimmed().isEmpty())
+            {
+                auto const preceding = line.first(close.capturedStart(1));
+                auto const indent = preceding.sliced(preceding.lastIndexOf(u'>') + 1);
+                auto const base = in_list ? prefix.size() - prefix.lastIndexOf(u'>') - 1 : qsizetype(preceding.contains(u'>'));
+                if (preceding.count(u'>') == prefix.count(u'>') && indent.trimmed().isEmpty() && indent.size() <= base + 3)
+                {
+                    break;
+                }
+            }
+            if (!is_code(next) || next.blockFormat().stringProperty(QTextFormat::BlockCodeLanguage) != language)
             {
                 break;
             }
-            if (!code(next) || !line.endsWith(next.text()))
+            // The native reader expands leading tabs to spaces; embedded tabs stay literal.
+            auto const text = next.text();
+            if (!line.endsWith(text) && !(line.contains(u'\t') && line.endsWith(QStringView(text).trimmed())))
             {
                 break;
             }
-            hit |= next == block;
-            contents << next.text();
             next = next.next();
         }
-        if (contents.isEmpty())
+        if (next == block)
         {
             continue;
         }
-        if (hit)
+        decorate_code_block(block, next.isValid() ? next.previous() : lastBlock(), language);
+        block = next;
+        i = end - 1;
+    }
+    // Indented Markdown code has no source fence or language; keep its native contiguous range.
+    for (auto first = begin(); first.isValid();)
+    {
+        auto is_indented = [](QTextBlock const& b) { return is_code(b) && !b.blockFormat().hasProperty(QTextFormat::BlockCodeFence); };
+        if (!is_indented(first))
         {
-            return contents.join(u'\n');
+            first = first.next();
+            continue;
         }
-        rendered = next;
-        i = j - 1;
+        auto last = first;
+        while (is_indented(last.next()))
+        {
+            last = last.next();
+        }
+        auto next = last.next();
+        decorate_code_block(first, last, {});
+        first = next;
     }
-    // Indented code and container layouts without a literal source fence.
-    auto format = block.blockFormat();
-    auto same = [&](QTextBlock const& b) { return code(b) && b.blockFormat() == format; };
-    while (same(block.previous()))
+}
+
+namespace
+{
+QString frame_code(QTextFrame const* frame)
+{
+    if (!frame || !frame->frameFormat().boolProperty(kCodeBlock))
     {
-        block = block.previous();
+        return {};
     }
-    QStringList contents;
-    for (; same(block); block = block.next())
+    QStringList lines;
+    for (auto block = frame->firstCursorPosition().block().next(); block.isValid() && block.position() <= frame->lastPosition(); block = block.next())
     {
-        contents << block.text();
+        lines.append(block.text());
     }
-    return contents.join(u'\n');
+    return lines.join(u'\n');
+}
+}    // namespace
+
+QString message_markdown::code_at(QPointF point) const
+{
+    int const pos = documentLayout()->hitTest(point, Qt::ExactHit);
+    return pos < 0 ? QString{} : frame_code(frameAt(pos));
+}
+
+QString message_markdown::code_for_link(QUrl const& url) const
+{
+    return url.scheme() == QStringLiteral("chat-copy") ? frame_code(qobject_cast<QTextFrame*>(object(url.path().toInt()))) : QString{};
 }

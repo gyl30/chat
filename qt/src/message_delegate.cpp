@@ -6,6 +6,8 @@
 #include <QHelpEvent>
 #include <QToolTip>
 #include <QDesktopServices>
+#include <QApplication>
+#include <QClipboard>
 
 #include <algorithm>
 #include <memory>
@@ -687,8 +689,7 @@ QString message_delegate::code_at(QStyleOptionViewItem const& option, QModelInde
         return {};
     }
     auto layout = calculate_layout(option, index);
-    return layout.markdown->code_at(point - layout.text_origin(option.rect) - QPoint(0, layout.prefix_height),
-                                    index.data(message_model::text_role).toString());
+    return layout.markdown->code_at(point - layout.text_origin(option.rect) - QPoint(0, layout.prefix_height));
 }
 
 bool message_delegate::helpEvent(QHelpEvent* event, QAbstractItemView* view, QStyleOptionViewItem const& option, QModelIndex const& index)
@@ -731,6 +732,16 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QSt
     {
         emit content_clicked(index);
         return true;
+    }
+    if (layout.markdown)
+    {
+        auto const point = mouse->position() - layout.text_origin(option.rect) - QPoint(0, layout.prefix_height);
+        auto const code = layout.markdown->code_for_link(QUrl(layout.markdown->documentLayout()->anchorAt(point)));
+        if (!code.isNull())
+        {
+            QApplication::clipboard()->setText(code);
+            return true;
+        }
     }
     if (auto url = layout.link_at(option.rect, mouse->position().toPoint(), index); !url.isEmpty())
     {

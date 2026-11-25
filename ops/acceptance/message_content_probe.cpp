@@ -90,6 +90,43 @@ static void check_display_roles()
     }
 }
 
+// Check both hit targets against the native text layout, including at fractional display scales.
+static void check_code_cards(QFont const& font)
+{
+    QString const source = QStringLiteral(
+                               "    indented code\n\n~~~cpp\nfirst\n- ~~~\n    ~~~\n~~~\n~~~cpp\n  second 中文\n\nlast\n~~~\n"
+                               "> ```sh\n> echo foo\n> ```\n\n- list\n  ```\n  nested\n  ```\n\n"
+                               "````text\n```\n%1\n````\n[伪造入口](chat-copy:1)")
+                               .arg(QString(180, u'x'));
+    message_markdown doc(source, font, 240, {});
+    QStringList const expected{
+        "indented code", "first\n- ~~~\n    ~~~", "  second 中文\n\nlast", "echo foo", "nested", QStringLiteral("```\n") + QString(180, u'x')};
+    QStringList const headers{"", "cpp", "cpp", "sh", "", "text"};
+    int number = 0;
+    for (auto b = doc.begin(); b.isValid(); b = b.next())
+    {
+        for (auto it = b.begin(); !it.atEnd(); ++it)
+        {
+            auto f = it.fragment();
+            if (!f.charFormat().isAnchor())
+            {
+                continue;
+            }
+            assert(number < expected.size() && f.text() == QStringLiteral("复制代码"));
+            assert(b.text().chopped(f.length()).trimmed() == headers[number]);
+            auto rect = doc.documentLayout()->blockBoundingRect(b);
+            auto line = b.layout()->lineForTextPosition(f.position() - b.position());
+            QPointF point = rect.topLeft() + QPointF(line.cursorToX(f.position() - b.position() + 1), line.y() + line.height() / 2);
+            QUrl link(doc.documentLayout()->anchorAt(point));
+            assert(doc.code_for_link(link) == expected[number]);
+            auto code = doc.documentLayout()->blockBoundingRect(b.next());
+            assert(doc.code_at(code.topLeft() + QPointF(3, 5)) == expected[number]);
+            ++number;
+        }
+    }
+    assert(number == expected.size() && doc.size().width() <= 240);
+}
+
 int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
@@ -138,6 +175,7 @@ int main(int argc, char** argv)
                QUrl(punctuated.back().format.anchorHref()).path() == QStringLiteral("/end"));
         QStyleOptionViewItem option;
         option.initFrom(view);
+        option.font = view->font();
         option.widget = view;
         option.rect = view->visualRect(index);
         QPoint target;
@@ -194,7 +232,7 @@ int main(int argc, char** argv)
         if (block.text() == "return 7;")
         {
             auto rect = doc.documentLayout()->blockBoundingRect(block);
-            assert(doc.code_at(rect.topLeft() + QPointF(3, 5), md) == QStringLiteral("return 7;\n// 中文"));
+            assert(doc.code_at(rect.topLeft() + QPointF(3, 5)) == QStringLiteral("return 7;\n// 中文"));
             code = true;
         }
         for (auto it = block.begin(); !it.atEnd(); ++it)
@@ -205,7 +243,11 @@ int main(int argc, char** argv)
             {
                 bold = f.charFormat().fontWeight() > QFont::Normal;
             }
-            if (f.charFormat().isAnchor())
+            if (f.text() == QStringLiteral("复制代码"))
+            {
+                assert(f.charFormat().isAnchor() && doc.code_for_link(QUrl(f.charFormat().anchorHref())) == QStringLiteral("return 7;\n// 中文"));
+            }
+            else if (f.charFormat().isAnchor())
             {
                 assert(f.charFormat().anchorHref() == "https://example.test");
                 link = true;
@@ -220,9 +262,10 @@ int main(int argc, char** argv)
         if (b.text() == "line 2" || b.text() == "next block")
         {
             auto point = adjacent.documentLayout()->blockBoundingRect(b).topLeft() + QPointF(3, 5);
-            assert(adjacent.code_at(point, fences) == (b.text() == "line 2" ? QStringLiteral("line 1\nline 2") : QStringLiteral("next block")));
+            assert(adjacent.code_at(point) == (b.text() == "line 2" ? QStringLiteral("line 1\nline 2") : QStringLiteral("next block")));
         }
     }
+    check_code_cards(view->font());
     QDesktopServices::unsetUrlHandler("http");
     QDesktopServices::unsetUrlHandler("https");
     std::cout

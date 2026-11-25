@@ -4,6 +4,8 @@
 #include "client_bridge.hpp"
 #include "message_markdown.hpp"
 #include <QDateTime>
+#include <QApplication>
+#include <QClipboard>
 #include <QDialog>
 #include <QLabel>
 #include <QListWidget>
@@ -25,8 +27,17 @@ void show_bundle(client_bridge& client, chat_widget& chat, qint64 room, qint64 m
     QObject::connect(body,
                      &QTextBrowser::anchorClicked,
                      &dialog,
-                     [](QUrl const& url)
+                     [body](QUrl const& url)
                      {
+                         if (auto* doc = dynamic_cast<message_markdown*>(body->document()))
+                         {
+                             auto code = doc->code_for_link(url);
+                             if (!code.isNull())
+                             {
+                                 QApplication::clipboard()->setText(code);
+                                 return;
+                             }
+                         }
                          auto allowed = http_message_url(url.toString(QUrl::FullyEncoded));
                          if (!allowed.isEmpty())
                          {
