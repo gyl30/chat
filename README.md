@@ -34,7 +34,7 @@ cmake --build build-qt --target server sdk client
 ## 本地运行
 
 构建产物为 `server`、`libsdk.a`，启用桌面客户端时另有 `qt/client`。Qt 主题文件由 CMake
-复制到 `qt/themes/`，无需安装或打包。Qt 应用名和原有配置、主题及 SDK 数据路径保持不变。Silo/S3 服务需独立启动。
+复制到构建目录下的 `qt/themes/`，无需安装或打包。下方命令沿用上面的两个构建目录；若只构建桌面版，服务端也可使用 `./build-qt/server`。Qt 应用名和原有配置、主题及 SDK 数据路径保持不变。Silo/S3 服务需独立启动。
 
 ## SQLite 与 Silo 启动
 
@@ -52,8 +52,8 @@ export CHAT_S3_REGION='us-east-1'
 export CHAT_S3_HTTPS=0  # 本地 HTTP；生产环境应使用 HTTPS
 
 mkdir -p "$HOME/chat-data"
-./build/server 18080 32 "$HOME/chat-data/chat.sqlite3"
-./build/qt/client ws://127.0.0.1:18080/ws
+./build-server/server 18080 32 "$HOME/chat-data/chat.sqlite3"
+./build-qt/qt/client ws://127.0.0.1:18080/ws
 ```
 
 SQLite 使用 WAL、`synchronous=FULL` 和外键约束。部署时确保数据库目录可写，
@@ -63,7 +63,7 @@ SQLite 使用 WAL、`synchronous=FULL` 和外键约束。部署时确保数据�
 公网或不受信网络可启用 TLS，使用成对的证书和私钥：
 
 ```sh
-./build/server 18443 32 "$HOME/chat-data/chat.sqlite3" \
+./build-server/server 18443 32 "$HOME/chat-data/chat.sqlite3" \
     --tls-cert /path/fullchain.pem --tls-key /path/key.pem
 ```
 

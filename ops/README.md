@@ -97,7 +97,7 @@ SILO_BIN=/path/to/candidate/silo CHAT_TEST_SERVER=/path/to/candidate/server     
 在已有 Bash 和 Apache `rotatelogs` 的 Linux 主机上，可为 Chat 进程单独设置大小轮转。先由管理员为服务账号准备日志目录，再按 README 配好运行环境。用下面的启动形式可保留服务端 PID，进程管理器可直接发送 SIGTERM。
 
 ```bash
-exec ./build/server 8080 4 "$DB" \
+exec ./build-server/server 8080 4 "$DB" \
   > >(rotatelogs -n 5 /var/log/chat/server.log 10M) 2>&1
 ```
 
