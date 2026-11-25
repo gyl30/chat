@@ -444,7 +444,7 @@ QMainWindow {
         QPushButton#chatHeaderButton:disabled {
             color: ${text};
         }
-        QPushButton#entryUnreadButton, QPushButton#returnToLatestButton {
+        QPushButton#entryUnreadButton {
             background: ${surface};
             color: ${text};
             border: 1px solid ${input_border};
@@ -452,10 +452,10 @@ QMainWindow {
             min-height: 28px;
             padding: 0 8px;
         }
-        QPushButton#entryUnreadButton:hover:enabled, QPushButton#returnToLatestButton:hover:enabled {
+        QPushButton#entryUnreadButton:hover:enabled {
             background: ${canvas_hover};
         }
-        QPushButton#entryUnreadButton:focus, QPushButton#returnToLatestButton:focus {
+        QPushButton#entryUnreadButton:focus {
             border: 1px solid ${focus};
         }
         QLabel#chatPresence, QLabel#chatPresenceOnline {

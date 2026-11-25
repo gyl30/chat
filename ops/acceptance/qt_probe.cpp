@@ -1697,7 +1697,6 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         out["colorScheme"] = static_cast<int>(QGuiApplication::styleHints()->colorScheme());
         out["themeCanvas"] = theme_manager::instance().color(QStringLiteral("canvas")).name();
         for (auto const* name : {"entryUnreadButton",
-                                 "returnToLatestButton",
                                  "chatHeaderButton",
                                  "mainMenuButton",
                                  "windowMinimizeButton",
@@ -1751,7 +1750,6 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     else if (op == "reading")
     {
         auto* unread = button("entryUnreadButton");
-        auto* latest = button("returnToLatestButton");
         auto* list = window.findChild<QListView*>("messageList");
         if (cmd["activate"].toBool())
         {
@@ -1770,16 +1768,17 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         {
             list->scrollToBottom();
         }
-        if (cmd["latest"].toBool() && latest->isVisible())
+        if (cmd["latest"].toBool())
         {
-            latest->click();
+            QKeyEvent end(QEvent::KeyPress, Qt::Key_End, Qt::NoModifier);
+            QApplication::sendEvent(list, &end);
         }
         if (cmd["unread"].toBool() && unread->isVisible())
         {
             QTimer::singleShot(0, unread, &QPushButton::click);
         }
         out["unread"] = unread->isVisible();
-        out["latest"] = latest->isVisible();
+        out["latest"] = !chat->timeline_current_ || list->verticalScrollBar()->value() != list->verticalScrollBar()->maximum();
         out["ready"] = chat->messages_ready();
         out["viewingLatest"] = chat->viewing_latest();
         out["active"] = window.isActiveWindow();

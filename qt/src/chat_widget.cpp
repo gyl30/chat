@@ -98,6 +98,45 @@ QString local_file_path(QUrl url)
     return url.host().isEmpty() ? url.toLocalFile() : QString{};
 }
 
+// The scroll area's own bar drives paging and read positions. This overlay never consumes layout width.
+class message_list_view final : public QListView
+{
+   public:
+    explicit message_list_view(QWidget* parent) : QListView(parent), overlay_(Qt::Vertical, viewport())
+    {
+        setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        overlay_.setObjectName(QStringLiteral("messageScrollOverlay"));
+        overlay_.setFocusPolicy(Qt::NoFocus);
+        overlay_.hide();
+        timer_.setSingleShot(true);
+        timer_.setInterval(900);
+        connect(&timer_, &QTimer::timeout, this, [this] { if (!overlay_.isSliderDown()) overlay_.hide(); });
+        auto* scroll = verticalScrollBar();
+        connect(scroll, &QScrollBar::rangeChanged, &overlay_, &QScrollBar::setRange);
+        connect(scroll, &QScrollBar::valueChanged, this, [this, scroll](int value)
+        {
+            overlay_.setPageStep(scroll->pageStep());
+            overlay_.setValue(value);
+            overlay_.setVisible(scroll->maximum() > scroll->minimum());
+            timer_.start();
+        });
+        connect(&overlay_, &QScrollBar::valueChanged, scroll, &QScrollBar::setValue);
+        connect(&overlay_, &QScrollBar::sliderReleased, &timer_, qOverload<>(&QTimer::start));
+    }
+
+   protected:
+    void resizeEvent(QResizeEvent* event) override
+    {
+        QListView::resizeEvent(event);
+        constexpr int width = 8;
+        overlay_.setGeometry(viewport()->width() - width, 0, width, viewport()->height());
+    }
+
+   private:
+    QScrollBar overlay_;
+    QTimer timer_;
+};
+
 class conversation_list_view final : public QListView
 {
    public:
@@ -1355,17 +1394,10 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
     unread_start_button_ = new QPushButton(QStringLiteral("查看本次未读起点"), header);
     unread_start_button_->setObjectName(QStringLiteral("entryUnreadButton"));
     unread_start_button_->setToolTip(QStringLiteral("查看进入会话前的第一条未读消息，不改变当前已读位置"));
-    latest_button_ = new QPushButton(QStringLiteral("回到最新"), header);
-    latest_button_->setObjectName(QStringLiteral("returnToLatestButton"));
-    for (auto* button : {unread_start_button_, latest_button_})
-    {
-        button->setAutoDefault(false);
-        button->hide();
-    }
+    unread_start_button_->setAutoDefault(false);
+    unread_start_button_->hide();
     header_layout->addWidget(unread_start_button_);
-    header_layout->addWidget(latest_button_);
     connect(unread_start_button_, &QPushButton::clicked, this, [this] { emit message_context_requested(active_conversation_, unread_start_); });
-    connect(latest_button_, &QPushButton::clicked, this, &chat_widget::return_to_latest);
 
     chat_more_button_ = new QToolButton(header);
     chat_more_button_->setObjectName(QStringLiteral("chatMoreButton"));
@@ -1482,7 +1514,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
 {
     auto* chat_panel = chat_layout->parentWidget();
     messages_ = new message_model(this, &avatars_, &images_);
-    messages_view_ = new QListView(chat_panel);
+    messages_view_ = new message_list_view(chat_panel);
     messages_view_->setMouseTracking(true);
     messages_view_->setObjectName(QStringLiteral("messageList"));
     messages_view_->setAccessibleName(QStringLiteral("消息记录"));
@@ -1506,7 +1538,6 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     messages_view_->setContextMenuPolicy(Qt::CustomContextMenu);
     messages_view_->setSelectionMode(QAbstractItemView::NoSelection);
     messages_view_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-    messages_view_->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     messages_view_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     messages_view_->setSpacing(0);
     messages_view_->verticalScrollBar()->setSingleStep(24);
@@ -2629,6 +2660,17 @@ void chat_widget::send_image(QImage const& image)
 
 bool chat_widget::eventFilter(QObject* object, QEvent* event)
 {
+    if (messages_view_ && object == messages_view_->viewport() && event->type() == QEvent::Wheel && !timeline_current_ && !messages_loading_ &&
+        connection_available_ && active_conversation_ > 0)
+    {
+        auto* wheel = static_cast<QWheelEvent*>(event);
+        auto* scroll = messages_view_->verticalScrollBar();
+        if (scroll->value() == scroll->maximum() && (wheel->pixelDelta().y() < 0 || wheel->angleDelta().y() < 0))
+        {
+            return_to_latest();
+            return true;
+        }
+    }
     if (object == input_bar_ && event->type() == QEvent::Resize)
     {
         // Change only the layout direction: the editor keeps its focus, selection and input context.
@@ -2740,6 +2782,12 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
                 emit content_requested(active_conversation_, index.data(message_model::id_role).toLongLong(), kind);
                 return true;
             }
+        }
+        if (connection_available_ && active_conversation_ > 0 && key->key() == Qt::Key_End &&
+            (key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::ControlModifier))
+        {
+            return_to_latest();
+            return true;
         }
         if (key->modifiers() == Qt::NoModifier && (key->key() == Qt::Key_PageUp || key->key() == Qt::Key_PageDown))
         {
@@ -4503,10 +4551,7 @@ void chat_widget::update_reading_navigation()
 {
     unread_start_button_->setVisible(unread_start_ > 0);
     unread_start_button_->setEnabled(connection_available_);
-    auto const* scroll = messages_view_->verticalScrollBar();
-    latest_button_->setVisible(active_conversation_ > 0 && (messages_loaded_ || !messages_loading_) &&
-                               (!timeline_current_ || scroll->value() != scroll->maximum()));
-    latest_button_->setEnabled(connection_available_);
+
 }
 
 void chat_widget::invalidate_unread_start(qint64 conversation, qint64 anchor)

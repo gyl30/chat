@@ -443,7 +443,6 @@ class chat_widget final : public QWidget
     quint64 active_member_count_ = 0;
     QString active_username_;
     QPushButton* unread_start_button_ = nullptr;
-    QPushButton* latest_button_ = nullptr;
     quint64 conversation_visit_ = 0;
     qint64 unread_start_ = 0;
     QSet<qint64> withdrawn_before_unread_;
