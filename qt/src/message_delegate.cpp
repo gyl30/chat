@@ -33,8 +33,6 @@ constexpr qint64 kGroupInterval = 5 * 60 * 1000;
 
 bool outgoing_at(QModelIndex const& index) { return index.data(message_model::outgoing_role).toBool(); }
 
-bool read_at(QModelIndex const& index) { return index.data(message_model::read_role).toBool(); }
-
 qint64 timestamp_at(QModelIndex const& index) { return index.data(message_model::timestamp_role).toLongLong(); }
 
 QDate local_date(QModelIndex const& index)
@@ -256,7 +254,8 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     {
         result.time = QStringLiteral("提及你 · ") + result.time;
     }
-    result.read = result.outgoing && read_at(index);
+    auto const receipt = index.data(message_model::read_role);
+    result.read = receipt.toBool();
     switch (index.data(message_model::send_state_role).toInt())
     {
         case message_model::waiting:
@@ -287,7 +286,7 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     auto const time_metrics = QFontMetrics(time_font(option));
     result.time_width = result.time.isEmpty() ? 0 : time_metrics.horizontalAdvance(result.time);
     result.time_height = result.time.isEmpty() ? 0 : time_metrics.height();
-    result.receipt_width = result.outgoing ? 17 : 0;
+    result.receipt_width = receipt.isValid() ? 17 : 0;
     auto const metadata_width = result.time_width + ((result.time_width > 0 && result.receipt_width > 0) ? 3 : 0) + result.receipt_width;
 
     auto const mentions = index.data(message_model::mentions_role).value<QList<mention_data>>();

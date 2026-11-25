@@ -22,6 +22,7 @@
 static void check_display_roles()
 {
     message_model model;
+    model.set_self_user(1);
     model.reset(1);
     message_data m;
     m.conversation = 1;
@@ -61,6 +62,31 @@ static void check_display_roles()
         auto index = model.index(model.rowCount() - 1);
         assert(index.data(Qt::DisplayRole).toString() == m.text && index.data(message_model::text_role).toString() == m.text);
         assert(!index.data(message_model::poll_role).isValid());
+    }
+    m.from = 1;
+    m.conversation = 1;
+    for (bool group : {false, true})
+    {
+        model.reset(1, group);
+        for (auto state : {message_model::waiting, message_model::sending, message_model::failed})
+        {
+            for (bool attachment : {false, true})
+            {
+                m.attachment = attachment ? std::optional{attachment_data{"photo.png", "image/png", 1024, "image"}} : std::nullopt;
+                model.set_pending({{m, state == message_model::failed, {}, state == message_model::waiting}});
+                auto local = model.index(0);
+                assert(local.data(message_model::send_state_role).toInt() == state);
+                assert(!local.data(message_model::read_role).isValid() && !local.data(message_model::read_count_role).isValid());
+            }
+        }
+        model.set_pending({});
+        m.id = 100;
+        assert(model.add_message(m));
+        auto sent = model.index(0);
+        assert(sent.data(message_model::send_state_role).toInt() == message_model::sent);
+        assert(sent.data(message_model::read_role).isValid() && !sent.data(message_model::read_role).toBool());
+        model.set_read_message(2, m.id);
+        assert(sent.data(message_model::read_role).toBool());
     }
 }
 

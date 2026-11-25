@@ -117,7 +117,6 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             case send_error_role:
                 return item.error;
             case read_role:
-                return false;
             case read_count_role:
             case image_role:
             case image_status_role:
@@ -159,6 +158,7 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             {
                 auto const& item = pending_[index.row() - messages_.size()];
                 parts.push_back(item.failed            ? QStringLiteral("发送失败：%1").arg(item.error)
+                                : item.waiting         ? QStringLiteral("等待发送")
                                 : item.error.isEmpty() ? QStringLiteral("发送中…")
                                                        : item.error);
             }
@@ -270,7 +270,7 @@ QVariant message_model::data(QModelIndex const& index, int role) const
         case read_role:
             if (!outgoing)
             {
-                return false;
+                return {};
             }
             if (group_ && !members_.isEmpty())
             {
