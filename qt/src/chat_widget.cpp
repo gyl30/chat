@@ -1,3 +1,4 @@
+#include <QShortcut>
 #include "chat_widget.hpp"
 #include "sidebar_search.hpp"
 #include "download_tasks.hpp"
@@ -256,12 +257,16 @@ class pinned_message_button final : public QPushButton
     }
 };
 
-QHBoxLayout* make_contact_header(QDialog* dialog, QString title)
+QHBoxLayout* make_contact_header(QDialog* dialog, QString title, bool close_button)
 {
     auto* header = new QHBoxLayout;
     header->setContentsMargins(18, 12, 12, 4);
     auto* label = dialog_title(*dialog, std::move(title));
     header->addWidget(label, 1);
+    if (!close_button)
+    {
+        return header;
+    }
     auto* close = new QToolButton(dialog);
     close->setObjectName(QStringLiteral("contactDialogCloseButton"));
     close->setAccessibleName(QStringLiteral("关闭") + dialog->windowTitle());
@@ -877,17 +882,9 @@ void chat_widget::setup_contacts_dialog()
     auto* contacts_layout = new QVBoxLayout(contacts_dialog_);
     contacts_layout->setContentsMargins(0, 0, 0, 0);
     contacts_layout->setSpacing(0);
-    auto* contacts_header = make_contact_header(contacts_dialog_, QStringLiteral("联系人"));
+    auto* contacts_header = make_contact_header(contacts_dialog_, QStringLiteral("联系人"), false);
     contacts_title_ = contacts_dialog_->findChild<QLabel*>(QStringLiteral("dialogTitle"));
     contacts_title_->setObjectName(QStringLiteral("contactsTitle"));
-    contacts_back_button_ = new QToolButton(contacts_dialog_);
-    contacts_back_button_->setObjectName(QStringLiteral("contactsBackButton"));
-    contacts_back_button_->setAccessibleName(QStringLiteral("返回联系人"));
-    contacts_back_button_->setToolTip(QStringLiteral("返回联系人"));
-    contacts_back_button_->setFixedSize(40, 40);
-    contacts_back_button_->setIcon(svg_icon(u"back", themed("text_secondary"), QSize(20, 20)));
-    contacts_back_button_->hide();
-    contacts_header->insertWidget(0, contacts_back_button_);
     contacts_header->setSpacing(8);
     contacts_layout->addLayout(contacts_header);
     contacts_pages_ = new QStackedWidget(contacts_dialog_);
@@ -903,7 +900,6 @@ void chat_widget::setup_contacts_dialog()
     contacts_feedback_->setWordWrap(true);
     contacts_feedback_->hide();
     contacts_layout->addWidget(contacts_feedback_);
-    connect(contacts_back_button_, &QToolButton::clicked, this, [this] { show_contacts_home(); });
     connect(contacts_dialog_, &QDialog::finished, this, [this] { show_contacts_home(); });
     contact_search_ = new QLineEdit(contacts_dialog_);
     contact_search_->setObjectName(QStringLiteral("userSearchEdit"));
@@ -987,7 +983,7 @@ void chat_widget::setup_contacts_dialog()
     friend_groups_->setObjectName(QStringLiteral("friendGroupFilter"));
     friend_groups_->hide();
     auto* manage = new QPushButton(QStringLiteral("管理分组"), contacts_home);
-    contacts_header->insertWidget(contacts_header->count() - 1, manage);
+    contacts_header->addWidget(manage);
     contacts_filter_ = new contact_filter(*friend_groups_);
     connect(friend_groups_,
             &QComboBox::currentIndexChanged,
@@ -1211,9 +1207,8 @@ void chat_widget::setup_contacts_dialog()
     connect(tabs,
             &QTabWidget::currentChanged,
             this,
-            [this, refresh_groups, manage](int tab)
+            [this, refresh_groups](int tab)
             {
-                manage->setVisible(tab == 0);
                 contact_search_->setPlaceholderText(tab ? QStringLiteral("搜索群聊") : QStringLiteral("搜索联系人"));
                 refresh_groups();
             });
@@ -1265,13 +1260,8 @@ void chat_widget::setup_contacts_dialog()
                     }
                 }
             });
-    auto* footer = new QHBoxLayout;
-    auto* group_create = new QPushButton(QStringLiteral("创建群聊"), groups_page);
-    auto* group_join = new QPushButton(QStringLiteral("加入群聊"), groups_page);
-    footer->addWidget(group_create);
-    footer->addWidget(group_join);
-    footer->addStretch();
-    groups_layout->addLayout(footer);
+    auto* group_create = new QPushButton(QStringLiteral("创建群聊"), contacts_home);
+    auto* group_join = new QPushButton(QStringLiteral("加入群聊"), contacts_home);
     connect(group_create,
             &QPushButton::clicked,
             this,
@@ -1295,11 +1285,28 @@ void chat_widget::setup_contacts_dialog()
     contacts_add_button_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     contacts_add_button_->setText(QStringLiteral("添加联系人"));
     contacts_add_button_->setMinimumWidth(100);
+    footer_row->addWidget(group_create);
+    footer_row->addWidget(group_join);
     footer_row->addStretch();
     footer_row->addWidget(close);
     contacts_home_layout->addLayout(footer_row);
     connect(close, &QPushButton::clicked, contacts_dialog_, &QDialog::reject);
-    connect(tabs, &QTabWidget::currentChanged, contacts_add_button_, [this](int tab) { contacts_add_button_->setVisible(tab == 0); });
+    for (auto* button : {group_create, group_join, close})
+    {
+        button->setFixedHeight(36);
+    }
+    auto update_page_actions = [this, tabs, manage, group_create, group_join]
+    {
+        bool const home = contacts_pages_->currentIndex() == 0;
+        bool const friends = tabs->currentIndex() == 0;
+        manage->setVisible(home && friends);
+        contacts_add_button_->setVisible(friends);
+        group_create->setVisible(!friends);
+        group_join->setVisible(!friends);
+    };
+    connect(tabs, &QTabWidget::currentChanged, this, update_page_actions);
+    connect(contacts_pages_, &QStackedWidget::currentChanged, this, update_page_actions);
+    update_page_actions();
     refresh_groups();
     connect(contact_search_,
             &QLineEdit::returnPressed,
@@ -1346,7 +1353,7 @@ void chat_widget::setup_add_contact_dialog()
     auto* add_contacts_layout = new QVBoxLayout(add_contact_dialog_);
     add_contacts_layout->setContentsMargins(0, 0, 0, 0);
     add_contacts_layout->setSpacing(12);
-    add_contacts_layout->addLayout(make_contact_header(add_contact_dialog_, QStringLiteral("添加联系人")));
+    add_contacts_layout->addLayout(make_contact_header(add_contact_dialog_, QStringLiteral("添加联系人"), true));
     add_user_search_ = new QLineEdit(add_contact_dialog_);
     add_user_search_->setObjectName(QStringLiteral("userSearchEdit"));
     add_user_search_->setPlaceholderText(QStringLiteral("搜索用户名或昵称"));
@@ -1522,6 +1529,9 @@ void chat_widget::setup_friend_requests()
             [request_selected, this] { request_selected(outgoing_friends_, static_cast<int>(chat::friendship_state::outgoing_pending)); });
     requests_layout->addStretch();
     contacts_pages_->addWidget(requests_page);
+    auto* back = new QShortcut(QKeySequence(Qt::Key_Escape), requests_page);
+    back->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(back, &QShortcut::activated, this, &chat_widget::show_contacts_home);
     for (auto* list : {incoming_friends_, outgoing_friends_})
     {
         auto* delegate = new user_delegate(list);
@@ -2649,8 +2659,6 @@ void chat_widget::connect_chat_controls()
                 }
             });
     main_menu_button_->installEventFilter(this);
-    contacts_dialog_->installEventFilter(this);
-    contacts_back_button_->installEventFilter(this);
     contacts_requests_button_->installEventFilter(this);
     for (auto* button : {incoming_accept_button_, incoming_reject_button_, outgoing_cancel_button_})
     {
@@ -2889,7 +2897,7 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
             }
         }
     }
-    if ((object == contacts_requests_button_ || object == contacts_back_button_ || object == incoming_accept_button_ ||
+    if ((object == contacts_requests_button_ || object == incoming_accept_button_ ||
          object == incoming_reject_button_ || object == outgoing_cancel_button_) &&
         event->type() == QEvent::KeyPress)
     {
@@ -2899,12 +2907,6 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
             static_cast<QAbstractButton*>(object)->click();
             return true;
         }
-    }
-    if (object == contacts_dialog_ && event->type() == QEvent::KeyPress && static_cast<QKeyEvent*>(event)->key() == Qt::Key_Escape &&
-        contacts_pages_->currentIndex() == 1)
-    {
-        show_contacts_home();
-        return true;
     }
     if (object == main_menu_button_ && event->type() == QEvent::KeyPress)
     {
@@ -3879,7 +3881,6 @@ void chat_widget::show_contacts_home()
 {
     contacts_pages_->setCurrentIndex(0);
     contacts_title_->setText(QStringLiteral("联系人"));
-    contacts_back_button_->hide();
     if (contacts_dialog_->isVisible())
     {
         contact_search_->setFocus();
@@ -3890,7 +3891,6 @@ void chat_widget::show_friend_requests()
 {
     contacts_pages_->setCurrentIndex(1);
     contacts_title_->setText(QStringLiteral("好友申请"));
-    contacts_back_button_->show();
     for (auto* list : {incoming_friends_, outgoing_friends_})
     {
         if (list->count() > 0 && !list->currentItem())
@@ -3898,7 +3898,7 @@ void chat_widget::show_friend_requests()
             list->setCurrentRow(0);
         }
     }
-    contacts_back_button_->setFocus();
+    incoming_friends_->setFocus();
 }
 
 void chat_widget::show_contacts_dialog()
@@ -3991,7 +3991,6 @@ void chat_widget::refresh_theme()
     contacts_add_button_->setIcon(svg_icon(u"user-plus", themed("text_secondary"), QSize(20, 20)));
     chats_action_->setIcon(svg_icon(u"chat", themed("text"), QSize(20, 20)));
     contacts_action_->setIcon(svg_icon(u"contacts", themed("text"), QSize(20, 20)));
-    contacts_back_button_->setIcon(svg_icon(u"back", themed("text_secondary"), QSize(20, 20)));
     contacts_requests_icon_->setPixmap(svg_icon(u"user-plus", themed("text_secondary"), QSize(22, 22)).pixmap(22, 22));
     contacts_requests_arrow_->setPixmap(svg_icon(u"chevron-right", themed("text_secondary"), QSize(16, 16)).pixmap(16, 16));
     cancel_reply_button_->setIcon(svg_icon(QStringLiteral("close"), themed("text"), QSize(20, 20)));

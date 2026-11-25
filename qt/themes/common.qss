@@ -1001,12 +1001,6 @@ QPushButton#contactsRequestsButton QLabel#contactsRequestsBadge {
     min-width: 18px; max-height: 20px; padding: 0 4px;
     border-radius: 10px; font-size: 12px; font-weight: 600;
 }
-QToolButton#contactsBackButton {
-    background: transparent; border: 1px solid transparent; border-radius: 8px;
-}
-QToolButton#contactsBackButton:hover { background: ${subtle}; }
-QToolButton#contactsBackButton:pressed { background: ${selected}; }
-QToolButton#contactsBackButton:focus { border-color: ${focus}; }
 QLabel#contactsRequestFeedback {
     margin: 4px 12px 8px 12px; padding: 8px 12px;
     background: ${subtle}; color: ${text_secondary}; border-radius: 8px; font-size: 13px;
