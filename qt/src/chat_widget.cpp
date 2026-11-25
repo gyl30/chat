@@ -1616,8 +1616,10 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     input_bar->hide();
     input_bar->setObjectName(QStringLiteral("inputBar"));
     input_bar->setMinimumHeight(chat_theme::compose_height);
-    auto* input_layout = new QHBoxLayout(input_bar);
-    input_layout->setContentsMargins(8, 5, 8, 5);
+    auto* rows = new QBoxLayout(QBoxLayout::LeftToRight, input_bar);
+    rows->setContentsMargins(8, 5, 8, 5);
+    rows->setSpacing(4);
+    auto* input_layout = new QHBoxLayout;
     input_layout->setSpacing(4);
     message_edit_ = new QPlainTextEdit(input_bar);
     message_edit_->setObjectName(QStringLiteral("messageEdit"));
@@ -1632,7 +1634,9 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     message_edit_->viewport()->installEventFilter(this);
     message_edit_->setEnabled(false);
     new emoji_highlighter(message_edit_);
-    input_layout->addWidget(message_edit_, 1, Qt::AlignVCenter);
+    rows->addWidget(message_edit_, 1, Qt::AlignVCenter);
+    rows->addLayout(input_layout);
+    rows->setAlignment(input_layout, Qt::AlignBottom);
     auto const resize_composer = [this]
     {
         auto* document = message_edit_->document();
@@ -1663,8 +1667,8 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     attachment_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
     attachment_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
     attachment_button_->setEnabled(false);
-    // Telegram's arrangement: attach on the left of the text, the other actions on its right.
-    input_layout->insertWidget(0, attachment_button_, 0, Qt::AlignBottom);
+    input_layout->addWidget(attachment_button_, 0, Qt::AlignVCenter);
+    input_layout->addStretch();
     auto make_composer_button = [input_bar](QString const& name, QStringView icon, QString const& label)
     {
         auto* button = new QToolButton(input_bar);
@@ -1680,7 +1684,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
         return button;
     };
     screenshot_button_ = make_composer_button(QStringLiteral("screenshotButton"), u"screenshot", QStringLiteral("截图"));
-    input_layout->addWidget(screenshot_button_, 0, Qt::AlignBottom);
+    input_layout->addWidget(screenshot_button_, 0, Qt::AlignVCenter);
     connect(screenshot_button_,
             &QToolButton::clicked,
             this,
@@ -1700,7 +1704,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     mention_button_->setObjectName(QStringLiteral("mentionMemberButton"));
     mention_button_->setToolTip(QStringLiteral("提及群成员"));
     mention_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
-    input_layout->addWidget(mention_button_, 0, Qt::AlignBottom);
+    input_layout->addWidget(mention_button_, 0, Qt::AlignVCenter);
     auto* candidates = new QMenu(mention_button_);
     mention_button_->setMenu(candidates);
     mention_button_->setPopupMode(QToolButton::InstantPopup);
@@ -1758,7 +1762,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     mention_all_button_->setText(QStringLiteral("@所有人 ×"));
     mention_all_button_->setToolTip(QStringLiteral("移除全员提及"));
     mention_all_button_->setObjectName(QStringLiteral("mentionAllTag"));
-    input_layout->addWidget(mention_all_button_, 0, Qt::AlignBottom);
+    input_layout->addWidget(mention_all_button_, 0, Qt::AlignVCenter);
     mention_all_button_->hide();
     connect(mention_all_button_, &QToolButton::toggled, mention_all_button_, &QWidget::setVisible);
     connect(mention_all_button_, &QToolButton::toggled, this, &chat_widget::draft_edited);
@@ -1767,7 +1771,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     poll_button_->setText(QStringLiteral("投票"));
     poll_button_->setToolTip(QStringLiteral("发起群投票"));
     poll_button_->setObjectName(QStringLiteral("createPoll"));
-    input_layout->addWidget(poll_button_, 0, Qt::AlignBottom);
+    input_layout->addWidget(poll_button_, 0, Qt::AlignVCenter);
     connect(poll_button_,
             &QToolButton::clicked,
             this,
@@ -1787,12 +1791,12 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     markdown_button_->setText(QStringLiteral("MD"));
     markdown_button_->setToolTip(QStringLiteral("使用 Markdown 格式发送"));
     markdown_button_->setCheckable(true);
-    input_layout->addWidget(markdown_button_, 0, Qt::AlignBottom);
+    input_layout->addWidget(markdown_button_, 0, Qt::AlignVCenter);
     connect(markdown_button_, &QToolButton::toggled, this, &chat_widget::draft_edited);
     emoji_button_ = make_composer_button(QStringLiteral("emojiButton"), u"emoji", QStringLiteral("表情"));
     history_button_ = make_composer_button(QStringLiteral("chatHistoryButton"), u"history", QStringLiteral("聊天记录"));
-    input_layout->addWidget(emoji_button_, 0, Qt::AlignBottom);
-    input_layout->addWidget(history_button_, 0, Qt::AlignBottom);
+    input_layout->addWidget(emoji_button_, 0, Qt::AlignVCenter);
+    input_layout->addWidget(history_button_, 0, Qt::AlignVCenter);
     connect(emoji_button_, &QToolButton::clicked, this, [this] { show_emoji_picker(); });
     connect(history_button_,
             &QToolButton::clicked,
@@ -1814,7 +1818,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     send_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
     send_button_->setEnabled(false);
     send_button_->setCursor(Qt::PointingHandCursor);
-    input_layout->addWidget(send_button_, 0, Qt::AlignBottom);
+    input_layout->addWidget(send_button_, 0, Qt::AlignVCenter);
     chat_layout->addWidget(input_bar);
 }
 
@@ -2542,6 +2546,13 @@ void chat_widget::send_image(QImage const& image)
 
 bool chat_widget::eventFilter(QObject* object, QEvent* event)
 {
+    if (object == input_bar_ && event->type() == QEvent::Resize)
+    {
+        // Change only the layout direction: the editor keeps its focus, selection and input context.
+        auto* rows = static_cast<QBoxLayout*>(input_bar_->layout());
+        rows->setDirection(input_bar_->contentsRect().width() < chat_theme::compose_single_row_min_width ? QBoxLayout::TopToBottom
+                                                                                                         : QBoxLayout::LeftToRight);
+    }
     // The scroll areas deliver drag events to their viewport children.
     if ((object == input_bar_ || object->parent() == messages_view_ || object->parent() == message_edit_) && handle_file_drop(event))
     {

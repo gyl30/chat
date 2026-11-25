@@ -11,6 +11,8 @@
 #include <QClipboard>
 #include <QDesktopServices>
 #include <QKeyEvent>
+#include <QInputMethodEvent>
+#include <QPlainTextEdit>
 #include <QListView>
 #include <QMenu>
 #include <QMouseEvent>
@@ -127,6 +129,32 @@ static void check_code_cards(QFont const& font)
     assert(number == expected.size() && doc.size().width() <= 240);
 }
 
+static void check_editor_reflow(chat_widget& chat)
+{
+    auto* edit = chat.findChild<QPlainTextEdit*>("messageEdit");
+    edit->setPlainText(QStringLiteral("第一行\n第二行\n第三行"));
+    edit->setFocus();
+    auto cursor = edit->textCursor();
+    cursor.setPosition(0);
+    cursor.setPosition(3, QTextCursor::KeepAnchor);
+    edit->setTextCursor(cursor);
+    for (int width : {1280, 980, 1080, 1280})
+    {
+        chat.resize(width, 640);
+        QApplication::processEvents();
+        assert(edit->width() >= 240 && edit->hasFocus() && edit->textCursor().selectedText() == QStringLiteral("第一行"));
+    }
+    cursor.clearSelection();
+    edit->setTextCursor(cursor);
+    QInputMethodEvent preedit(QStringLiteral("pinyin"), {});
+    QApplication::sendEvent(edit, &preedit);
+    chat.resize(980, 640);
+    QApplication::processEvents();
+    assert(edit->textCursor().block().layout()->preeditAreaText() == QStringLiteral("pinyin") && edit->hasFocus());
+    QInputMethodEvent cancel;
+    QApplication::sendEvent(edit, &cancel);
+}
+
 int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
@@ -154,6 +182,9 @@ int main(int argc, char** argv)
     chat.set_messages(12, {item}, {}, false, false, false, {});
     chat.show();
     app.processEvents();
+    chat.activateWindow();
+    app.processEvents();
+    check_editor_reflow(chat);
     auto* view = chat.findChild<QListView*>("messageList");
     auto* delegate = qobject_cast<message_delegate*>(view->itemDelegate());
     auto index = view->model()->index(0, 0);

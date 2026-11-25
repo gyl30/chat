@@ -62,6 +62,7 @@ inline constexpr int message_date_height = 24;
 inline constexpr int message_date_margin_top = 10;
 inline constexpr int message_date_margin_bottom = 6;
 
+inline constexpr int compose_single_row_min_width = 760;
 inline constexpr int compose_height = 56;
 inline constexpr int compose_button_width = 44;
 inline constexpr int compose_button_height = 46;
