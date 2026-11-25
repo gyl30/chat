@@ -1473,6 +1473,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     connect(messages_view_->verticalScrollBar(), &QScrollBar::rangeChanged, this, &chat_widget::update_reading_navigation);
 
     selection_bar_ = new QWidget(chat_panel);
+    selection_bar_->setObjectName(QStringLiteral("messageSelectionBar"));
     auto* selection = new QHBoxLayout(selection_bar_);
     selection_count_ = new QLabel(selection_bar_);
     selection_count_->setObjectName(QStringLiteral("selectedMessageCount"));
@@ -1694,6 +1695,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
                 }
             });
     mention_button_ = new QToolButton(input_bar);
+    mention_button_->setProperty("composeText", true);
     mention_button_->setText(QStringLiteral("@"));
     mention_button_->setObjectName(QStringLiteral("mentionMemberButton"));
     mention_button_->setToolTip(QStringLiteral("提及群成员"));
@@ -1751,6 +1753,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
                 }
             });
     mention_all_button_ = new QToolButton(input_bar);
+    mention_all_button_->setProperty("composeText", true);
     mention_all_button_->setCheckable(true);
     mention_all_button_->setText(QStringLiteral("@所有人 ×"));
     mention_all_button_->setToolTip(QStringLiteral("移除全员提及"));
@@ -1760,6 +1763,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     connect(mention_all_button_, &QToolButton::toggled, mention_all_button_, &QWidget::setVisible);
     connect(mention_all_button_, &QToolButton::toggled, this, &chat_widget::draft_edited);
     poll_button_ = new QToolButton(input_bar);
+    poll_button_->setProperty("composeText", true);
     poll_button_->setText(QStringLiteral("投票"));
     poll_button_->setToolTip(QStringLiteral("发起群投票"));
     poll_button_->setObjectName(QStringLiteral("createPoll"));
@@ -1778,6 +1782,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
                 }
             });
     markdown_button_ = new QToolButton(input_bar);
+    markdown_button_->setProperty("composeText", true);
     markdown_button_->setObjectName(QStringLiteral("markdownButton"));
     markdown_button_->setText(QStringLiteral("MD"));
     markdown_button_->setToolTip(QStringLiteral("使用 Markdown 格式发送"));

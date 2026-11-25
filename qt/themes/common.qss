@@ -31,7 +31,7 @@ QMainWindow {
             selection-background-color: ${accent};
             selection-color: ${surface};
         }
-        QFileDialog QHeaderView::section {
+        QFileDialog QHeaderView::section, QTreeWidget#groupFileList QHeaderView::section {
             background: ${subtle};
             color: ${text};
             border: 0;
@@ -776,6 +776,28 @@ QMainWindow {
         QToolButton#chatHistoryButton:hover:enabled {
             background: ${canvas_hover};
         }
+        QFrame QToolButton[composeText="true"], QWidget#messageSelectionBar QPushButton {
+            background: ${surface};
+            color: ${text};
+            border: 1px solid transparent;
+            border-radius: 6px;
+            padding: 2px 1px;
+        }
+        QFrame QToolButton[composeText="true"]:hover:enabled, QWidget#messageSelectionBar QPushButton:hover:enabled {
+            background: ${subtle};
+        }
+        QFrame QToolButton[composeText="true"]:checked, QFrame QToolButton[composeText="true"]:pressed:enabled,
+        QWidget#messageSelectionBar QPushButton:pressed:enabled {
+            background: ${selected};
+            border-color: ${accent};
+        }
+        QFrame#inputBar QToolButton:focus, QWidget#messageSelectionBar QPushButton:focus {
+            border: 1px dashed ${focus};
+        }
+        QFrame QToolButton[composeText="true"]:disabled, QWidget#messageSelectionBar QPushButton:disabled {
+            color: ${text_muted};
+        }
+        QToolButton#mentionMemberButton::menu-indicator { image: none; }
         QFrame#emojiPicker {
             background: ${surface};
             border: 1px solid ${border};
