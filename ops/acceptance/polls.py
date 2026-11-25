@@ -57,8 +57,12 @@ async def run(root, probe):
             await ui.wait("select", lambda r: r["ok"], conv=g)
             await ui.call("poll_ui", create=True)
             await ui.wait("poll_ui", lambda r: r.get("title") == "发起群投票")
-            for question, labels, expected in [("?", "相同\n相同", "重复"),("问"*257, "一\n二", "256"),("?", "一\n"+"选"*81, "80")]:
-                invalid=await ui.call("poll_ui",question=question,options=labels)
+            for question, labels, expected in [
+                ("?", "相同\n相同", "重复"),
+                ("问" * 257, "一\n二", "256"),
+                ("?", "一\n" + "选" * 81, "80"),
+            ]:
+                invalid = await ui.call("poll_ui", question=question, options=labels)
                 assert not invalid["valid"] and expected in invalid["feedback"]
             await ui.call("poll_ui", question="开发会议", options="周一\n周三\n周五")
 
@@ -89,6 +93,21 @@ async def run(root, probe):
                 poll_options=["A", "B"],
                 client_id=100,
             )
+            await ui.call("poll_ui", open=separate["id"])
+            await ui.wait("poll_ui", lambda r: r.get("canClose"))
+            await ui.call("poll_ui", action="结束投票")
+            await ui.wait("confirm", lambda r: r.get("open"), accept=False)
+            await ui.call("confirm", cancel=True)
+            assert not (await c.ok("get_poll", conversation=g, message=separate["id"]))[
+                "summary"
+            ]["closed"]
+            await ui.call("poll_ui", action="结束投票")
+            await ui.wait("confirm", lambda r: r.get("open"))
+            await ui.wait(
+                "poll_ui",
+                lambda r: "投票已结束" in r.get("labels", "") and not r["canClose"],
+            )
+            await ui.call("poll_ui", close=True)
             assert (await c.ok("close_poll", conversation=g, message=separate["id"]))[
                 "summary"
             ]["closed"]
@@ -152,7 +171,8 @@ async def run(root, probe):
             await ui.wait(
                 "state",
                 lambda r: any(
-                    x["id"] == mid and {"label": "周一", "votes": 2} in x.get("poll", [])
+                    x["id"] == mid
+                    and {"label": "周一", "votes": 2} in x.get("poll", [])
                     for x in r["rows"]
                 ),
                 polls=True,

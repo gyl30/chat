@@ -2,6 +2,7 @@
 #include <chat/message.hpp>
 #include "theme_manager.hpp"
 #include <QPainter>
+#include <QTextLayout>
 
 namespace
 {
@@ -65,18 +66,28 @@ int layout_poll_card(QPainter* painter, QFont const& font, int width, QString co
 {
     auto const title = title_font(font);
     QFontMetrics const metrics(font);
-    // Use the very same wrapping flags and width when measuring and painting.
-    int const flags = Qt::AlignLeft | Qt::AlignTop | Qt::TextWrapAnywhere;
-    auto text_row = [&](int y, int available, QFont const& face, QString const& text, QColor ink)
+    auto text_row = [&](int y, int available, QFont const& face, QString text, QColor ink)
     {
-        QRect const rect = QFontMetrics(face).boundingRect(QRect(0, y, available, 0), flags, text);
+        // Native Unicode line breaking keeps words and closing punctuation together where possible.
+        QTextLayout paragraph(text.replace(u'\n', QChar::LineSeparator), face);
+        QTextOption wrap;
+        wrap.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+        paragraph.setTextOption(wrap);
+        int height = 0;
+        paragraph.beginLayout();
+        for (auto line = paragraph.createLine(); line.isValid(); line = paragraph.createLine())
+        {
+            line.setLineWidth(available);
+            line.setPosition({0., qreal(height)});
+            height += qCeil(line.height());
+        }
+        paragraph.endLayout();
         if (painter)
         {
-            painter->setFont(face);
             painter->setPen(ink);
-            painter->drawText(QRect(0, y, available, rect.height()), flags, text);
+            paragraph.draw(painter, {0., qreal(y)});
         }
-        return rect.height();
+        return height;
     };
     int y = text_row(0, width, title, question, themed("text")) + 4;
     qint64 total = 0;

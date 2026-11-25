@@ -151,9 +151,10 @@ void append_entry(QVBoxLayout& stream, chat::forwarded_item const& item, QDialog
         QObject::connect(body,
                          &QWidget::customContextMenuRequested,
                          body,
-                         [body, source](QPoint point)
+                         [body, source, &dialog](QPoint point)
                          {
                              QMenu menu(body);
+                             QObject::connect(&dialog, &QDialog::finished, &menu, &QMenu::close);
                              auto* original = menu.addAction(QStringLiteral("复制原文"));
                              auto* doc = dynamic_cast<message_markdown*>(body->document());
                              auto code = doc ? doc->code_at(point) : QString{};

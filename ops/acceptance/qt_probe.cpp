@@ -649,7 +649,11 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     {
         auto* box = window.findChild<QMessageBox*>("confirmationDialog");
         out["open"] = box && box->isVisible();
-        if (box && box->isVisible() && cmd["accept"].toBool(true))
+        if (box && box->isVisible() && cmd["cancel"].toBool())
+        {
+            box->button(QMessageBox::No)->click();
+        }
+        else if (box && box->isVisible() && cmd["accept"].toBool(true))
         {
             box->button(QMessageBox::Yes)->click();
         }
@@ -1073,7 +1077,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                     }
                     if (cmd["action"].toString() == button->text())
                     {
-                        button->click();
+                        QTimer::singleShot(0, button, &QPushButton::click);
                     }
                 }
                 if (cmd["close"].toBool())

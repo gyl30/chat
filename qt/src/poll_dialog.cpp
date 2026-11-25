@@ -12,6 +12,8 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QSet>
+#include <QMessageBox>
+#include <QStyle>
 
 std::optional<std::pair<QString, QStringList>> compose_poll(QWidget* parent)
 {
@@ -33,6 +35,12 @@ std::optional<std::pair<QString, QStringList>> compose_poll(QWidget* parent)
     buttons->button(QDialogButtonBox::Ok)->setText(QStringLiteral("发起投票"));
     buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("pollSubmit"));
     buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
+    for (auto* button : buttons->buttons())
+    {
+        button->setIcon({});
+        button->style()->unpolish(button);
+        button->style()->polish(button);
+    }
     layout->addWidget(prompt);
     layout->addWidget(question);
     layout->addWidget(labels);
@@ -121,7 +129,7 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
     auto* close = new QPushButton(QStringLiteral("结束投票"), &dialog);
     auto* people = new QListWidget(&dialog);
     auto* more = new QPushButton(QStringLiteral("更多投票成员"), &dialog);
-    dialog.resize(450, 440);
+    dialog.resize(450, 340);
     question->setObjectName(QStringLiteral("dialogTitle"));
     status->setObjectName(QStringLiteral("pollSummary"));
     submit->setObjectName(QStringLiteral("pollSubmit"));
@@ -131,6 +139,7 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
     auto* voter_option = new QComboBox;
     voter_option->setMinimumContentsLength(8);
     voter_option->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    people->setMinimumHeight(76);
     auto* viewer = new QHBoxLayout;
     auto* viewer_label = new QLabel(QStringLiteral("查看投票成员"));
     viewer_label->setBuddy(voter_option);
@@ -171,6 +180,7 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
     auto load_people = [&]
     {
         voters_query = 0;
+        voter_option->setToolTip(voter_option->currentText());
         cursor = 0;
         more->hide();
         people->clear();
@@ -251,6 +261,10 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
                                  height += options->sizeHintForRow(i);
                              }
                              options->setFixedHeight(qBound(54, height, 200));
+                             if (prev < 0)
+                             {
+                                 dialog.resize(dialog.width(), options->height() + 268);
+                             }
                              options->setSelectionMode(state.summary.closed ? QAbstractItemView::NoSelection : QAbstractItemView::SingleSelection);
                          }
                          status->setText(QStringLiteral("实名单选 · %1 · 共 %2 票")
@@ -373,6 +387,16 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
                          }
                      });
     QObject::connect(&client, &client_bridge::disconnected, &dialog, &QDialog::reject);
+    QObject::connect(&dialog,
+                     &QDialog::finished,
+                     &dialog,
+                     [&dialog]
+                     {
+                         if (auto* confirm = dialog.findChild<QMessageBox*>(QStringLiteral("confirmationDialog")))
+                         {
+                             confirm->reject();
+                         }
+                     });
     controls();
     more->hide();
     reload();

@@ -150,9 +150,13 @@ async def run(root, probe):
                         break
                 assert positions == list(range(1, 13))
                 await ui.call("bundle_view", open=long["id"])
-                first_page = await ui.wait("bundle_view", lambda r: r.get("more") and r.get("limit", 0) > 120)
+                first_page = await ui.wait(
+                    "bundle_view", lambda r: r.get("more") and r.get("limit", 0) > 120
+                )
                 await ui.call("bundle_view", scroll=112, more=True)
-                next_page = await ui.wait("bundle_view", lambda r: r.get("count", 0) > first_page["count"])
+                next_page = await ui.wait(
+                    "bundle_view", lambda r: r.get("count", 0) > first_page["count"]
+                )
                 assert next_page["scroll"] == 112 and next_page["body"] == "a" * 58000
                 await ui.call("bundle_view", close=True)
                 elsewhere = (await a.ok("create_group", title="独立记录", members=[2]))[

@@ -131,6 +131,65 @@ static void check_code_cards(QFont const& font)
     assert(number == expected.size() && doc.size().width() <= 240);
 }
 
+static void check_card_actions(QListView& view, message_delegate& delegate)
+{
+    message_model model;
+    model.set_self_user(1);
+    model.reset(7, true);
+    message_data item;
+    item.conversation = 7;
+    item.from = 2;
+    for (auto kind : {QStringLiteral("bundle"), QStringLiteral("poll")})
+    {
+        item.id++;
+        item.content = kind;
+        item.text = kind == QStringLiteral("poll") ? QStringLiteral("测试问题") : QStringLiteral("聊天记录\nA：正文\n共 2 条聊天记录");
+        if (kind == QStringLiteral("poll"))
+        {
+            item.poll = chat::poll_summary{1, false, {{1, 0, "A"}, {2, 0, "B"}}};
+        }
+        assert(model.add_message(item));
+        auto index = model.index(model.rowCount() - 1);
+        QStyleOptionViewItem option;
+        option.initFrom(&view);
+        option.widget = &view;
+        option.rect = QRect(0, 0, 620, 1);
+        option.rect.setHeight(delegate.sizeHint(option, index).height());
+        QImage image(option.rect.size(), QImage::Format_RGB32);
+        image.fill(themed("canvas"));
+        QPainter painter(&image);
+        delegate.paint(&painter, option, index);
+        painter.end();
+        QPoint link(-1, -1);
+        for (int y = image.height() - 1; y >= 0 && link.x() < 0; --y)
+        {
+            for (int x = image.width() - 1; x >= 0; --x)
+            {
+                if (image.pixelColor(x, y) == themed("link"))
+                {
+                    link = {x, y};
+                    break;
+                }
+            }
+        }
+        assert(link.x() >= 0);
+        QMouseEvent release(QEvent::MouseButtonRelease, link, view.viewport()->mapToGlobal(link), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        int opened = 0;
+        auto const signal = QObject::connect(&delegate,
+                                             &message_delegate::content_clicked,
+                                             [&](QModelIndex const& clicked)
+                                             {
+                                                 assert(clicked == index);
+                                                 ++opened;
+                                             });
+        view.setSelectionMode(QAbstractItemView::ExtendedSelection);
+        assert(!delegate.editorEvent(&release, &model, option, index) && opened == 0);
+        view.setSelectionMode(QAbstractItemView::NoSelection);
+        assert(delegate.editorEvent(&release, &model, option, index) && opened == 1);
+        QObject::disconnect(signal);
+    }
+}
+
 static void check_editor_reflow(chat_widget& chat)
 {
     auto* edit = chat.findChild<QPlainTextEdit*>("messageEdit");
@@ -347,6 +406,8 @@ int main(int argc, char** argv)
     assert(guide_image.pixelColor(2, nested_y) == themed("border_strong") &&
            guide_image.pixelColor(qRound(outer.blockFormat().leftMargin()) + 2, nested_y) == themed("border_strong"));
     assert(quotation.find(QStringLiteral("code")).charFormat().background().color() == themed("subtle"));
+    message_delegate card_delegate;
+    check_card_actions(*view, card_delegate);
     check_code_cards(view->font());
     QDesktopServices::unsetUrlHandler("http");
     QDesktopServices::unsetUrlHandler("https");

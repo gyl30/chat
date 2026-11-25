@@ -314,7 +314,7 @@ void message_markdown::draw_quote_guides(QPainter& painter) const
         int const depth = frame ? quote_depth(frame->frameFormat()) : quote_depth(block.blockFormat());
         if (!depth)
         {
-            if (block.isValid() && block.length() > 1)
+            if (frame || (block.isValid() && block.length() > 1))
             {
                 previous_depth = 0;
             }
