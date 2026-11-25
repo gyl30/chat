@@ -1,5 +1,6 @@
 #include <iostream>
 #include <QListWidget>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QScreen>
 #include <QStyleHints>
@@ -1083,21 +1084,39 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         if (auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget()); dialog && dialog->windowTitle() == QStringLiteral("聊天记录"))
         {
             out["open"] = true;
-            auto* list = dialog->findChild<QListWidget*>();
-            out["count"] = list->count();
+            auto entries = dialog->findChildren<QWidget*>(QStringLiteral("bundleEntry"));
+            out["count"] = entries.size();
             if (cmd.contains("attachment_row"))
             {
-                list->setCurrentRow(cmd["attachment_row"].toInt());
-                for (auto* button : dialog->findChildren<QPushButton*>())
+                auto* button = entries.at(cmd["attachment_row"].toInt())->findChild<QPushButton*>("snapshotAttachment");
+                if (button)
                 {
-                    if (button->isVisible() && button->text() == QStringLiteral("查看附件"))
+                    QTimer::singleShot(0, button, &QPushButton::click);
+                }
+            }
+            auto bodies = dialog->findChildren<QTextBrowser*>(QStringLiteral("snapshotBody"));
+            if (!bodies.isEmpty())
+            {
+                out["body"] = bodies.front()->toPlainText();
+            }
+            auto* scroll = dialog->findChild<QScrollArea*>()->verticalScrollBar();
+            if (cmd.contains("scroll"))
+            {
+                scroll->setValue(cmd["scroll"].toInt());
+            }
+            out["scroll"] = scroll->value();
+            out["limit"] = scroll->maximum();
+            for (auto* button : dialog->findChildren<QPushButton*>())
+            {
+                if (button->text() == QStringLiteral("加载更多"))
+                {
+                    out["more"] = button->isVisible() && button->isEnabled();
+                    if (cmd["more"].toBool() && out["more"].toBool())
                     {
-                        QTimer::singleShot(0, button, &QPushButton::click);
-                        break;
+                        button->click();
                     }
                 }
             }
-            out["body"] = dialog->findChild<QTextBrowser*>()->toPlainText();
             if (cmd["close"].toBool())
             {
                 dialog->reject();

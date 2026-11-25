@@ -45,6 +45,7 @@ add_executable(client
     src/bundle_dialog.cpp
     src/poll_dialog.cpp
     src/message_links.cpp
+    src/message_card.cpp
     src/message_delegate.cpp
     src/message_delegate.hpp
     src/message_model.cpp

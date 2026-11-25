@@ -1037,3 +1037,7 @@ QDialog#contactsDialog QPushButton#friendRequestRejectButton:focus,
 QDialog#contactsDialog QPushButton#friendRequestCancelButton:focus { border-color: ${focus}; }
 QDialog#contactsDialog QPushButton#friendRequestRejectButton:disabled,
 QDialog#contactsDialog QPushButton#friendRequestCancelButton:disabled { color: ${text_muted}; }
+
+QLabel#snapshotAuthor { color: ${message_sender}; font-weight: bold; }
+QLabel#snapshotTime { color: ${text_secondary}; font-size: 12px; }
+QTextBrowser#snapshotBody { background: transparent; border: 0; padding: 0; }
