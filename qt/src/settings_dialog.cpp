@@ -24,8 +24,8 @@ namespace
 {
 QString page_title(int page)
 {
-    static std::array<QString, 5> const titles = {
-        QStringLiteral("设置"), QStringLiteral("通知"), QStringLiteral("外观与聊天"), QStringLiteral("桌面与窗口"), QStringLiteral("关于Chat")};
+    static std::array<QString, 4> const titles = {
+        QStringLiteral("设置"), QStringLiteral("通知"), QStringLiteral("外观与聊天"), QStringLiteral("桌面与窗口")};
     return titles.at(static_cast<std::size_t>(page));
 }
 }    // namespace
@@ -138,11 +138,9 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     devices->setAutoDefault(false);
     home->addWidget(devices);
     connect(devices, &QPushButton::clicked, this, &settings_dialog::devices_requested);
-    static std::array<QString, 4> const section_names = {QStringLiteral("settingsNotificationsButton"),
-                                                         QStringLiteral("settingsAppearanceChatButton"),
-                                                         QStringLiteral("settingsDesktopWindowButton"),
-                                                         QStringLiteral("settingsAboutButton")};
-    for (int page = 1; page <= 4; ++page)
+    static std::array<QString, 3> const section_names = {
+        QStringLiteral("settingsNotificationsButton"), QStringLiteral("settingsAppearanceChatButton"), QStringLiteral("settingsDesktopWindowButton")};
+    for (int page = 1; page <= static_cast<int>(section_names.size()); ++page)
     {
         auto* button = new QPushButton(home->parentWidget());
         button->setObjectName(section_names.at(static_cast<std::size_t>(page - 1)));
@@ -222,19 +220,6 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     desktop->addStretch();
     connect(close_to_tray_, &QCheckBox::toggled, this, &settings_dialog::close_to_tray_changed);
 
-    auto* about = make_page(QStringLiteral("settingsAbout"));
-    hint(about,
-         QStringLiteral("Chat\n开发版本\nQt %1\n项目尚未声明许可证。").arg(QString::fromLatin1(qVersion())),
-         QStringLiteral("settingsAboutText"));
-    repository_ = new QLabel(about->parentWidget());
-    repository_->setObjectName(QStringLiteral("settingsRepositoryLink"));
-    repository_->setAccessibleName(QStringLiteral("打开 Chat 项目仓库"));
-    repository_->setWordWrap(true);
-    repository_->setTextInteractionFlags(Qt::TextBrowserInteraction);
-    repository_->setOpenExternalLinks(true);
-    about->addWidget(repository_);
-    about->addStretch();
-
     connect(back_, &QToolButton::clicked, this, [this] { show_page(0); });
     connect(close_, &QToolButton::clicked, this, &QDialog::reject);
     connect(this, &QDialog::finished, this, [this] { show_page(0); });
@@ -291,8 +276,6 @@ void settings_dialog::show_page(int page)
 
 void settings_dialog::refresh_icons()
 {
-    repository_->setText(QStringLiteral("<a href=\"https://github.com/gyl30/chat\" style=\"color:%1\">项目仓库：github.com/gyl30/chat</a>")
-                             .arg(themed("link").name()));
     close_->setIcon(svg_icon(u"close", themed("text_secondary"), QSize(20, 20)));
     auto const down = svg_icon(u"chevron-down", themed("text_secondary"), QSize(20, 20));
     back_->setIcon(QIcon(down.pixmap(QSize(20, 20)).transformed(QTransform().rotate(90))));

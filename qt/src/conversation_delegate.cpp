@@ -72,12 +72,13 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
             painter->setPen(Qt::NoPen);
             painter->drawRoundedRect(row, 8, 8);
         }
-        QRect arrow(option.rect.left() + chat_theme::dialog_left, row.center().y() - 7, 16, 16);
+        QRect arrow(option.rect.left() + chat_theme::dialog_left + (chat_theme::dialog_avatar_size - 16) / 2, row.center().y() - 7, 16, 16);
         (index.data(conversation_model::collapsed_role).toBool() ? collapsed_ : expanded_).paint(painter, arrow);
         auto const label = row.adjusted(arrow.right() + 7 - row.left(), 0, -8, 0);
         painter->setFont(option.font);
         painter->setPen(themed("text_secondary"));
-        painter->drawText(label, Qt::AlignLeft | Qt::AlignVCenter, option.fontMetrics.elidedText(index.data().toString(), Qt::ElideRight, label.width()));
+        painter->drawText(
+            label, Qt::AlignLeft | Qt::AlignVCenter, option.fontMetrics.elidedText(index.data().toString(), Qt::ElideRight, label.width()));
         painter->restore();
         return;
     }

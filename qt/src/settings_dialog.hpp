@@ -48,7 +48,6 @@ class settings_dialog final : public QDialog
     QCheckBox* close_to_tray_ = nullptr;
     QLabel* tray_unavailable_ = nullptr;
     QComboBox* appearance_ = nullptr;
-    QLabel* repository_ = nullptr;
 };
 
 #endif

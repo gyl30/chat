@@ -79,7 +79,7 @@ class draggable_title final : public QLabel
         QLabel::mousePressEvent(event);
     }
 };
-}
+}    // namespace
 
 QLabel* dialog_title(QDialog& dialog, QString title)
 {
@@ -106,6 +106,7 @@ void frame_dialog(QDialog& dialog, bool resizable)
     close->setToolTip(close->accessibleName());
     close->setFixedSize(32, 32);
     close->setAutoRaise(true);
+    close->setFocusPolicy(Qt::ClickFocus);
     auto recolor = [close] { close->setIcon(svg_icon(u"close", themed("text_secondary"), {16, 16})); };
     recolor();
     QObject::connect(&theme_manager::instance(), &theme_manager::changed, close, recolor);

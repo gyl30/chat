@@ -1032,11 +1032,10 @@ void chat_widget::setup_contacts_dialog()
                     return;
                 }
                 bool ok = false;
-                auto name = prompt_text(contacts_dialog_,
-                                                  action->text(),
-                                                  QStringLiteral("分组名称（最多 32 个字符）"),
-                                                  action == rename ? group : QString{}, ok)
-                                .trimmed();
+                auto name =
+                    prompt_text(
+                        contacts_dialog_, action->text(), QStringLiteral("分组名称（最多 32 个字符）"), action == rename ? group : QString{}, ok)
+                        .trimmed();
                 if (!ok)
                 {
                     return;
@@ -1098,10 +1097,8 @@ void chat_widget::setup_contacts_dialog()
                     return;
                 }
                 bool ok = false;
-                auto value = prompt_text(contacts_dialog_,
-                                                   QStringLiteral("编辑备注"),
-                                                   QStringLiteral("备注（最多 32 个字符，留空恢复用户名）"),
-                                                   current, ok);
+                auto value =
+                    prompt_text(contacts_dialog_, QStringLiteral("编辑备注"), QStringLiteral("备注（最多 32 个字符，留空恢复用户名）"), current, ok);
                 if (!ok)
                 {
                     return;
@@ -1598,14 +1595,6 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
     typing_label_->hide();
     header_layout->addWidget(typing_label_);
     header_layout->addStretch();
-    unread_start_button_ = new QPushButton(QStringLiteral("查看本次未读起点"), header);
-    unread_start_button_->setObjectName(QStringLiteral("entryUnreadButton"));
-    unread_start_button_->setToolTip(QStringLiteral("查看进入会话前的第一条未读消息，不改变当前已读位置"));
-    unread_start_button_->setAutoDefault(false);
-    unread_start_button_->hide();
-    header_layout->addWidget(unread_start_button_);
-    connect(unread_start_button_, &QPushButton::clicked, this, [this] { emit message_context_requested(active_conversation_, unread_start_); });
-
     auto* search = new QToolButton(header);
     search->setDefaultAction(message_search_action_);
     search->setObjectName(QStringLiteral("searchChatButton"));
@@ -1620,13 +1609,22 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
             &QAction::triggered,
             this,
             [this] { emit message_search_requested(active_conversation_, self_user_, active_group_, active_username_, {}); });
-    connection_status_ = new QToolButton(header);
+    chat_layout->addWidget(header);
+
+    unread_start_button_ = new QPushButton(QStringLiteral("查看本次未读起点"), chat_panel);
+    unread_start_button_->setObjectName(QStringLiteral("entryUnreadButton"));
+    unread_start_button_->setToolTip(QStringLiteral("查看进入会话前的第一条未读消息，不改变当前已读位置"));
+    unread_start_button_->setAutoDefault(false);
+    unread_start_button_->hide();
+    chat_layout->addWidget(unread_start_button_, 0, Qt::AlignHCenter);
+    connect(unread_start_button_, &QPushButton::clicked, this, [this] { emit message_context_requested(active_conversation_, unread_start_); });
+
+    connection_status_ = new QToolButton(chat_panel);
     connection_status_->setObjectName(QStringLiteral("connectionStatusButton"));
     connection_status_->setToolButtonStyle(Qt::ToolButtonTextOnly);
     connection_status_->setCursor(Qt::PointingHandCursor);
     connection_status_->hide();
-    header_layout->addWidget(connection_status_);
-    chat_layout->addWidget(header);
+    chat_layout->addWidget(connection_status_, 0, Qt::AlignHCenter);
 
     auto* pinned_row = new QWidget(chat_panel);
     auto* pinned_layout = new QHBoxLayout(pinned_row);
@@ -2897,8 +2895,8 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
             }
         }
     }
-    if ((object == contacts_requests_button_ || object == incoming_accept_button_ ||
-         object == incoming_reject_button_ || object == outgoing_cancel_button_) &&
+    if ((object == contacts_requests_button_ || object == incoming_accept_button_ || object == incoming_reject_button_ ||
+         object == outgoing_cancel_button_) &&
         event->type() == QEvent::KeyPress)
     {
         auto const* key = static_cast<QKeyEvent*>(event);
@@ -4097,8 +4095,7 @@ void chat_widget::toggle_folder(qint64 folder)
 void chat_widget::edit_folder_name(qint64 folder, QString current)
 {
     bool ok = false;
-    auto name = prompt_text(this, QStringLiteral("会话分组"), QStringLiteral("分组名称（最多 32 个字符）"), current, ok)
-                    .trimmed();
+    auto name = prompt_text(this, QStringLiteral("会话分组"), QStringLiteral("分组名称（最多 32 个字符）"), current, ok).trimmed();
     if (!ok || name.isEmpty())
     {
         return;

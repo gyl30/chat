@@ -275,8 +275,7 @@ void group_dialog::setup_management(bool join_approval)
             [this]
             {
                 bool ok = false;
-                auto text =
-                    prompt_text(this, QStringLiteral("群简介"), QStringLiteral("最多 256 个字符"), description_->text(), ok, true);
+                auto text = prompt_text(this, QStringLiteral("群简介"), QStringLiteral("最多 256 个字符"), description_->text(), ok, true);
                 if (ok)
                 {
                     emit description_requested(std::move(text));

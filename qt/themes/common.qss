@@ -933,15 +933,13 @@ QDialog#settingsDialog QScrollArea, QStackedWidget#settingsPages {
     background: ${panel}; border: 0;
 }
 QWidget#settingsHomePage, QWidget#settingsNotificationsPage,
-QWidget#settingsAppearanceChatPage, QWidget#settingsDesktopWindowPage,
-QWidget#settingsAboutPage { background: ${panel}; }
+QWidget#settingsAppearanceChatPage, QWidget#settingsDesktopWindowPage { background: ${panel}; }
 QLabel#settingsTitle { color: ${text}; font-size: 20px; font-weight: 600; }
 QLabel#settingsAccountName { color: ${text}; font-size: 16px; font-weight: 600; }
 QLabel#settingsAccountCaption, QLabel#settingsHint, QLabel#settingsTrayUnavailableHint {
     color: ${text_secondary}; font-size: 13px;
 }
 QLabel#settingsSectionHeading { color: ${text_secondary}; font-size: 14px; font-weight: 600; }
-QLabel#settingsAboutText, QLabel#settingsRepositoryLink { color: ${text}; font-size: 14px; }
 QToolButton#settingsAccountButton, QPushButton[settingsSection="true"] {
     background: transparent; color: ${text}; border: 1px solid transparent;
     border-radius: 8px; text-align: left;

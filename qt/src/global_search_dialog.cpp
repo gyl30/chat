@@ -53,7 +53,8 @@ QString search_snippet(QString const& body, QString const& query)
 }
 }    // namespace
 
-global_search_dialog::global_search_dialog(client_bridge& client, QWidget* parent, qint64 self, QString const& self_name, bool mentions_me, QString const& query)
+global_search_dialog::global_search_dialog(
+    client_bridge& client, QWidget* parent, qint64 self, QString const& self_name, bool mentions_me, QString const& query)
     : QDialog(parent), client_(client), self_(self)
 {
     setWindowTitle(QStringLiteral("全局消息搜索"));
@@ -107,8 +108,7 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
                 }
                 sender_->setCurrentIndex(0);
                 bool ok = false;
-                auto text =
-                    prompt_text(this, QStringLiteral("查找发送者"), QStringLiteral("用户名或昵称"), {}, ok).trimmed();
+                auto text = prompt_text(this, QStringLiteral("查找发送者"), QStringLiteral("用户名或昵称"), {}, ok).trimmed();
                 if (ok && !text.isEmpty())
                 {
                     sender_request_ = client_.find_search_senders(text);
