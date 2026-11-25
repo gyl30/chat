@@ -121,6 +121,7 @@ target_link_libraries(client
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(client PRIVATE Qt6::DBus)
+    configure_file(io.github.gyl30.Chat.desktop.in io.github.gyl30.Chat.desktop @ONLY)
 endif()
 
 # Keep editable themes beside the executable in the build tree.

@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Chat
+Exec="@CMAKE_CURRENT_BINARY_DIR@/client"
+Icon=internet-group-chat
+Categories=Network;InstantMessaging;

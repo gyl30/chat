@@ -437,13 +437,19 @@ void main_window::setup_system_tray()
                 notification_service,
                 QStringLiteral("ActionInvoked"),
                 this,
-                SLOT(desktop_notification_activated(uint, QString)));
+                SLOT(desktop_notification_activated(uint, QString, QDBusMessage)));
     bus.connect(notification_service,
                 notification_path,
                 notification_service,
                 QStringLiteral("NotificationClosed"),
                 this,
-                SLOT(desktop_notification_closed(uint, uint)));
+                SLOT(desktop_notification_closed(uint, uint, QDBusMessage)));
+    bus.connect(notification_service,
+                notification_path,
+                notification_service,
+                QStringLiteral("ActivationToken"),
+                this,
+                SLOT(desktop_activation_token(uint, QString, QDBusMessage)));
     auto* notification_watcher = new QDBusServiceWatcher(notification_service, bus, QDBusServiceWatcher::WatchForOwnerChange, this);
     connect(notification_watcher,
             &QDBusServiceWatcher::serviceOwnerChanged,
@@ -452,7 +458,7 @@ void main_window::setup_system_tray()
             {
                 if (desktop_notification_owner_ == old_owner)
                 {
-                    desktop_notification_ids_.clear();
+                    desktop_notification_tokens_.clear();
                     desktop_notification_owner_.clear();
                 }
                 for (auto* pending : findChildren<QDBusPendingCallWatcher*>(QStringLiteral("desktopNotificationPending"), Qt::FindDirectChildrenOnly))
@@ -2024,7 +2030,7 @@ bool main_window::reading_conversation(qint64 conversation) const
            chat_page_->viewing_latest();
 }
 
-void main_window::restore_window()
+void main_window::restore_window(QString const& activation_token)
 {
     if (isMinimized())
     {
@@ -2032,6 +2038,22 @@ void main_window::restore_window()
     }
     show();
     raise();
+    if (!activation_token.isEmpty() && QGuiApplication::platformName().startsWith(QStringLiteral("wayland")))
+    {
+        // Qt Wayland reads this variable synchronously during requestActivate().
+        auto const previous = qgetenv("XDG_ACTIVATION_TOKEN");
+        qputenv("XDG_ACTIVATION_TOKEN", activation_token.toUtf8());
+        activateWindow();
+        if (previous.isNull())
+        {
+            qunsetenv("XDG_ACTIVATION_TOKEN");
+        }
+        else
+        {
+            qputenv("XDG_ACTIVATION_TOKEN", previous);
+        }
+        return;
+    }
     activateWindow();
 }
 
@@ -2044,6 +2066,10 @@ void main_window::show_desktop_notification(QString const& title, QString const&
     {
         auto message = QDBusMessage::createMethodCall(owner, notification_path, notification_service, QStringLiteral("Notify"));
         QVariantMap hints{{QStringLiteral("urgency"), QVariant::fromValue(uchar(1))}};
+        if (!QGuiApplication::desktopFileName().isEmpty())
+        {
+            hints.insert(QStringLiteral("desktop-entry"), QGuiApplication::desktopFileName());
+        }
         message << QCoreApplication::applicationName() << uint(0) << QStringLiteral("dialog-information") << title << summary
                 << QStringList{QStringLiteral("default"), QStringLiteral("显示 Chat")} << hints << 10000;
         auto* pending = new QDBusPendingCallWatcher(bus.asyncCall(message), this);
@@ -2072,10 +2098,10 @@ void main_window::show_desktop_notification(QString const& title, QString const&
                     }
                     if (desktop_notification_owner_ != owner)
                     {
-                        desktop_notification_ids_.clear();
+                        desktop_notification_tokens_.clear();
                     }
                     desktop_notification_owner_ = owner;
-                    desktop_notification_ids_.insert(id);
+                    desktop_notification_tokens_.insert(id, {});
                 });
         return;
     }
@@ -2090,7 +2116,8 @@ void main_window::clear_desktop_notifications()
 {
 #if defined(Q_OS_LINUX)
     auto const owner = std::exchange(desktop_notification_owner_, {});
-    for (auto id : std::exchange(desktop_notification_ids_, {}))
+    auto const notifications = std::exchange(desktop_notification_tokens_, {});
+    for (auto id : notifications.keys())
     {
         close_desktop_notification(owner, id);
     }
@@ -2102,21 +2129,31 @@ void main_window::clear_desktop_notifications()
 }
 
 #if defined(Q_OS_LINUX)
-void main_window::desktop_notification_activated(uint id, QString const& action)
+void main_window::desktop_activation_token(uint id, QString const& token, QDBusMessage const& message)
 {
-    auto const bus = QDBusConnection::sessionBus();
-    auto const owner = bus.interface() ? bus.interface()->serviceOwner(notification_service).value() : QString();
-    if (owner == desktop_notification_owner_ && desktop_notification_ids_.contains(id) && action == QStringLiteral("default") &&
-        desktop_notifications_ && pages_->currentWidget() == chat_page_ && chat_page_->self_user() != 0)
+    auto it = desktop_notification_tokens_.find(id);
+    if (message.service() == desktop_notification_owner_ && it != desktop_notification_tokens_.end())
     {
-        restore_window();
+        it.value() = token;
     }
 }
 
-void main_window::desktop_notification_closed(uint id, uint reason)
+void main_window::desktop_notification_activated(uint id, QString const& action, QDBusMessage const& message)
+{
+    if (message.service() == desktop_notification_owner_ && desktop_notification_tokens_.contains(id) && action == QStringLiteral("default") &&
+        desktop_notifications_ && pages_->currentWidget() == chat_page_ && chat_page_->self_user() != 0)
+    {
+        restore_window(std::exchange(desktop_notification_tokens_[id], {}));
+    }
+}
+
+void main_window::desktop_notification_closed(uint id, uint reason, QDBusMessage const& message)
 {
     (void)reason;
-    desktop_notification_ids_.remove(id);
+    if (message.service() == desktop_notification_owner_)
+    {
+        desktop_notification_tokens_.remove(id);
+    }
 }
 #endif
 

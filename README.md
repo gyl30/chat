@@ -36,6 +36,12 @@ cmake --build build-qt --target server sdk client
 构建产物为 `server`、`libsdk.a`，启用桌面客户端时另有 `qt/client`。Qt 主题文件由 CMake
 复制到构建目录下的 `qt/themes/`，无需安装或打包。下方命令沿用上面的两个构建目录；若只构建桌面版，服务端也可使用 `./build-qt/server`。Qt 应用名和原有配置、主题及 SDK 数据路径保持不变。Silo/S3 服务需独立启动。
 
+要在 GNOME Wayland 中通过系统通知激活 Chat，请注册当前构建的桌面入口。入口中的可执行文件路径指向构建目录，移动该目录后需重新生成并复制。
+
+```sh
+install -Dm644 build-qt/qt/io.github.gyl30.Chat.desktop "${XDG_DATA_HOME:-$HOME/.local/share}/applications/io.github.gyl30.Chat.desktop"
+```
+
 ## SQLite 与 Silo 启动
 
 服务端命令行参数为 `<port> <max-workers> <sqlite-file>`，数据库由服务端打开，

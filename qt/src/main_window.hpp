@@ -3,12 +3,13 @@
 
 #include <memory>
 
+#include <QHash>
 #include <QMainWindow>
 #include <QString>
 #include <QStringList>
 #if defined(Q_OS_LINUX)
-#include <QSet>
 #include <QAbstractNativeEventFilter>
+class QDBusMessage;
 #endif
 #include "message_data.hpp"
 
@@ -53,8 +54,9 @@ class main_window final : public QMainWindow
 
    private slots:
 #if defined(Q_OS_LINUX)
-    void desktop_notification_activated(uint id, QString const& action);
-    void desktop_notification_closed(uint id, uint reason);
+    void desktop_activation_token(uint id, QString const& token, QDBusMessage const& message);
+    void desktop_notification_activated(uint id, QString const& action, QDBusMessage const& message);
+    void desktop_notification_closed(uint id, uint reason, QDBusMessage const& message);
 #endif
 
    private:
@@ -105,7 +107,7 @@ class main_window final : public QMainWindow
     void notify_message(message_data const& message);
     void show_desktop_notification(QString const& title, QString const& summary);
     void clear_desktop_notifications();
-    void restore_window();
+    void restore_window(QString const& activation_token = {});
     QStringList recent_accounts() const;
     void remember_login(QString const& username, QString const& server);
     void update_login_identity();
@@ -148,7 +150,7 @@ class main_window final : public QMainWindow
     QHash<qint64, qint64> unconfirmed_clears_;
     QList<message_data> pending_notifications_;
 #if defined(Q_OS_LINUX)
-    QSet<uint> desktop_notification_ids_;
+    QHash<uint, QString> desktop_notification_tokens_;
     QString desktop_notification_owner_;
 #endif
 

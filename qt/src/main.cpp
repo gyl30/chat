@@ -13,6 +13,9 @@ int main(int argc, char* argv[])
     // Settings identity; also enables remembering recently signed-in accounts.
     QApplication::setOrganizationName(QStringLiteral("chat"));
     QApplication::setApplicationName(QStringLiteral("chat_qt"));
+#if defined(Q_OS_LINUX)
+    QApplication::setDesktopFileName(QStringLiteral("io.github.gyl30.Chat"));
+#endif
     auto& themes = theme_manager::instance();
     themes.load_settings();
     if (!themes.valid())
