@@ -85,6 +85,7 @@ qt_add_resources(client chat_icons
         resources/icons/chat.svg
         resources/icons/check.svg
         resources/icons/chevron-down.svg
+        resources/icons/chevron-up.svg
         resources/icons/chevron-right.svg
         resources/icons/back.svg
         resources/icons/close.svg

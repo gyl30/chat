@@ -13,24 +13,6 @@ QMainWindow {
         QDialog {
             background: ${panel};
         }
-        QFileDialog QComboBox {
-            background: ${surface};
-            color: ${text};
-            border: 1px solid ${input_border};
-            border-radius: 6px;
-            min-height: 32px;
-            padding: 0 8px;
-        }
-        QFileDialog QComboBox:focus {
-            border-color: ${focus};
-        }
-        QFileDialog QComboBox QAbstractItemView {
-            background: ${surface};
-            color: ${text};
-            border: 1px solid ${border_strong};
-            selection-background-color: ${accent};
-            selection-color: ${surface};
-        }
         QHeaderView::section {
             background: ${subtle};
             color: ${text};
@@ -565,42 +547,58 @@ QMainWindow {
             color: ${text_muted};
             font-size: 12px;
         }
-        QComboBox {
+        QComboBox, QAbstractSpinBox {
             min-height: 34px;
-            padding: 0 10px;
+            padding: 0 30px 0 10px;
             background: ${surface};
             color: ${text};
             border: 1px solid ${input_border};
             border-radius: 8px;
         }
-        QComboBox#settingsAppearanceMode {
-            padding-right: 32px;
-        }
-        QComboBox#settingsAppearanceMode::drop-down {
+        QComboBox::drop-down, QDateTimeEdit::drop-down {
             subcontrol-origin: padding;
-            subcontrol-position: top right;
+            subcontrol-position: center right;
             width: 28px;
+            border: 0;
             background: transparent;
-            border: none;
         }
-        QComboBox#settingsAppearanceMode::down-arrow {
+        QComboBox::down-arrow, QDateTimeEdit::down-arrow, QSpinBox::down-arrow {
             image: url("${chevron_icon}");
             width: 12px;
             height: 12px;
         }
-        QComboBox:focus {
-            border-color: ${focus};
+        QSpinBox::up-button, QSpinBox::down-button {
+            subcontrol-origin: padding;
+            width: 24px;
+            border: none;
+            background: transparent;
         }
-        QComboBox:disabled {
-            color: ${text_muted};
-            background: ${canvas_hover};
-        }
-        QComboBox QAbstractItemView {
+        QSpinBox::up-button { subcontrol-position: top right; }
+        QSpinBox::down-button { subcontrol-position: bottom right; }
+        QSpinBox::up-arrow { image: url("${up_icon}"); width: 12px; height: 12px; }
+        QComboBox::drop-down:hover, QDateTimeEdit::drop-down:hover,
+        QSpinBox::up-button:hover, QSpinBox::down-button:hover { background: ${subtle}; }
+        QComboBox:focus, QAbstractSpinBox:focus { border-color: ${focus}; }
+        QComboBox:disabled, QAbstractSpinBox:disabled { color: ${text_muted}; background: ${canvas_hover}; }
+        QComboBox QAbstractItemView, QCalendarWidget QAbstractItemView {
             background: ${surface};
             color: ${text};
-            selection-background-color: ${selected};
-            selection-color: ${text};
+            selection-background-color: ${accent};
+            selection-color: ${on_accent};
         }
+        QCalendarWidget QWidget#qt_calendar_navigationbar { background: ${subtle}; }
+        QCalendarWidget QToolButton { color: ${text}; background: transparent; border: 0; padding: 3px 7px; }
+        QCalendarWidget QToolButton:hover { background: ${selected}; }
+        QCheckBox, QRadioButton { spacing: 8px; color: ${text}; }
+        QCheckBox::indicator, QRadioButton::indicator {
+            width: 16px; height: 16px; background: ${surface};
+            border: 1px solid ${border_strong}; border-radius: 4px;
+        }
+        QCheckBox::indicator:checked { image: url("${check_icon}"); background: ${accent}; border-color: ${accent}; }
+        QRadioButton::indicator { border-radius: 9px; }
+        QRadioButton::indicator:checked { background: ${on_accent}; border: 5px solid ${accent}; width: 8px; height: 8px; }
+        QCheckBox::indicator:focus, QRadioButton::indicator:focus { border-color: ${focus}; }
+        QCheckBox::indicator:disabled, QRadioButton::indicator:disabled { border-color: ${border}; }
         QToolButton#profileActionButton {
             padding: 0 12px;
             background: transparent;

@@ -1,5 +1,7 @@
 #include "theme_manager.hpp"
 
+#include <tuple>
+
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
@@ -154,14 +156,15 @@ bool load(QString const& key, bool overrides, theme_data& data, QString& error)
         error = QStringLiteral("无法创建主题图标目录");
         return false;
     }
-    for (auto const* name : {"check", "chevron-down"})
+    for (auto const& [name, role, token] : {std::tuple{"check", "on_accent", "${check_icon}"},
+                                            std::tuple{"chevron-down", "text_secondary", "${chevron_icon}"},
+                                            std::tuple{"chevron-up", "text_secondary", "${up_icon}"}})
     {
         QByteArray icon;
         if (!read_file(QStringLiteral(":/icons/%1.svg").arg(QString::fromLatin1(name)), icon, error))
         {
             return false;
         }
-        auto const role = QString::fromLatin1(name) == QStringLiteral("check") ? "on_accent" : "text_secondary";
         icon.replace("currentColor", data.colors.value(QString::fromLatin1(role)).name().toUtf8());
         auto const icon_path = data.icons->filePath(QStringLiteral("%1.svg").arg(QString::fromLatin1(name)));
         QFile output(icon_path);
@@ -171,7 +174,6 @@ bool load(QString const& key, bool overrides, theme_data& data, QString& error)
             return false;
         }
         output.close();
-        auto const token = QString::fromLatin1(name) == QStringLiteral("check") ? "${check_icon}" : "${chevron_icon}";
         data.sheet.replace(QString::fromLatin1(token), QDir::fromNativeSeparators(icon_path));
     }
     if (!expand(data.sheet, data.colors, error))
