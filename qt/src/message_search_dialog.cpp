@@ -54,7 +54,7 @@ message_search_dialog::message_search_dialog(
     : QDialog(parent), conversation_(conversation), group_(group)
 {
     setObjectName(QStringLiteral("messageSearchDialog"));
-    setWindowTitle(title + QStringLiteral(" · 搜索消息"));
+    setWindowTitle(title + QStringLiteral(" · 当前会话搜索"));
     resize(700, 600);
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
@@ -126,17 +126,17 @@ message_search_dialog::message_search_dialog(
             this,
             [this](QPoint const& point)
             {
-                auto const index = results_->indexAt(point);
+                QPersistentModelIndex const index(results_->indexAt(point));
                 if (!index.isValid())
                 {
                     return;
                 }
-                auto const text = index.data(message_model::text_role).toString();
                 QMenu menu(this);
-                auto* copy = menu.addAction(QStringLiteral("复制消息"));
-                if (menu.exec(results_->viewport()->mapToGlobal(point)) == copy)
+                connect(this, &QDialog::finished, &menu, &QMenu::close);
+                auto* copy = menu.addAction(QStringLiteral("复制"));
+                if (menu.exec(results_->viewport()->mapToGlobal(point)) == copy && index.isValid())
                 {
-                    QGuiApplication::clipboard()->setText(text);
+                    QGuiApplication::clipboard()->setText(index.data(message_model::text_role).toString());
                 }
             });
     refresh_count();

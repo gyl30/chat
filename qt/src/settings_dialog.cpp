@@ -208,6 +208,7 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
             this,
             [this](int) { theme_manager::instance().set_appearance(static_cast<chat_appearance>(appearance_->currentData().toInt())); });
     control_enter_ = checkbox(chat, QStringLiteral("按 Ctrl+Enter 发送消息"), QStringLiteral("settingsControlEnter"));
+    hint(chat, QStringLiteral("聊天窗口：Ctrl+Shift+F 打开全局消息搜索，Ctrl+F 搜索当前会话。"));
     hint(chat, QStringLiteral("默认按 Enter 发送，Shift+Enter 换行。启用后按 Ctrl+Enter 发送，Enter 换行。"));
     chat->addStretch();
     connect(control_enter_, &QCheckBox::toggled, this, &settings_dialog::control_enter_changed);

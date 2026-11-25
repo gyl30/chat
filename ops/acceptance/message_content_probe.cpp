@@ -8,6 +8,7 @@
 #include <QAbstractTextDocumentLayout>
 #include <QTextBlock>
 #include "message_model.hpp"
+#include "message_search_dialog.hpp"
 #include "theme_manager.hpp"
 #include <QApplication>
 #include <QClipboard>
@@ -22,6 +23,39 @@
 #include <QTimer>
 #include <cassert>
 #include <iostream>
+
+static void check_search_menu_copy()
+{
+    message_search_dialog dialog(7, 1, true, "群聊", {}, nullptr);
+    message_data message;
+    message.id = 12;
+    message.conversation = 7;
+    message.text = "original";
+    dialog.set_results(7, {}, 0, {message}, {}, false, {});
+    dialog.show();
+    QApplication::processEvents();
+    auto* view = dialog.findChild<QListView*>();
+    for (bool withdrawn : {false, true})
+    {
+        QApplication::clipboard()->setText("untouched");
+        QTimer::singleShot(0,
+                           &dialog,
+                           [&]
+                           {
+                               auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+                               assert(menu);
+                               message.text = "edited";
+                               message.edited_at = 1;
+                               message.deleted = withdrawn;
+                               dialog.update_message(7, message, {});
+                               menu->setActiveAction(menu->actions().first());
+                               QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                               QApplication::sendEvent(menu, &enter);
+                           });
+        emit view->customContextMenuRequested(view->visualRect(view->model()->index(0, 0)).center());
+        assert(QApplication::clipboard()->text() == (withdrawn ? "untouched" : "edited"));
+    }
+}
 
 static void check_display_roles()
 {
@@ -212,6 +246,13 @@ static void check_editor_reflow(chat_widget& chat)
     chat.resize(980, 640);
     QApplication::processEvents();
     assert(edit->textCursor().block().layout()->preeditAreaText() == QStringLiteral("pinyin") && edit->hasFocus());
+    int sends = 0;
+    auto connection = QObject::connect(&chat, &chat_widget::send_message_requested, [&] { ++sends; });
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    auto before = edit->toPlainText();
+    QApplication::sendEvent(edit, &enter);
+    assert(sends == 0 && edit->toPlainText() == before);
+    QObject::disconnect(connection);
     QInputMethodEvent cancel;
     QApplication::sendEvent(edit, &cancel);
 }
@@ -220,6 +261,7 @@ int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
     check_display_roles();
+    check_search_menu_copy();
     QCoreApplication::setOrganizationName("acceptance");
     QCoreApplication::setApplicationName("message-content");
     theme_manager::instance().load_settings();
@@ -246,6 +288,19 @@ int main(int argc, char** argv)
     chat.activateWindow();
     app.processEvents();
     check_editor_reflow(chat);
+    int global = 0, local = 0;
+    QObject::connect(&chat, &chat_widget::global_search_requested, [&] { ++global; });
+    QObject::connect(&chat, &chat_widget::message_search_requested, [&] { ++local; });
+    auto* editor = chat.findChild<QPlainTextEdit*>("messageEdit");
+    for (auto modifiers : {Qt::KeyboardModifiers(Qt::ControlModifier), Qt::ControlModifier | Qt::ShiftModifier})
+    {
+        QKeyEvent key(QEvent::KeyPress, Qt::Key_F, modifiers);
+        QApplication::sendEvent(editor, &key);
+    }
+    assert(local == 1 && global == 1);
+    chat.set_control_enter_send(true);
+    assert(editor->toolTip().contains("Ctrl+Enter") && editor->toolTip() == editor->accessibleDescription());
+    chat.set_control_enter_send(false);
     auto* view = chat.findChild<QListView*>("messageList");
     auto* delegate = qobject_cast<message_delegate*>(view->itemDelegate());
     auto index = view->model()->index(0, 0);

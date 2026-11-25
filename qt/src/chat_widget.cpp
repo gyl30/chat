@@ -322,6 +322,15 @@ QWidget* chat_widget::create_sidebar()
                          });
     auto* search_messages = main_menu->addAction(QStringLiteral("全局消息搜索"));
     connect(search_messages, &QAction::triggered, this, [this] { emit global_search_requested(); });
+    search_messages->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F));
+    search_messages->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    addAction(search_messages);
+    message_search_action_ = main_menu->addAction(QStringLiteral("当前会话搜索"));
+    message_search_action_->setObjectName(QStringLiteral("messageSearchAction"));
+    message_search_action_->setShortcut(QKeySequence::Find);
+    message_search_action_->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    message_search_action_->setEnabled(false);
+    addAction(message_search_action_);
     auto* bookmarks = main_menu->addAction(QStringLiteral("消息收藏"));
     connect(bookmarks, &QAction::triggered, this, &chat_widget::bookmarks_requested);
     auto* mentions = main_menu->addAction(QStringLiteral("提及我"));
@@ -1319,14 +1328,6 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
     connect(unread_start_button_, &QPushButton::clicked, this, [this] { emit message_context_requested(active_conversation_, unread_start_); });
     connect(latest_button_, &QPushButton::clicked, this, &chat_widget::return_to_latest);
 
-    // Keyword search is a shortcut (Ctrl+F) rather than a header icon, as in WeChat and QQ;
-    // the composer's chat history window also searches.
-    message_search_action_ = new QAction(QStringLiteral("搜索消息"), this);
-    message_search_action_->setObjectName(QStringLiteral("messageSearchAction"));
-    message_search_action_->setShortcut(QKeySequence::Find);
-    message_search_action_->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-    message_search_action_->setEnabled(false);
-    addAction(message_search_action_);
     chat_more_button_ = new QToolButton(header);
     chat_more_button_->setObjectName(QStringLiteral("chatMoreButton"));
     chat_more_button_->setToolTip(QStringLiteral("聊天信息"));
@@ -1500,6 +1501,8 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
                     update_message_selection();
                 }
             });
+    selection_copy_->setToolTip(QStringLiteral("复制选中消息（Ctrl+C）"));
+    cancel->setToolTip(QStringLiteral("退出多选（Esc）"));
     connect(selection_copy_, &QPushButton::clicked, this, &chat_widget::copy_selected_messages);
     connect(selection_forward_,
             &QPushButton::clicked,
@@ -5109,6 +5112,7 @@ void chat_widget::set_control_enter_send(bool enabled)
     control_enter_send_ = enabled;
     message_edit_->setAccessibleDescription(enabled ? QStringLiteral("Ctrl+Enter 发送；Enter 或 Shift+Enter 换行")
                                                     : QStringLiteral("Enter 发送；Shift+Enter 换行"));
+    message_edit_->setToolTip(message_edit_->accessibleDescription());
     send_button_->setToolTip(enabled ? QStringLiteral("发送（Ctrl+Enter）") : QStringLiteral("发送（Enter）"));
 }
 
