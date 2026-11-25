@@ -31,7 +31,7 @@ QMainWindow {
             selection-background-color: ${accent};
             selection-color: ${surface};
         }
-        QFileDialog QHeaderView::section, QTreeWidget#groupFileList QHeaderView::section {
+        QHeaderView::section {
             background: ${subtle};
             color: ${text};
             border: 0;
