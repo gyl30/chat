@@ -334,10 +334,13 @@ int main(int argc, char** argv)
     check_editor_reflow(chat);
     int global = 0, local = 0;
     chat.findChild<QLineEdit*>("conversationSearchEdit")->setText("needle");
-    QObject::connect(&chat, &chat_widget::global_search_requested, [&](QString const& query) {
-        assert(query == "needle");
-        ++global;
-    });
+    QObject::connect(&chat,
+                     &chat_widget::global_search_requested,
+                     [&](QString const& query)
+                     {
+                         assert(query == "needle");
+                         ++global;
+                     });
     QObject::connect(&chat, &chat_widget::message_search_requested, [&] { ++local; });
     auto* editor = chat.findChild<QPlainTextEdit*>("messageEdit");
     for (auto modifiers : {Qt::KeyboardModifiers(Qt::ControlModifier), Qt::ControlModifier | Qt::ShiftModifier})

@@ -532,7 +532,7 @@ QPainterPath bubble_path(QRect const& bubble, bool outgoing, bool group_start, b
 
 }    // namespace
 
-message_delegate::message_delegate(QObject* parent) : QStyledItemDelegate(parent) {}
+message_delegate::message_delegate(QObject* parent, qint64 const* context_anchor) : QStyledItemDelegate(parent), context_anchor_(context_anchor) {}
 
 void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const
 {
@@ -566,7 +566,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     painter->setPen(Qt::NoPen);
     painter->setBrush(layout.outgoing ? themed("bubble_out") : themed("bubble_in"));
     auto const path = bubble_path(bubble, layout.outgoing, layout.group_start, layout.group_end);
-    if ((layout.bundle || layout.poll) && (option.state & (QStyle::State_MouseOver | QStyle::State_HasFocus)))
+    if (!context_anchor_ && (layout.bundle || layout.poll) && (option.state & (QStyle::State_MouseOver | QStyle::State_HasFocus)))
     {
         painter->setPen(themed("focus"));
     }
@@ -669,10 +669,11 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     }
 
     auto const* view = qobject_cast<QAbstractItemView const*>(option.widget);
-    if ((option.state & QStyle::State_HasFocus) ||
-        ((!view || view->selectionMode() != QAbstractItemView::NoSelection) && (option.state & QStyle::State_Selected)))
+    bool const focused =
+        context_anchor_ ? index.data(message_model::id_role).toLongLong() == *context_anchor_ : option.state.testFlag(QStyle::State_HasFocus);
+    if (focused ||
+        (!context_anchor_ && (!view || view->selectionMode() != QAbstractItemView::NoSelection) && (option.state & QStyle::State_Selected)))
     {
-        auto const focused = option.state & QStyle::State_HasFocus;
         painter->setPen(QPen(themed("message_focus"), focused ? 1.5 : 1.0));
         painter->setBrush(Qt::NoBrush);
         // Attached bubbles meet the row's top edge; keep the centered stroke in its own item.

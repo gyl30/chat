@@ -247,7 +247,8 @@ class client_bridge final : public QObject
     void bookmark_saved(qint64 message, bool bookmarked, QString error);
     void bookmarks_received(quint64 request, chat::bookmark_page page, QString error);
     void global_search_received(quint64 request, chat::message_search_page page, QString error);
-    void search_context_received(quint64 request, qint64 anchor, QList<message_data> messages, QString error, bool unavailable);
+    void search_context_received(
+        quint64 request, qint64 anchor, QList<message_data> messages, read_positions positions, QString error, bool unavailable);
     void history_received(qint64 conversation, QList<message_data> messages, bool has_more, QString error_message);
     void message_search_received(qint64 conversation,
                                  QString query,

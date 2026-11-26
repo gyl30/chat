@@ -1377,7 +1377,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         {
             auto* l = d->findChild<QTreeWidget*>();
             auto* q = d->findChild<QLineEdit*>("globalSearchQuery");
-            auto* ctx = d->findChild<QListWidget*>();
+            auto* ctx = d->findChild<QListView*>("searchContextMessages");
             if (l && q && ctx)
             {
                 auto* mentions = d->findChild<QCheckBox*>("searchMentionsMe");
@@ -1465,13 +1465,23 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 out["row"] = l->indexOfTopLevelItem(l->currentItem());
                 out["ctx"] = ctx->isVisible();
                 QJsonArray context_ids;
-                for (int i = 0; i < ctx->count(); ++i)
+                for (int i = 0; i < ctx->model()->rowCount(); ++i)
                 {
-                    context_ids.append(ctx->item(i)->data(Qt::UserRole).toLongLong());
+                    auto const row = ctx->model()->index(i, 0);
+                    auto const id = row.data(message_model::id_role).toLongLong();
+                    context_ids.append(id);
+                    if (cmd["inspect"].toInteger() == id)
+                    {
+                        out["body"] = row.data(message_model::text_role).toString();
+                        out["quote"] = row.data(message_model::reply_text_role).toString();
+                        out["deleted"] = row.data(message_model::deleted_role).toBool();
+                        out["outgoing"] = row.data(message_model::outgoing_role).toBool();
+                        out["pollRevision"] = static_cast<qint64>(row.data(message_model::poll_role).value<chat::poll_summary>().revision);
+                    }
                 }
                 out["contextIds"] = context_ids;
-                out["count"] = ctx->count();
-                out["anchor"] = ctx->currentItem() ? ctx->currentItem()->data(Qt::UserRole).toLongLong() : 0;
+                out["count"] = ctx->model()->rowCount();
+                out["anchor"] = ctx->currentIndex().data(message_model::id_role).toLongLong();
                 out["selected"] = l->currentItem() ? l->currentItem()->data(1, Qt::UserRole).toLongLong() : 0;
                 if (cmd["close"].toBool())
                 {

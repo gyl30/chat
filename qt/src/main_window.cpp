@@ -1261,7 +1261,7 @@ void main_window::connect_group_actions()
             {
                 if (connected_ && !reconnecting_)
                 {
-                    global_search_dialog dialog(*client_, this, chat_page_->self_user(), session_username_, false, query);
+                    global_search_dialog dialog(*client_, *chat_page_, this, session_username_, false, query);
                     dialog.exec();
                 }
             });
@@ -1272,7 +1272,7 @@ void main_window::connect_group_actions()
             {
                 if (connected_ && !reconnecting_)
                 {
-                    bookmarks_dialog dialog(*client_, parent);
+                    bookmarks_dialog dialog(*client_, *chat_page_, parent);
                     dialog.exec();
                 }
             });
@@ -1327,7 +1327,7 @@ void main_window::connect_group_actions()
             {
                 if (connected_ && !reconnecting_)
                 {
-                    global_search_dialog dialog(*client_, this);
+                    global_search_dialog dialog(*client_, *chat_page_, this);
                     dialog.locate(conversation, anchor, [this, conversation, anchor] { chat_page_->invalidate_unread_start(conversation, anchor); });
                     dialog.exec();
                 }

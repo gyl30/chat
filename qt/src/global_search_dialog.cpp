@@ -14,13 +14,16 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
-#include <QListWidget>
+#include <QListView>
 #include <QPushButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
 #include <QSignalBlocker>
 #include "client_bridge.hpp"
+#include "chat_widget.hpp"
+#include "message_model.hpp"
+#include "message_delegate.hpp"
 
 namespace
 {
@@ -54,8 +57,8 @@ QString search_snippet(QString const& body, QString const& query)
 }    // namespace
 
 global_search_dialog::global_search_dialog(
-    client_bridge& client, QWidget* parent, qint64 self, QString const& self_name, bool mentions_me, QString const& query)
-    : QDialog(parent), client_(client), self_(self)
+    client_bridge& client, chat_widget& chat, QWidget* parent, QString const& self_name, bool mentions_me, QString const& query)
+    : QDialog(parent), client_(client), chat_(chat), self_(chat.self_user())
 {
     setWindowTitle(QStringLiteral("全局消息搜索"));
     resize(760, 540);
@@ -92,9 +95,9 @@ global_search_dialog::global_search_dialog(
     sender_ = new QComboBox(filters_);
     sender_->setObjectName(QStringLiteral("searchSender"));
     sender_->addItem(QStringLiteral("全部发送者"));
-    if (self > 0)
+    if (!self_name.isEmpty())
     {
-        sender_->addItem(QStringLiteral("%1（我）").arg(self_name), self);
+        sender_->addItem(QStringLiteral("%1（我）").arg(self_name), self_);
     }
     sender_->addItem(QStringLiteral("查找其他发送者…"), qint64(-1));
     connect(sender_,
@@ -199,9 +202,18 @@ global_search_dialog::global_search_dialog(
     results_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     results_->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
     layout->addWidget(results_);
-    context_ = new QListWidget(this);
-    context_->setWordWrap(true);
-    layout->addWidget(context_);
+    context_ = new QListView(this);
+    context_->setObjectName(QStringLiteral("searchContextMessages"));
+    context_->setAccessibleName(QStringLiteral("消息上下文"));
+    context_->setSelectionMode(QAbstractItemView::NoSelection);
+    context_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    context_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    context_->setResizeMode(QListView::Adjust);
+    messages_ = new message_model(context_, &chat.avatars());
+    messages_->set_self_user(self_);
+    context_->setModel(messages_);
+    context_->setItemDelegate(new message_delegate(context_, &context_anchor_));
+    layout->addWidget(context_, 1);
     status_ = new QLabel(this);
     status_->setTextFormat(Qt::PlainText);
     status_->setObjectName(QStringLiteral("globalSearchStatus"));
@@ -303,19 +315,29 @@ global_search_dialog::global_search_dialog(
     connect(&client_,
             &client_bridge::conversation_changed,
             this,
-            [this, self](qint64 conv, bool removed)
+            [this](qint64 conv, bool removed)
             {
                 if (removed)
                 {
                     remove_scope(conv);
                 }
-                if (self > 0)
+                if (!standalone_)
                 {
                     scope_request_ = client_.get_message_search_scopes();
                 }
             });
     connect(&client_, &client_bridge::message_updated, this, &global_search_dialog::updated);
-    if (self > 0)
+    connect(&client_,
+            &client_bridge::poll_changed,
+            this,
+            [this](chat::poll_update const& update)
+            {
+                if (update.conversation == context_conversation_)
+                {
+                    messages_->set_poll(update.message, update.summary);
+                }
+            });
+    if (!self_name.isEmpty())
     {
         scope_request_ = client_.get_message_search_scopes();
     }
@@ -332,7 +354,7 @@ void global_search_dialog::show_results()
     page_edits_.clear();
     page_floors_.clear();
     setWindowTitle(QStringLiteral("全局消息搜索"));
-    context_->clear();
+    messages_->reset(0);
     context_->hide();
     back_->hide();
     header_->show();
@@ -431,7 +453,9 @@ void global_search_dialog::show_context(qint64 conversation, qint64 anchor, QStr
     filters_->hide();
     results_->hide();
     more_->hide();
-    context_->clear();
+    auto const room = chat_.conversation(conversation);
+    messages_->reset(conversation, room && room->group);
+    messages_->begin_page();
     context_->show();
     back_->setVisible(!standalone_);
     status_->setText(QStringLiteral("正在定位消息…"));
@@ -505,7 +529,8 @@ void global_search_dialog::set_page(quint64 id, chat::message_search_page const&
     page_floors_.clear();
     more_->setVisible(next_before_ != 0);
 }
-void global_search_dialog::set_context(quint64 id, qint64 anchor, QList<message_data> const& messages, QString const& error, bool unavailable)
+void global_search_dialog::set_context(
+    quint64 id, qint64 anchor, QList<message_data> const& messages, read_positions const& positions, QString const& error, bool unavailable)
 {
     if (id != request_)
     {
@@ -519,20 +544,19 @@ void global_search_dialog::set_context(quint64 id, qint64 anchor, QList<message_
     }
     if (!error.isEmpty())
     {
+        messages_->end_page();
         status_->setText(error);
         return;
     }
     status_->clear();
-    for (auto const& m : messages)
+    messages_->merge_messages(messages);
+    messages_->set_read_positions(positions);
+    auto const hits = messages_->match(messages_->index(0), message_model::id_role, anchor, 1, Qt::MatchExactly);
+    if (!hits.isEmpty())
     {
-        context_->addItem(QStringLiteral("%1  %2\n%3").arg(m.username, display_time(m.timestamp), m.deleted ? QStringLiteral("消息已撤回") : m.text));
-        context_->item(context_->count() - 1)->setData(Qt::UserRole, m.id);
-        if (m.id == anchor)
-        {
-            context_->setCurrentRow(context_->count() - 1);
-        }
+        context_->setCurrentIndex(hits.front());
+        context_->scrollTo(hits.front(), QAbstractItemView::PositionAtCenter);
     }
-    context_->scrollToItem(context_->currentItem(), QAbstractItemView::PositionAtCenter);
 }
 void global_search_dialog::remove_scope(qint64 conversation)
 {
@@ -566,9 +590,13 @@ void global_search_dialog::discard(qint64 conversation, qint64 through)
         {
             context_unavailable();
         }
-        else if (request_ || (context_->count() && context_->item(0)->data(Qt::UserRole).toLongLong() <= through))
+        else
         {
-            show_context(conversation, context_anchor_, standalone_ ? QString{} : results_->currentItem()->text(1));
+            messages_->discard_through(through);
+            if (request_)
+            {
+                request_ = client_.get_search_context(conversation, context_anchor_);
+            }
         }
     }
     if (request_ && context_->isHidden())
@@ -599,7 +627,7 @@ void global_search_dialog::context_unavailable()
     }
     request_ = 0;
     context_conversation_ = context_anchor_ = 0;
-    context_->clear();
+    messages_->reset(0);
     status_->setText(QStringLiteral("消息不可用"));
     if (anchor_unavailable_)
     {
@@ -625,18 +653,18 @@ void global_search_dialog::updated(qint64 conversation, message_data const& mess
     auto* current = results_->currentItem();
     if (!context_->isHidden() && context_conversation_ == conversation)
     {
-        auto included = request_ != 0;
-        for (int i = 0; !included && i < context_->count(); ++i)
-        {
-            included = context_->item(i)->data(Qt::UserRole).toLongLong() == message.id;
-        }
         if (message.id == context_anchor_ && message.deleted)
         {
             context_unavailable();
         }
-        else if (included)
+        else if (request_)
         {
-            show_context(conversation, context_anchor_, standalone_ ? QString{} : current->text(1));
+            // The outstanding snapshot may predate this edit, including in its quoted replies.
+            request_ = client_.get_search_context(conversation, context_anchor_);
+        }
+        else
+        {
+            messages_->update_message(message);
         }
     }
     if (!submitted_)

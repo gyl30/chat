@@ -1831,11 +1831,13 @@ quint64 client_bridge::get_search_context(qint64 conversation, qint64 anchor)
                                      post_result(g,
                                                  [this, request, anchor, result = std::move(result)]
                                                  {
-                                                     emit search_context_received(request,
-                                                                                  anchor,
-                                                                                  result ? to_messages(result->messages) : QList<message_data>{},
-                                                                                  result ? QString{} : display_error(result.error()),
-                                                                                  !result && result.error().code == chat::conversation_unavailable);
+                                                     emit search_context_received(
+                                                         request,
+                                                         anchor,
+                                                         result ? to_messages(result->messages) : QList<message_data>{},
+                                                         result ? to_read_positions(result->read_positions) : read_positions{},
+                                                         result ? QString{} : display_error(result.error()),
+                                                         !result && result.error().code == chat::conversation_unavailable);
                                                  });
                                  });
     return request;

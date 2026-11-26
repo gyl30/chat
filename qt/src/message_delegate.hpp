@@ -9,7 +9,7 @@ class message_delegate final : public QStyledItemDelegate
     Q_OBJECT
 
    public:
-    explicit message_delegate(QObject* parent = nullptr);
+    explicit message_delegate(QObject* parent = nullptr, qint64 const* context_anchor = nullptr);
 
     void paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const override;
     QSize sizeHint(QStyleOptionViewItem const& option, QModelIndex const& index) const override;
@@ -25,6 +25,10 @@ class message_delegate final : public QStyledItemDelegate
     void reaction_clicked(QModelIndex const& index, QString emoji);
     void content_clicked(QModelIndex const& index);
     void image_clicked(QModelIndex const& index);
+
+   private:
+    // A read-only context keeps its anchor outlined independently of keyboard focus.
+    qint64 const* context_anchor_;
 };
 
 #endif

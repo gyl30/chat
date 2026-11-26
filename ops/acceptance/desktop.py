@@ -182,6 +182,28 @@ async def search_cases(ui, gate, a, b, g):
     assert not any(m["method"] == "search_all_messages" for m in gate.messages[start:])
     await ui.call("searchui", submit=True)
     await ui.wait("searchui", lambda r: r["status"] == "没有找到相关消息" and not r["ids"])
+    # Open an old snapshot only after a newer cleared snapshot has already landed.
+    source = (await b.ok("send_message", conversation=unrelated, text="引用源", client_id=3100))["id"]
+    anchor = (await a.ok("send_message", conversation=unrelated, text="上下文定位", client_id=3101, reply_to=source))["id"]
+    peer = (await b.ok("send_message", conversation=unrelated, text="邻近初稿", client_id=3102))["id"]
+    await show("上下文定位")
+    await rows(1)
+    gate.hold.add("get_messages")
+    await ui.call("searchui", row=0, enter=True)
+    await gate.caught("get_messages")
+    gate.hold.discard("get_messages")
+    await a.ok("clear_history", conversation=unrelated, through=source)
+    current = await ui.wait("searchui", lambda r: r.get("anchor") == anchor, inspect=anchor)
+    assert current["contextIds"] == [anchor, peer] and current["outgoing"] and not current["quote"], current
+    await gate.release("get_messages")
+    await b.ok("edit_message", conversation=unrelated, message=peer, text="邻近定稿")
+    await ui.wait("searchui", lambda r: r.get("body") == "邻近定稿", inspect=peer)
+    await b.ok("delete_message", conversation=unrelated, message=peer)
+    current = await ui.wait("searchui", lambda r: r.get("deleted"), inspect=peer)
+    assert current["body"] == "消息已撤回" and current["anchor"] == anchor and current["contextIds"] == [anchor, peer]
+    await a.ok("clear_history", conversation=unrelated, through=anchor)
+    await ui.wait("searchui", lambda r: not r["ctx"] and not r["ids"] and not r["count"])
+    print("PASS context bubbles: stale around after clear, outgoing anchor, quote redaction, adjacent edit and withdrawal", flush=True)
     await show("事务回归")
     await rows(50)
     await ui.call("searchui", more=True)

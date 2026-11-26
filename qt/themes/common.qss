@@ -648,7 +648,7 @@ QMainWindow {
             background: ${canvas_hover};
             border: 0;
         }
-        QListView#conversationList, QListView#userList, QListView#messageList, QListView#messageSearchResults,
+        QListView#conversationList, QListView#userList, QListView#messageList, QListView#searchContextMessages, QListView#messageSearchResults,
         QListWidget#incomingFriendRequests, QListWidget#outgoingFriendRequests {
             border: 0;
             outline: 0;
@@ -668,8 +668,11 @@ QMainWindow {
         QLineEdit#userSearchEdit:focus {
             border: 1px solid ${focus};
         }
-        QListView#messageList {
+        QListView#messageList, QListView#searchContextMessages {
             padding: 0 2px 6px 2px;
+        }
+        QListView#searchContextMessages {
+            background: ${canvas};
         }
         QScrollBar:vertical {
             width: 6px;

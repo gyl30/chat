@@ -27,9 +27,10 @@ enum
 QString local_time(qint64 milliseconds) { return QDateTime::fromMSecsSinceEpoch(milliseconds).toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")); }
 }    // namespace
 
-bookmarks_dialog::bookmarks_dialog(client_bridge& client, QWidget* parent)
+bookmarks_dialog::bookmarks_dialog(client_bridge& client, chat_widget& chat, QWidget* parent)
     : QDialog(parent),
       client_(client),
+      chat_(chat),
       query_(new QLineEdit(this)),
       results_(new QTreeWidget(this)),
       locate_(new QPushButton(QStringLiteral("定位原消息"), this)),
@@ -268,7 +269,7 @@ void bookmarks_dialog::locate()
     auto const message = item->data(0, message_role).toLongLong();
     if (conversation)
     {
-        global_search_dialog context(client_, this);
+        global_search_dialog context(client_, chat_, this);
         context.locate(conversation, message, [this] { refresh(); }, item->text(0));
         context.exec();
     }

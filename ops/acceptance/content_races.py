@@ -316,7 +316,8 @@ async def scenario(probe, mode):
                         await gate.release("get_messages")
                         await ui.wait(
                             "searchui",
-                            lambda r: r.get("ctx") and mid in r.get("contextIds", []),
+                            lambda r: r.get("ctx") and mid in r.get("contextIds", []) and r.get("pollRevision") == 2,
+                            inspect=mid,
                         )
                         gate.hold.add("get_messages")
                         await ui.call("searchui", back=True)

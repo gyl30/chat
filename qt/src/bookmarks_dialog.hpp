@@ -7,6 +7,7 @@
 #include <chat/message.hpp>
 
 class client_bridge;
+class chat_widget;
 class QLabel;
 class QLineEdit;
 class QPushButton;
@@ -16,7 +17,7 @@ class QTimer;
 class bookmarks_dialog final : public QDialog
 {
    public:
-    explicit bookmarks_dialog(client_bridge& client, QWidget* parent);
+    explicit bookmarks_dialog(client_bridge& client, chat_widget& chat, QWidget* parent);
 
    private:
     void refresh();
@@ -26,6 +27,7 @@ class bookmarks_dialog final : public QDialog
     void locate();
 
     client_bridge& client_;
+    chat_widget& chat_;
     QLineEdit* query_;
     QTreeWidget* results_;
     QPushButton* locate_;
