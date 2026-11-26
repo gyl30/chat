@@ -124,7 +124,7 @@ int layout_poll_card(QPainter* painter,
                 painter->setBrush(themed("accent"));
                 track.setWidth(track.width() * share);
                 painter->drawRoundedRect(track, 2, 2);
-                if (option.position == poll.selection)
+                if ((chat::poll_bit(option.position) & poll.selection) != 0)
                 {
                     painter->setPen(QPen(themed("accent"), 2));
                     const QPoint p(left - 17, y + height + 10);

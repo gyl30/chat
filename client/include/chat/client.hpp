@@ -232,10 +232,14 @@ class client
     using poll_handler = std::function<void(std::expected<poll_state, error>)>;
     using poll_change_handler = std::function<void(poll_update)>;
     void set_poll_change_handler(poll_change_handler handler);
-    void create_poll(
-        std::int64_t conversation, std::string question, std::vector<std::string> options, std::int64_t client_id, message_result_handler handler);
+    void create_poll(std::int64_t conversation,
+                     std::string question,
+                     std::vector<std::string> options,
+                     poll_settings settings,
+                     std::int64_t client_id,
+                     message_result_handler handler);
     void get_poll(std::int64_t conversation, std::int64_t message, poll_handler handler);
-    void vote_poll(std::int64_t conversation, std::int64_t message, std::int64_t choice, poll_handler handler);
+    void vote_poll(std::int64_t conversation, std::int64_t message, std::int64_t choices, poll_handler handler);
     void close_poll(std::int64_t conversation, std::int64_t message, poll_handler handler);
     void get_poll_voters(std::int64_t conversation,
                          std::int64_t message,

@@ -1000,6 +1000,7 @@ void client_bridge::create_poll(qint64 room, QString question, QStringList optio
     client_->create_poll(room,
                          to_utf8(question),
                          std::move(labels),
+                         chat::poll_settings{.anonymous = false},
                          chat::client::new_client_id(),
                          [this, g = connection_generation_.load()](auto result)
                          {

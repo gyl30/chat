@@ -289,6 +289,8 @@ SQLite 的 `files` 保存文件元数据，每个对象对应一个私有 S3 key
 | `send_message` | 文本可选 `markdown`、`mention_all`。合并转发使用 `bundle` 源消息 ID 数组；发起投票使用 `text` 和 `poll_options`。创建操作沿用 `client_id` 去重。 |
 | `get_forwarded_messages` | 指定目标 `conversation` 和父 `message`，以返回的 `next` 作为下一页的 `after`。 |
 | `get_poll`、`get_poll_voters` | 获取可见投票的当前结果、自己的选择，或按选项分页读取实名投票人。 |
-| `vote_poll`、`close_poll` | `choice` 为选项号，0 表示取消。结果实际改变时发送 `poll_updated`，客户端按 revision 应用。 |
+| `vote_poll`、`close_poll` | `choices` 为一次完整提交的选项位集合，第 n 项对应位 n−1，0 表示撤回普通投票。结果实际改变时发送 `poll_updated`，客户端按 revision 应用。 |
 
 本开发版本要求服务端数据库和本机 SDK 日志使用当前 Schema。验证时分别指定新的隔离数据目录；保留旧数据库、附件及未完成任务。月度归档继续保存消息原文，主库保存消息格式、合并子项及投票记录；恢复需要配套主库、月档和对象数据。
+
+群投票默认为匿名单选。创建时可附带 `poll_settings`（`anonymous`、`multiple`、从 1 开始编号的正确选项 `correct` 及可选解析 `explanation`）。普通投票的正确选项为 0。问答只允许一次作答，作答或结束后公开答案。匿名投票禁止查询成员。投票存储结构已更新，开发测试需使用新建的隔离服务端数据库，保留原数据库和备份。

@@ -191,7 +191,13 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
     auto const id = db.last_insert_rowid();
     if (!message.poll_options.empty())
     {
-        if (auto err = db.exec("INSERT INTO polls(message) VALUES(?)", id); err)
+        if (auto err = db.exec("INSERT INTO polls(message,anonymous,multiple,correct,explanation) VALUES(?,?,?,?,?)",
+                               id,
+                               int(message.settings.anonymous),
+                               int(message.settings.multiple),
+                               message.settings.correct,
+                               message.settings.explanation);
+            err)
         {
             return std::unexpected(err);
         }

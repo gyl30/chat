@@ -34,6 +34,7 @@ struct[[= simdjson::deny_unknown_fields]] send_message_params
     std::optional<std::int64_t> forward;
     std::optional<std::vector<std::int64_t>> bundle;
     std::optional<std::vector<std::string>> poll_options;
+    std::optional<chat::poll_settings> poll_settings;
     [[= simdjson::default_value]] bool markdown = false;
     [[= simdjson::default_value]] bool mention_all = false;
     std::optional<std::int64_t> upload;
@@ -63,6 +64,10 @@ bool read_send_params(json_rpc_params& params, send_message_params& value, bool 
     {
         return false;
     }
+    if (value.poll_settings && !value.poll_options)
+    {
+        return false;
+    }
     if (value.poll_options)
     {
         auto valid = [](std::string_view s, std::size_t max)
@@ -79,6 +84,15 @@ bool read_send_params(json_rpc_params& params, send_message_params& value, bool 
         if (options.size() < 2 || options.size() > 10)
         {
             return false;
+        }
+        if (value.poll_settings)
+        {
+            auto const& settings = *value.poll_settings;
+            if (settings.correct < 0 || settings.correct > static_cast<std::int64_t>(options.size()) || (settings.correct && settings.multiple) ||
+                (!settings.explanation.empty() && (!settings.correct || !valid(settings.explanation, 200))))
+            {
+                return false;
+            }
         }
         std::set<std::string_view> unique;
         return std::ranges::all_of(options, [&](auto const& label) { return valid(label, 80) && unique.insert(label).second; });
@@ -319,7 +333,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
                                          params.markdown,
                                          params.mention_all,
                                          params.bundle ? std::span<const std::int64_t>(*params.bundle) : std::span<const std::int64_t>{},
-                                         params.poll_options ? std::span<const std::string>(*params.poll_options) : std::span<const std::string>{}},
+                                         params.poll_options ? std::span<const std::string>(*params.poll_options) : std::span<const std::string>{},
+                                         params.poll_settings.value_or(chat::poll_settings{})},
                                         request.id,
                                         params.object_key.value_or(""));
             });

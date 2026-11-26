@@ -1881,7 +1881,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
                 {
                     auto id = ix.data(message_model::id_role).toLongLong();
                     messages_->set_poll_pending(id, true);
-                    emit poll_write_requested(active_conversation_, id, choice);
+                    emit poll_write_requested(active_conversation_, id, chat::poll_bit(choice));
                 }
             });
     connect(messages_delegate,

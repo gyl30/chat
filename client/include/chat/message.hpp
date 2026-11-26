@@ -71,26 +71,40 @@ struct poll_option
     std::int64_t position, votes;
     std::string label;
 };
-struct poll_summary
-{
-    std::int64_t revision = 0;
-    bool closed = false;
-    std::vector<poll_option> options;
-    // Choice belonging to the recipient of this snapshot (zero for an uncast ballot).
-    std::int64_t selection = 0;
-};
-struct poll_state
-{
-    poll_summary summary;
-    std::int64_t selection = 0;
-    bool can_close = false;
-    std::string question;
-};
 struct poll_voter
 {
     std::int64_t id = 0;
     std::string username, nickname;
     avatar_state avatar;
+};
+struct poll_settings
+{
+    bool anonymous = true;
+    bool multiple = false;
+    std::int64_t correct = 0;
+    std::string explanation;
+};
+
+// Options are numbered 1..10. One ballot is an atomic set of these bits.
+constexpr std::int64_t poll_bit(std::int64_t position) { return position >= 1 && position <= 10 ? std::int64_t{1} << (position - 1) : 0; }
+
+struct poll_summary
+{
+    std::int64_t revision = 0;
+    bool closed = false;
+    std::vector<poll_option> options;
+    bool anonymous = true, multiple = false, quiz = false;
+    std::int64_t participants = 0, correct = 0;
+    std::string explanation;
+    std::vector<poll_voter> recent;
+    // Personal ballot of the recipient.
+    std::int64_t selection = 0;
+};
+struct poll_state
+{
+    poll_summary summary;
+    bool can_close = false;
+    std::string question;
 };
 struct poll_voters
 {

@@ -25,6 +25,7 @@ async def scenario(probe, mode):
                         text="问题",
                         client_id=cid,
                         poll_options=["A", "B"],
+                        poll_settings=dict(anonymous=False,multiple=False,correct=0,explanation=""),
                     )
                 )["id"]
 
@@ -71,10 +72,10 @@ async def scenario(probe, mode):
                             (g, uid),
                         )
                         conn.execute(
-                            "INSERT INTO poll_votes(message,user,choice) VALUES(?,?,1)",
+                            "INSERT INTO poll_votes(message,user,choices,voted_revision) VALUES(?,?,1,1)",
                             (mid, uid),
                         )
-                await b.ok("vote_poll", choice=1, **args)
+                await b.ok("vote_poll", choices=1, **args)
             gate = Gate(f"ws://{a.ws.remote_address[0]}:{a.ws.remote_address[1]}/ws")
             ui = Desktop()
             async with serve(gate.handle, "127.0.0.1", 0) as proxy:
@@ -118,8 +119,8 @@ async def scenario(probe, mode):
                             args["message"] = mid
                             await gate.caught("message")
                         n = await count("update")
-                        await b.ok("vote_poll", choice=1, **args)
-                        await a.ok("vote_poll", choice=1, **args)
+                        await b.ok("vote_poll", choices=1, **args)
+                        await a.ok("vote_poll", choices=1, **args)
                         await b.ok("close_poll", **args)
                         await seen("update", n + 2)
                         history_count = await count("history")
@@ -197,12 +198,12 @@ async def scenario(probe, mode):
                         state = await ui.call("state")
                         assert not any(x["id"] == mid for x in state["rows"])
                     elif mode == "voters":
-                        await b.ok("vote_poll", choice=1, **args)
+                        await b.ok("vote_poll", choices=1, **args)
                         gate.hold.add("get_poll_voters")
                         await ui.call("poll_ui", open=mid)
                         await gate.caught("get_poll_voters")
                         gate.hold.clear()
-                        await b.ok("vote_poll", choice=2, **args)
+                        await b.ok("vote_poll", choices=2, **args)
                         await ui.wait(
                             "poll_ui", lambda r: r.get("members") == ["b"], choice=2
                         )
@@ -264,7 +265,7 @@ async def scenario(probe, mode):
                             lambda r: "共 1 票" in r.get("labels", "")
                             and r.get("members") == ["a"],
                         )
-                        assert (await a.ok("get_poll", **args))["selection"] == 1
+                        assert (await a.ok("get_poll", **args))["summary"]["selection"] == 1
                     elif mode == "closed":
                         gate.hold.add("get_poll")
                         await ui.call("poll_ui", open=mid)
@@ -292,7 +293,7 @@ async def scenario(probe, mode):
                         await ui.call("poll_ui", more=True)
                         await gate.caught("get_poll_voters")
                         gate.hold.clear()
-                        await b.ok("vote_poll", choice=0, **args)
+                        await b.ok("vote_poll", choices=0, **args)
                         state = await ui.wait(
                             "poll_ui",
                             lambda r: len(r.get("members", [])) == 50
@@ -312,7 +313,7 @@ async def scenario(probe, mode):
                         await ui.call("searchui", row=0, enter=True)
                         await gate.caught("get_messages")
                         n = await count("update")
-                        await b.ok("vote_poll", choice=2, **args)
+                        await b.ok("vote_poll", choices=2, **args)
                         await seen("update", n)
                         await gate.release("get_messages")
                         await ui.wait(

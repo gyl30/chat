@@ -3801,20 +3801,29 @@ void client::get_forwarded_messages(std::int64_t conversation,
                                             "Invalid forwarded messages",
                                             std::move(handler)));
 }
-void client::create_poll(std::int64_t room, std::string question, std::vector<std::string> options, std::int64_t id, message_result_handler handler)
+void client::create_poll(std::int64_t room,
+                         std::string question,
+                         std::vector<std::string> options,
+                         poll_settings settings,
+                         std::int64_t id,
+                         message_result_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->request_message(
-        "send_message", make_params("conversation", room, "text", question, "poll_options", options, "client_id", id), room, {}, std::move(handler)));
+        "send_message",
+        make_params("conversation", room, "text", question, "poll_options", options, "poll_settings", settings, "client_id", id),
+        room,
+        {},
+        std::move(handler)));
 }
 void client::get_poll(std::int64_t room, std::int64_t message, poll_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(
         impl_->request_page<poll_state>("get_poll", make_params("conversation", room, "message", message), "Invalid poll", std::move(handler)));
 }
-void client::vote_poll(std::int64_t room, std::int64_t message, std::int64_t choice, poll_handler handler)
+void client::vote_poll(std::int64_t room, std::int64_t message, std::int64_t choices, poll_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->request_page<poll_state>(
-        "vote_poll", make_params("conversation", room, "message", message, "choice", choice), "Invalid poll", std::move(handler)));
+        "vote_poll", make_params("conversation", room, "message", message, "choices", choices), "Invalid poll", std::move(handler)));
 }
 void client::close_poll(std::int64_t room, std::int64_t message, poll_handler handler)
 {

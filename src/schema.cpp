@@ -266,6 +266,10 @@ CREATE INDEX IF NOT EXISTS attachments_file ON message_attachments(object_key);
 CREATE TABLE IF NOT EXISTS polls (
     message INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
     revision INTEGER NOT NULL DEFAULT 1,
+    anonymous INTEGER NOT NULL,
+    multiple INTEGER NOT NULL,
+    correct INTEGER NOT NULL DEFAULT 0,
+    explanation TEXT NOT NULL DEFAULT '',
     closed INTEGER NOT NULL DEFAULT 0 CHECK(closed IN (0,1))
 );
 CREATE TABLE IF NOT EXISTS poll_options (
@@ -275,11 +279,11 @@ CREATE TABLE IF NOT EXISTS poll_options (
     PRIMARY KEY(message,position), UNIQUE(message,label)
 );
 CREATE TABLE IF NOT EXISTS poll_votes (
-    message INTEGER NOT NULL,
+    message INTEGER NOT NULL REFERENCES polls(message) ON DELETE CASCADE,
     user INTEGER NOT NULL REFERENCES users(id),
-    choice INTEGER NOT NULL,
-    PRIMARY KEY(message,user),
-    FOREIGN KEY(message,choice) REFERENCES poll_options(message,position) ON DELETE CASCADE
+    choices INTEGER NOT NULL CHECK(choices BETWEEN 1 AND 1023),
+    voted_revision INTEGER NOT NULL,
+    PRIMARY KEY(message,user)
 );
 CREATE TABLE IF NOT EXISTS bundle_items (
     parent INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,

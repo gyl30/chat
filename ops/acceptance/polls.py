@@ -11,6 +11,7 @@ from desktop import Desktop, Gate, until
 from websockets.asyncio.server import serve
 from isolated import chat, login
 from recovery import admin
+from poll_modes import verify_modes
 
 
 async def run(root, probe):
@@ -121,7 +122,7 @@ async def run(root, probe):
                 "summary"
             ]["closed"]
             assert "error" in await b.ask("close_poll", **args)
-            assert "error" in await b.ask("vote_poll", choice=4, **args)
+            assert "error" in await b.ask("vote_poll", choices=8, **args)
             gate.hold_requests.add("vote_poll")
             await ui.call("poll_ui", message=mid, vote=2)
             pending = await ui.call("poll_ui", message=mid, vote=1)
@@ -145,28 +146,29 @@ async def run(root, probe):
                 client_id=321,
             )
             await asyncio.gather(
-                b.ok("vote_poll", choice=1, **args), c.ok("vote_poll", choice=3, **args)
+                b.ok("vote_poll", choices=1, **args), c.ok("vote_poll", choices=4, **args)
             )
             state = await b.ok("get_poll", **args)
             assert [o["votes"] for o in state["summary"]["options"]] == [
                 1,
                 1,
                 1,
-            ] and state["selection"] == 1
+            ] and state["summary"]["selection"] == 1
             await ui.wait(
                 "poll_ui",
                 lambda r: all("1 票" in row for row in r.get("rows", []))
                 and len(r.get("rows", [])) == 3,
             )
-            same = await b.ok("vote_poll", choice=1, **args)
+            same = await b.ok("vote_poll", choices=1, **args)
             assert same == state
-            await a.ok("vote_poll", choice=1, **args)
+            await a.ok("vote_poll", choices=1, **args)
             await ui.wait(
                 "poll_ui",
                 lambda r: set(r["members"]) == {"a", "b"} and r["selection"] == 1,
                 message=mid,
             )
             await ui.call("poll_ui", close=True)
+            await verify_modes(url, a, b, c, g)
             await poll_menu(mid, "撤回投票")
             await ui.wait("poll_ui", lambda r: r["selection"] == 0, message=mid)
             assert [
@@ -182,7 +184,7 @@ async def run(root, probe):
                 ),
                 "reconnecting",
             )
-            await c.ok("vote_poll", choice=1, **args)
+            await c.ok("vote_poll", choices=1, **args)
             await gate.release_requests("resume_session")
             await ui.wait(
                 "state",
@@ -196,15 +198,15 @@ async def run(root, probe):
             await b.ok("leave_group", conversation=g)
             assert "error" in await b.ask("get_poll", **args)
             await a.ok("invite_group_members", conversation=g, members=[2])
-            assert "error" in await b.ask("vote_poll", choice=2, **args)
+            assert "error" in await b.ask("vote_poll", choices=2, **args)
             voters = await a.ok("get_poll_voters", choice=1, after=0, **args)
             assert [v["username"] for v in voters["members"]] == ["b", "c"]
             await a.ok("set_group_admin", conversation=g, user=3, admin=True)
             bck, closed = await asyncio.gather(
-                a.ask("vote_poll", choice=3, **args), c.ok("close_poll", **args)
+                a.ask("vote_poll", choices=4, **args), c.ok("close_poll", **args)
             )
             assert closed["summary"]["closed"]
-            assert "error" in await a.ask("vote_poll", choice=0, **args)
+            assert "error" in await a.ask("vote_poll", choices=0, **args)
             assert (await c.ok("close_poll", **args))["summary"] == closed["summary"]
             assert mid in [
                 r["id"]

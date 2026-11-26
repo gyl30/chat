@@ -9,6 +9,7 @@
 #include <variant>
 
 #include "sqlite_database.hpp"
+#include <chat/message.hpp>
 
 struct message_to_write
 {
@@ -22,6 +23,7 @@ struct message_to_write
     bool mention_all = false;
     std::span<std::int64_t const> bundle{};
     std::span<std::string const> poll_options{};
+    chat::poll_settings settings{};
     std::string_view content() const { return !bundle.empty() ? "bundle" : !poll_options.empty() ? "poll" : "message"; }
 };
 
