@@ -1097,6 +1097,26 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             {
                 auto* question = dialog->findChild<QPlainTextEdit*>("pollQuestion");
                 out["question"] = question->toPlainText();
+                out["editable"] = question->isEnabled();
+                out["canSubmit"] = dialog->findChild<QPushButton*>("pollSubmit")->isEnabled();
+                if (cmd["tryEdit"].toBool())
+                {
+                    auto* option = dialog->findChild<QLineEdit*>("pollOption");
+                    auto* anonymous = dialog->findChild<QCheckBox*>("pollAnonymous");
+                    auto label = option->text();
+                    auto checked = anonymous->isChecked();
+                    for (auto* field : QList<QWidget*>{question, option, anonymous})
+                    {
+                        QKeyEvent key(QEvent::KeyPress, field == anonymous ? Qt::Key_Space : Qt::Key_X, Qt::NoModifier, "x");
+                        QApplication::sendEvent(field, &key);
+                    }
+                    out["edited"] =
+                        question->toPlainText() != out["question"].toString() || label != option->text() || checked != anonymous->isChecked();
+                }
+                if (cmd["closeComposer"].toBool())
+                {
+                    QTimer::singleShot(0, dialog, [dialog] { dialog->done(QDialog::Rejected); });
+                }
                 out["feedback"] = dialog->findChild<QLabel*>("pollFeedback")->text();
                 if (cmd["retry"].toBool())
                 {
@@ -1924,7 +1944,31 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         {
             chat->jump_to_message(id);
         }
+        if (auto id = cmd["loadAround"].toInteger())
+        {
+            chat->request_position({id, std::nullopt});
+        }
+        if (cmd["requestOlder"].toBool())
+        {
+            chat->request_older_messages();
+        }
+        if (cmd["requestNewer"].toBool())
+        {
+            chat->request_newer_messages();
+        }
         auto inspect = chat->messages_->message_index(cmd["inspect"].toInteger());
+        if (const auto name = cmd["pendingAt"].toString(); !name.isEmpty())
+        {
+            for (int row = 0; row < model->rowCount(); ++row)
+            {
+                auto ix = model->index(row, 0);
+                if (!ix.data(message_model::id_role).toLongLong() && ix.data(message_model::text_role).toString().startsWith(name))
+                {
+                    inspect = ix;
+                    break;
+                }
+            }
+        }
         if (inspect.isValid() && cmd.contains("atY"))
         {
             auto* scroll = list->verticalScrollBar();
@@ -1959,6 +2003,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         auto top = list->indexAt(QPoint(1, 0));
         out["topId"] = top.data(message_model::id_role).toLongLong();
         out["offset"] = list->visualRect(top).top();
+        out["topClient"] = top.data(message_model::client_id_role).toLongLong();
+        out["topText"] = top.data(message_model::text_role).toString().left(40);
+        out["tailLoaded"] = chat->tail_loaded_;
+        out["oldestLoaded"] = chat->history_exhausted_;
         out["count"] = static_cast<qint64>(chat->conversation_unread());
         for (int row = 0; row < conv->model()->rowCount(); ++row)
         {
@@ -2007,7 +2055,12 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         for (int i = 0; i < model->rowCount(); ++i)
         {
             auto idx = model->index(i, 0);
-            QJsonObject row{{"text", idx.data(message_model::text_role).toString()}, {"id", idx.data(message_model::id_role).toLongLong()}};
+            const auto id = idx.data(message_model::id_role).toLongLong();
+            if (cmd["pendingOnly"].toBool() && id)
+            {
+                continue;
+            }
+            QJsonObject row{{"text", idx.data(message_model::text_role).toString()}, {"id", id}};
             if (cmd["polls"].toBool())
             {
                 auto poll = idx.data(message_model::poll_role);

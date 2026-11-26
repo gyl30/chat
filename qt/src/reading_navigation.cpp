@@ -17,12 +17,13 @@ chat_widget::reading_position chat_widget::capture_reading_position() const
         return {};
     }
     auto top = messages_view_->indexAt({1, 0});
-    return {top.data(message_model::id_role).toLongLong(), messages_view_->visualRect(top).top()};
+    const auto id = top.data(message_model::id_role).toLongLong();
+    return {id, messages_view_->visualRect(top).top(), id ? 0 : top.data(message_model::client_id_role).toLongLong()};
 }
 
 void chat_widget::restore_reading_position(reading_position position)
 {
-    if (!position.message)
+    if (!position.message && !position.client_id)
     {
         if (tail_loaded_)
         {
@@ -30,7 +31,7 @@ void chat_widget::restore_reading_position(reading_position position)
         }
         return;
     }
-    auto top = messages_->message_index(position.message);
+    auto top = position.client_id ? messages_->outgoing_index(position.client_id) : messages_->message_index(position.message);
     if (top.isValid())
     {
         auto* scroll = messages_view_->verticalScrollBar();
@@ -48,16 +49,22 @@ void chat_widget::restore_reading_position(reading_position position)
 
 void chat_widget::preserve_reading(const std::function<void()>& change)
 {
-    if (changing_layout_ || !messages_ready())
+    if (changing_layout_ || !messages_loaded_)
     {
         change();
         return;
     }
     {
         QScopedValueRollback guard(changing_layout_, true);
-        const auto position = capture_reading_position();
+        auto position = capture_reading_position();
+        const auto top = messages_view_->indexAt({1, 0});
+        const QPersistentModelIndex next = position.client_id ? top.siblingAtRow(top.row() + 1) : QModelIndex{};
         change();
         messages_view_->doItemsLayout();
+        if (position.client_id && next.isValid() && !messages_->outgoing_index(position.client_id).isValid())
+        {
+            position.client_id = next.data(message_model::client_id_role).toLongLong();
+        }
         restore_reading_position(position);
     }
     mark_visible_messages();
@@ -91,12 +98,18 @@ void chat_widget::set_messages_loading(bool loading)
     }
 }
 
-void chat_widget::request_position(reading_position position)
+void chat_widget::request_navigation(history_target target)
 {
-    target_position_ = position;
-    set_messages_loading(true);
-    emit history_requested(active_conversation_, history_page::around, position.message);
+    history_target_ = target;
+    if (connection_available_)
+    {
+        set_messages_loading(true);
+        update_reading_navigation();
+        emit history_requested(active_conversation_, target.page, target.position.message);
+    }
 }
+
+void chat_widget::request_position(reading_position position) { request_navigation({history_page::around, position}); }
 
 void chat_widget::request_entry_history()
 {
@@ -106,37 +119,39 @@ void chat_widget::request_entry_history()
         request_position(position);
         return;
     }
-    set_messages_loading(true);
-    emit history_requested(active_conversation_, history_page::unread);
+    request_navigation({history_page::unread});
 }
 
 void chat_widget::begin_history_refresh()
 {
-    if (!messages_loaded_ && !target_position_)
+    const auto* scroll = messages_view_->verticalScrollBar();
+    const bool at_end = messages_loaded_ && tail_loaded_ && scroll->value() == scroll->maximum();
+    // The old tail cannot prove continuity across a lost connection or a refresh.
+    tail_loaded_ = false;
+    if (history_target_)
+    {
+        if (history_target_->page == history_page::around && history_target_->position.message <= history_floor(active_conversation_))
+        {
+            request_entry_history();
+        }
+        else
+        {
+            request_navigation(*history_target_);
+        }
+        return;
+    }
+    if (!messages_loaded_)
     {
         request_entry_history();
         return;
     }
-    set_messages_loading(true);
-    update_reading_navigation();
-    if (target_position_)
-    {
-        if (!target_position_->message)
-        {
-            return_to_latest();
-            return;
-        }
-        request_position(*target_position_);
-        return;
-    }
-    const bool at_end = messages_loaded_ && !capture_reading_position().message;
-    // Until the server answers, a live delivery may be separated from these rows by a gap.
-    tail_loaded_ = false;
     if (at_end)
     {
-        emit history_requested(active_conversation_, history_page::latest);
+        request_navigation({history_page::latest});
         return;
     }
+    set_messages_loading(true);
+    update_reading_navigation();
     emit history_requested(active_conversation_, history_page::refresh, std::max<qint64>(0, messages_->first_message_id() - 1));
 }
 
@@ -204,7 +219,7 @@ void chat_widget::jump_to_message(qint64 id)
         return;
     }
     reply_returns_.push_back(capture_reading_position());
-    if (target.isValid())
+    if (target.isValid() && !history_target_)
     {
         restore_reading_position({id, std::nullopt});
     }
@@ -220,11 +235,15 @@ void chat_widget::navigate_down()
     if (!reply_returns_.isEmpty())
     {
         const auto origin = reply_returns_.takeLast();
-        if (!origin.message)
+        if (origin.client_id && messages_->outgoing_index(origin.client_id).isValid())
+        {
+            restore_reading_position(origin);
+        }
+        else if (!origin.message)
         {
             return_to_latest();
         }
-        else if (messages_->message_index(origin.message).isValid())
+        else if (!history_target_ && messages_->message_index(origin.message).isValid())
         {
             restore_reading_position(origin);
         }
@@ -244,9 +263,8 @@ void chat_widget::navigate_down()
     else if ((!history_exhausted_ && read < messages_->first_message_id()) || (!next.isValid() && !tail_loaded_))
     {
         // The read frontier lies outside the known interval. Ask for an anchored page.
-        set_messages_loading(true);
-        messages_->set_unread_boundary(0);
-        emit history_requested(active_conversation_, history_page::unread);
+        request_navigation({history_page::unread});
+        preserve_reading([&] { messages_->set_unread_boundary(0); });
     }
     else if (next.isValid())
     {
@@ -272,22 +290,22 @@ void chat_widget::request_newer_messages()
 void chat_widget::return_to_latest()
 {
     reply_returns_.clear();
-    messages_->set_unread_boundary(0);
-    target_position_.reset();
-    if (tail_loaded_ && !messages_loading_)
+    if (tail_loaded_ && !messages_loading_ && connection_available_)
     {
-        messages_view_->doItemsLayout();
-        messages_view_->scrollToBottom();
+        history_target_.reset();
+        {
+            QScopedValueRollback guard(changing_layout_, true);
+            messages_->set_unread_boundary(0);
+            messages_view_->doItemsLayout();
+            messages_view_->scrollToBottom();
+        }
         mark_visible_messages();
-    }
-    else if (!connection_available_)
-    {
-        target_position_ = reading_position{};
+        update_reading_navigation();
     }
     else
     {
-        set_messages_loading(true);
-        emit history_requested(active_conversation_, history_page::latest);
+        request_navigation({history_page::latest});
+        preserve_reading([&] { messages_->set_unread_boundary(0); });
     }
 }
 

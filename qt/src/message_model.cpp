@@ -414,6 +414,18 @@ void message_model::reset(qint64 conversation, bool group)
     endResetModel();
 }
 
+QModelIndex message_model::outgoing_index(qint64 client_id) const
+{
+    auto matches = [this, client_id](const message_data& message) { return message.from == self_user_ && message.client_id == client_id; };
+    auto stored = std::ranges::find_if(messages_, matches);
+    if (stored != messages_.end())
+    {
+        return index(stored - messages_.begin());
+    }
+    auto pending = std::ranges::find_if(pending_, [&](const pending_message& item) { return matches(item.message); });
+    return pending != pending_.end() ? index(messages_.size() + (pending - pending_.begin())) : QModelIndex{};
+}
+
 QModelIndex message_model::message_index(qint64 id) const
 {
     auto it = std::ranges::lower_bound(messages_, id, {}, &message_data::id);

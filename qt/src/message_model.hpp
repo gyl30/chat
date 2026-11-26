@@ -104,6 +104,7 @@ class message_model final : public QAbstractListModel
     qint64 unread_boundary() const { return unread_boundary_; }
     void set_unread_boundary(qint64 id);
     QModelIndex message_index(qint64 id) const;
+    QModelIndex outgoing_index(qint64 client_id) const;
     QModelIndex next_incoming(qint64 after) const;
     qint64 first_message_id() const;
     qint64 last_message_id() const;

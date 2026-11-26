@@ -51,6 +51,7 @@
 #include <QModelIndex>
 #include <QPushButton>
 #include <QPlainTextEdit>
+#include <QScopedValueRollback>
 #include <QScrollBar>
 #include <QSize>
 #include <QSizePolicy>
@@ -2704,7 +2705,7 @@ void chat_widget::set_user(QString const& username, qint64 user, QString const& 
     active_group_ = false;
     reset_reply();
     active_conversation_ = 0;
-    target_position_.reset();
+    history_target_.reset();
     reply_returns_.clear();
     ++conversation_visit_;
     observed_tail_ = requested_read_ = 0;
@@ -3154,6 +3155,11 @@ void chat_widget::set_connection_available(bool available)
     }
     if (!available)
     {
+        const auto* scroll = messages_view_->verticalScrollBar();
+        if (!history_target_ && messages_loaded_ && tail_loaded_ && scroll->value() == scroll->maximum())
+        {
+            history_target_ = history_target{history_page::latest};
+        }
         stop_typing();
         set_presences({});
         typing_users_.clear();
@@ -3616,51 +3622,50 @@ void chat_widget::set_messages(qint64 user,
         return_to_latest();
         return;
     }
-    bool const position_page = page == history_page::latest || page == history_page::unread || page == history_page::around;
-    auto const previous = capture_reading_position();
-    auto const previous_tail = messages_->last_message_id();
-    auto const page_end = messages.isEmpty() ? 0 : messages.back().id;
-    for (auto const& message : messages)
+    const bool position_page = page == history_page::latest || page == history_page::unread || page == history_page::around;
+    const auto previous = capture_reading_position();
+    const auto previous_first = messages_->first_message_id();
+    const auto previous_tail = messages_->last_message_id();
+    const auto page_end = messages.isEmpty() ? 0 : messages.back().id;
     {
-        settle(message);
-    }
-    for (auto it = messages.begin(); it != messages.end();)
-    {
-        if (visible_message(*it))
+        QScopedValueRollback guard(changing_layout_, true);
+        for (auto const& message : messages)
         {
-            ++it;
+            settle(message);
         }
-        else
+        for (auto it = messages.begin(); it != messages.end();)
         {
-            it = messages.erase(it);
+            it = visible_message(*it) ? std::next(it) : messages.erase(it);
         }
-    }
-    if (position_page && !messages.isEmpty() && (messages.front().id > previous_tail || messages.back().id < messages_->first_message_id()))
-    {
-        // A navigation jump can skip entire pages. Keep the new interval separate from the old one.
-        messages_->discard_stored_rows();
-    }
-    messages_->merge_messages(std::move(messages));
-    messages_->set_read_positions(std::move(positions));
-    if (page != history_page::older)
-    {
-        tail_loaded_ = !has_newer && observed_tail_ <= messages_->last_message_id();
-    }
-    show_outgoing();
-    if (position_page || page == history_page::older)
-    {
-        history_exhausted_ = !has_more;
+        const auto first = messages.isEmpty() ? 0 : messages.front().id;
+        const auto last = messages.isEmpty() ? 0 : messages.back().id;
+        const bool replaces = position_page && first && previous_first && (first > previous_tail || last < previous_first);
+        if (replaces)
+        {
+            // A navigation jump can skip entire pages. Keep the new interval separate from the old one.
+            messages_->discard_stored_rows();
+        }
+        messages_->merge_messages(std::move(messages));
+        messages_->set_read_positions(std::move(positions));
+        if (page == history_page::older || (position_page && (replaces || !previous_first || first <= previous_first)))
+        {
+            history_exhausted_ = !has_more;
+        }
+        if (page != history_page::older && (replaces || !has_newer || last >= previous_tail))
+        {
+            tail_loaded_ = !has_newer && observed_tail_ <= messages_->last_message_id();
+        }
+        show_outgoing();
     }
     QModelIndex anchor;
     if (page == history_page::unread && first_unread)
     {
         anchor = messages_->next_incoming(std::max(*first_unread - 1, effective_read_position()));
-        if (!anchor.isValid() && has_newer)
+        if (!anchor.isValid() && !tail_loaded_)
         {
             // A concurrent clear, withdrawal or another device's receipt overtook the entry snapshot.
             messages_->discard_stored_rows();
-            set_messages_loading(true);
-            emit history_requested(user, history_page::unread);
+            request_navigation({history_page::unread});
             return;
         }
     }
@@ -3673,9 +3678,9 @@ void chat_widget::set_messages(qint64 user,
     {
         scroll_to_unread(anchor);
     }
-    else if (page == history_page::around && target_position_)
+    else if (page == history_page::around && history_target_)
     {
-        auto target = *std::exchange(target_position_, std::nullopt);
+        auto target = std::exchange(history_target_, std::nullopt)->position;
         auto index = messages_->message_index(target.message);
         if (index.isValid() && !index.data(message_model::deleted_role).toBool())
         {
@@ -3687,13 +3692,17 @@ void chat_widget::set_messages(qint64 user,
             return;
         }
     }
-    else if (position_page)
+    else if (position_page || (history_target_ && history_target_->page == history_page::latest))
     {
         messages_view_->scrollToBottom();
     }
     else
     {
         restore_reading_position(previous);
+    }
+    if (history_target_ && (history_target_->page == history_page::unread || (history_target_->page == history_page::latest && tail_loaded_)))
+    {
+        history_target_.reset();
     }
     messages_loaded_ = true;
     set_message_status(messages_->rowCount() == 0 ? QStringLiteral("暂无消息") : QString{});
@@ -3705,7 +3714,8 @@ void chat_widget::set_messages(qint64 user,
         return;
     }
     set_messages_loading(false);
-    if (!tail_loaded_ && (!messages_->last_message_id() || (page != history_page::older && !has_newer && observed_tail_ > page_end)))
+    if (!tail_loaded_ && ((history_target_ && history_target_->page == history_page::latest) || !messages_->last_message_id() ||
+                          (page != history_page::older && !has_newer && observed_tail_ > page_end)))
     {
         request_newer_messages();
     }
@@ -3771,15 +3781,16 @@ void chat_widget::update_poll(chat::poll_update const& update)
 
 void chat_widget::add_message(qint64 user, message_data message)
 {
-    settle(message);
     if (!visible_message(message) || user != active_conversation_)
     {
+        settle(message);
         return;
     }
 
     observed_tail_ = std::max(observed_tail_, message.id);
     if (!tail_loaded_ || !messages_loaded_)
     {
+        settle(message);
         return;
     }
 
@@ -3793,6 +3804,7 @@ void chat_widget::add_message(qint64 user, message_data message)
     preserve_reading(
         [&]
         {
+            settle(message);
             if (!messages_->add_message(std::move(message)))
             {
                 return;
@@ -3957,7 +3969,8 @@ void chat_widget::set_history_error(qint64 conversation, QString message)
     {
         set_messages_loading(false);
         update_reading_navigation();
-        if (std::exchange(target_position_, std::nullopt) && !messages_loaded_)
+        const auto target = std::exchange(history_target_, std::nullopt);
+        if (target && target->page == history_page::around && !messages_loaded_)
         {
             request_entry_history();
         }
@@ -4553,7 +4566,7 @@ void chat_widget::open_conversation(conversation_data conversation)
             reading_positions_.remove(active_conversation_);
         }
     }
-    target_position_.reset();
+    history_target_.reset();
     reply_returns_.clear();
     active_conversation_ = user;
     ++conversation_visit_;
@@ -4619,11 +4632,19 @@ void chat_widget::discard_history(qint64 conversation, qint64 floor)
         return;
     }
     reply_returns_.removeIf([floor](const reading_position& p) { return p.message && p.message <= floor; });
-    messages_->discard_through(floor);
-    if (messages_->unread_boundary() <= floor)
-    {
-        messages_->set_unread_boundary(0);
-    }
+    preserve_reading(
+        [&]
+        {
+            if (messages_->first_message_id() > 0 && messages_->first_message_id() <= floor)
+            {
+                history_exhausted_ = true;
+            }
+            messages_->discard_through(floor);
+            if (messages_->unread_boundary() <= floor)
+            {
+                messages_->set_unread_boundary(0);
+            }
+        });
     if (observed_tail_ <= floor)
     {
         observed_tail_ = 0;
@@ -4672,7 +4693,7 @@ void chat_widget::leave_conversation(qint64 conversation)
     typing_users_.clear();
     update_typing_label();
     active_conversation_ = 0;
-    target_position_.reset();
+    history_target_.reset();
     reply_returns_.clear();
     ++conversation_visit_;
     observed_tail_ = requested_read_ = 0;

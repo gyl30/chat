@@ -963,6 +963,10 @@ void client_bridge::get_messages(qint64 conversation, history_page page, qint64 
                 }
                 if (!result)
                 {
+                    if (result.error().kind == chat::error_kind::transport)
+                    {
+                        return;    // Reconnection reissues the active conversation's navigation.
+                    }
                     if (result.error().kind == chat::error_kind::rpc && page != history_page::around &&
                         result.error().code == chat::conversation_unavailable)
                     {

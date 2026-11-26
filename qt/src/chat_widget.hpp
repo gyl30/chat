@@ -482,9 +482,16 @@ class chat_widget final : public QWidget
     {
         qint64 message = 0;
         std::optional<int> offset = 0;
+        qint64 client_id = 0;
     };
     QHash<qint64, reading_position> reading_positions_;
-    std::optional<reading_position> target_position_;
+    struct history_target
+    {
+        history_page page;
+        reading_position position{};
+    };
+    std::optional<history_target> history_target_;
+    void request_navigation(history_target target);
     QList<reading_position> reply_returns_;
     void request_entry_history();
     void request_position(reading_position position);

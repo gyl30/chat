@@ -1,6 +1,7 @@
 """Hold real WebSocket responses until the Qt event under test has been processed."""
 
 import asyncio
+import json
 from pathlib import Path
 import sys
 import sqlite3
@@ -39,11 +40,27 @@ async def scenario(probe, mode):
                         client_id=800 + i,
                         text="历史消息与长行换行 " * 45,
                     )
+            if mode in ("nav_retry", "inflight_layout", "overlap"):
+                series = []
+                for n in range(100):
+                    series.append(
+                        (
+                            await b.ok(
+                                "send_message",
+                                conversation=g,
+                                text=f"{n} " + "历史锚点 " * 130,
+                                client_id=1200 + n,
+                            )
+                        )["id"]
+                    )
+                await a.ok("mark_read", conversation=g, message=series[-1])
             mid = await create(1)
             args = dict(conversation=g, message=mid)
             other = (
                 await b.ok("send_message", conversation=g, text="来源", client_id=2)
             )["id"]
+            if mode in ("nav_retry", "inflight_layout", "overlap"):
+                await a.ok("mark_read", conversation=g, message=other)
             if mode == "page_position":
                 await a.ok("vote_poll", choices=1, **args)
                 for i in range(8):
@@ -157,6 +174,13 @@ async def scenario(probe, mode):
 
                     async def seen(key, n):
                         await ui.wait("deliveries", lambda r: r.get(key, 0) > n)
+
+                    def watermark():
+                        with sqlite3.connect(db) as conn:
+                            return conn.execute(
+                                "SELECT last_read_message_id FROM conversation_members WHERE conversation_id=? AND user_id=1",
+                                (g,),
+                            ).fetchone()[0]
 
                     if mode == "older":
                         gate.hold.add("get_messages")
@@ -289,6 +313,382 @@ async def scenario(probe, mode):
                             sum(p["method"] == "get_messages" for p in gate.messages)
                             == requests
                         ), "unexpected replacement history request"
+                    elif mode == "poll_retry":
+                        await ui.call("poll_ui", create=True)
+                        await ui.wait("poll_ui", lambda r: r.get("editable"))
+                        gate.hold.add("send_message")
+                        fields = dict(
+                            question="待确认问答",
+                            options="甲\n乙",
+                            quiz=True,
+                            correct=2,
+                            explanation="解释",
+                            anonymous=False,
+                        )
+                        assert (await ui.call("poll_ui", **fields))["valid"]
+                        await gate.caught("send_message")
+                        first = next(
+                            m["params"]
+                            for m in gate.messages
+                            if m["method"] == "send_message"
+                        )
+                        mid = gate.held[-1][1]["result"]["id"]
+                        gate.hold.discard("send_message")
+                        gate.held.clear()
+                        gate.hold_requests.add("resume_session")
+                        await gate.down.close()
+                        await until(
+                            lambda: gate.held_requests, "disconnected after commit"
+                        )
+                        offline = await ui.call("poll_ui", tryEdit=True)
+                        print("poll after disconnect", offline, flush=True)
+                        assert (
+                            not offline["editable"]
+                            and not offline["edited"]
+                            and not offline["canSubmit"]
+                        ), offline
+                        await gate.release_requests("resume_session")
+                        await ui.wait("poll_ui", lambda r: r.get("canSubmit"))
+                        assert not (await ui.call("poll_ui", tryEdit=True))["edited"]
+                        await ui.call("poll_ui", retry=True)
+                        await ui.wait(
+                            "poll_ui", lambda r: "title" not in r, message=mid
+                        )
+                        replay = [
+                            m["params"]
+                            for m in gate.messages
+                            if m["method"] == "send_message"
+                        ]
+                        assert replay == [first, first], replay
+                        with sqlite3.connect(db) as conn:
+                            assert conn.execute(
+                                "SELECT id,body FROM messages WHERE sender_id=1 AND client_id=?",
+                                (first["client_id"],),
+                            ).fetchall() == [(mid, fields["question"])]
+                        await ui.call("poll_ui", create=True)
+                        await ui.wait("poll_ui", lambda r: r.get("editable"))
+                        gate.hold_requests.add("send_message")
+                        await ui.call("poll_ui", **fields)
+                        await until(
+                            lambda: gate.held_requests,
+                            "rejected request held before publication",
+                        )
+                        _, request = gate.held_requests[0]
+                        rejected_id = request["params"]["client_id"]
+                        # The server rejects an invalid body before writing; exercise the real error response.
+                        request["params"]["text"] = ""
+                        await gate.release_requests("send_message")
+                        await ui.wait(
+                            "poll_ui",
+                            lambda r: r.get("editable") and r.get("canSubmit"),
+                        )
+                        approved = dict(
+                            fields, question="修改后重新创建", options="丙\n丁"
+                        )
+                        await ui.call("poll_ui", **approved)
+                        await ui.wait(
+                            "poll_ui", lambda r: "title" not in r, message=mid
+                        )
+                        latest = [
+                            m["params"]
+                            for m in gate.messages
+                            if m["method"] == "send_message"
+                        ][-1]
+                        assert (
+                            latest["client_id"] != rejected_id
+                            and latest["text"] == approved["question"]
+                        )
+                        with sqlite3.connect(db) as conn:
+                            assert conn.execute(
+                                "SELECT count(*) FROM messages WHERE sender_id=1 AND client_id=?",
+                                (rejected_id,),
+                            ).fetchone() == (0,)
+                        # Remove the sender while the authenticated reconnect is parked.
+                        owned = (
+                            await b.ok("create_group", title="失权投票", members=[1])
+                        )["conversation"]
+                        await ui.wait("select", lambda r: r["ok"], conv=owned)
+                        await ui.wait("reading", lambda r: r["ready"])
+                        await ui.call("poll_ui", create=True)
+                        await ui.wait("poll_ui", lambda r: r.get("editable"))
+                        gate.hold.add("send_message")
+                        await ui.call("poll_ui", **dict(fields, question="重连时失权"))
+                        await gate.caught("send_message")
+                        gate.hold.clear()
+                        gate.held.clear()
+                        gate.hold_requests.add("resume_session")
+                        await gate.down.close()
+                        await until(
+                            lambda: gate.held_requests, "permission check on reconnect"
+                        )
+                        await b.ok("remove_group_member", conversation=owned, user=1)
+                        await gate.release_requests("resume_session")
+                        await ui.wait("state", lambda r: r["conv"] != owned)
+                        assert not (
+                            await ui.call("poll_ui", retry=True, message=mid)
+                        ).get("canSubmit")
+                        assert (
+                            sum(
+                                m["method"] == "send_message"
+                                and m["params"].get("text") == "重连时失权"
+                                for m in gate.messages
+                            )
+                            == 1
+                        )
+                    elif mode == "nav_retry":
+                        await ui.call("reading", jumpReply=series[12])
+                        await ui.wait(
+                            "reading", lambda r: r["ready"] and r["last"] < series[60]
+                        )
+                        gate.hold.add("get_messages")
+                        await ui.call("reading", latest=True)
+                        await gate.caught("get_messages")
+                        print(
+                            "first latest",
+                            gate.held[0][1]["result"]["messages"][-1]["id"],
+                            flush=True,
+                        )
+                        for _ in range(2):
+                            gate.held.clear()
+                            await gate.down.close()
+                            await gate.caught("get_messages")
+                            request = next(
+                                r["params"]
+                                for r in reversed(gate.messages)
+                                if r["method"] == "get_messages"
+                            )
+                            assert (
+                                "after" not in request and "around" not in request
+                            ), request
+                        await gate.release("get_messages")
+                        await ui.wait(
+                            "reading",
+                            lambda r: r["ready"]
+                            and r["tailLoaded"]
+                            and r["scroll"] == r["maximum"],
+                        )
+
+                        # An around request, and its return trip to a disjoint historical interval,
+                        # each survive the loss of their first WebSocket.
+                        async def reconnect_held(expected):
+                            gate.held.clear()
+                            await gate.down.close()
+                            await gate.caught("get_messages")
+                            req = next(
+                                m["params"]
+                                for m in reversed(gate.messages)
+                                if m["method"] == "get_messages"
+                            )
+                            assert expected.items() <= req.items(), req
+                            await gate.release("get_messages")
+
+                        await ui.call("reading", jumpReply=series[12])
+                        await ui.wait(
+                            "reading", lambda r: r["ready"] and r["first"] == series[0]
+                        )
+                        historical = await ui.call("reading")
+                        gate.hold.add("get_messages")
+                        await ui.call("reading", jumpReply=series[75])
+                        await gate.caught("get_messages")
+                        await reconnect_held({"around": series[75]})
+                        await ui.wait(
+                            "reading", lambda r: r["ready"] and r["first"] > series[0]
+                        )
+                        gate.hold.add("get_messages")
+                        await ui.call("reading", unread=True)
+                        await gate.caught("get_messages")
+                        await reconnect_held({"around": historical["topId"]})
+                        await ui.wait(
+                            "reading",
+                            lambda r: r["ready"]
+                            and (r["topId"], r["offset"])
+                            == (historical["topId"], historical["offset"]),
+                        )
+                        # Clear the older reply return entry by visiting another room.
+                        await ui.call("select", conv=direct)
+                        await ui.wait("reading", lambda r: r["ready"])
+                        await ui.call("select", conv=g)
+                        await ui.wait(
+                            "reading",
+                            lambda r: r["ready"] and r["topId"] == historical["topId"],
+                        )
+                        # The actual unread frontier is outside the currently loaded interval.
+                        newest = (
+                            await b.ok(
+                                "send_message",
+                                conversation=g,
+                                text="未读请求断线",
+                                client_id=2041,
+                            )
+                        )["id"]
+                        await ui.wait("reading", lambda r: r["count"] == 1)
+                        gate.hold.add("get_messages")
+                        await ui.call("reading", unread=True)
+                        await gate.caught("get_messages")
+                        await reconnect_held({"capture_unread": True})
+                        await ui.wait(
+                            "reading",
+                            lambda r: r["ready"]
+                            and r["tailLoaded"]
+                            and r["last"] == newest,
+                        )
+                        await until(
+                            lambda: watermark() == newest,
+                            "unread replay advances actual SQLite receipt",
+                        )
+                        gate.hold.add("get_messages")
+                        await ui.call("reading", jumpReply=series[12])
+                        await gate.caught("get_messages")
+                        gate.hold.clear()
+                        await ui.call("select", conv=direct)
+                        await ui.wait("reading", lambda r: r["ready"])
+                        await gate.release("get_messages")
+                        after = await ui.call("state")
+                        assert after["conv"] == direct and all(
+                            r["id"] != series[12] for r in after["rows"]
+                        )
+                    elif mode == "inflight_layout":
+                        row = series[65]
+                        initial = await ui.call("reading", inspect=row, atY=-2)
+                        assert (initial["topId"], initial["offset"]) == (
+                            row,
+                            -2,
+                        ), initial
+                        gate.hold.add("get_messages")
+                        await ui.call("reading", requestOlder=True)
+                        await gate.caught("get_messages")
+                        n = await count("edit")
+                        await b.ok(
+                            "edit_message",
+                            conversation=g,
+                            message=series[64],
+                            text="短消息",
+                        )
+                        await seen("edit", n)
+                        after = await ui.call("reading")
+                        assert (after["topId"], after["offset"]) == (row, -2), after
+                        for width in (980, 1280):
+                            await ui.call("poll_ui", width=width)
+                            after = await ui.call("reading")
+                            assert (after["topId"], after["offset"]) == (row, -2), after
+                        for emoji in ("👍", ""):
+                            n = await count("reaction")
+                            await b.ok(
+                                "set_message_reaction",
+                                conversation=g,
+                                message=series[64],
+                                emoji=emoji,
+                            )
+                            await seen("reaction", n)
+                            after = await ui.call("reading")
+                            assert (after["topId"], after["offset"]) == (row, -2), after
+                        n = await count("edit")
+                        await b.ok("delete_message", conversation=g, message=series[64])
+                        await seen("edit", n)
+                        after = await ui.call("reading")
+                        assert (after["topId"], after["offset"], watermark()) == (
+                            row,
+                            -2,
+                            other,
+                        ), after
+                        await gate.release("get_messages")
+                        await ui.wait(
+                            "reading",
+                            lambda r: r["ready"]
+                            and (r["topId"], r["offset"]) == (row, -2),
+                        )
+                    elif mode == "overlap":
+                        await ui.call("reading", latest=True)
+                        await ui.wait(
+                            "reading", lambda r: r["ready"] and r["tailLoaded"]
+                        )
+                        await ui.call("reading", jumpReply=series[43])
+                        merged = await ui.wait(
+                            "reading", lambda r: r["ready"] and r["first"] == series[23]
+                        )
+                        assert merged["last"] == other and merged["tailLoaded"], merged
+                        await ui.call("reading", loadAround=series[8])
+                        whole = await ui.wait(
+                            "reading", lambda r: r["ready"] and r["first"] == series[0]
+                        )
+                        assert (
+                            whole["tailLoaded"]
+                            and whole["oldestLoaded"]
+                            and whole["last"] == other
+                        ), whole
+                        await ui.call("reading", loadAround=series[43])
+                        inner = await ui.wait("reading", lambda r: r["ready"])
+                        assert (
+                            inner["first"] == series[0]
+                            and inner["last"] == other
+                            and inner["tailLoaded"]
+                            and inner["oldestLoaded"]
+                        ), inner
+                        tail = (
+                            await b.ok(
+                                "send_message",
+                                conversation=g,
+                                text="重叠后实时来信",
+                                client_id=2460,
+                            )
+                        )["id"]
+                        await ui.wait(
+                            "reading", lambda r: r["last"] == tail and r["tailLoaded"]
+                        )
+                        gate.hold_requests.add("send_message")
+                        await ui.call("send", text="重叠后的待发")
+                        await ui.wait(
+                            "state",
+                            lambda r: any(
+                                x["text"] == "重叠后的待发" for x in r["rows"]
+                            ),
+                            pendingOnly=True,
+                        )
+                    elif mode == "pending_anchor":
+                        gate.hold_requests.add("send_message")
+                        for n in range(3):
+                            await ui.call(
+                                "send", text=f"排队 {n} " + "待发送锚点 " * 300
+                            )
+                            await ui.wait(
+                                "state",
+                                lambda r: sum(not x["id"] for x in r["rows"]) == n + 1,
+                            )
+                        before = await ui.call("reading", pendingAt="排队 1", atY=-7)
+                        assert (
+                            before["topText"].startswith("排队 1")
+                            and before["offset"] == -7
+                        ), before
+                        await ui.call("poll_ui", width=980)
+                        after = await ui.call("reading")
+                        assert (after["topClient"], after["offset"]) == (
+                            before["topClient"],
+                            -7,
+                        ), after
+                        # Send the first queued request, then observe the remaining pending row at its old pixel.
+                        gate.hold.add("send_message")
+                        server, request = gate.held_requests.pop(0)
+                        await server.send(json.dumps(request))
+                        await gate.caught("send_message")
+                        await gate.release("send_message")
+                        await ui.wait(
+                            "state", lambda r: sum(not x["id"] for x in r["rows"]) == 2
+                        )
+                        assert (await ui.call("reading"))["topClient"] == before[
+                            "topClient"
+                        ]
+                        await until(
+                            lambda: gate.held_requests, "second pending message queued"
+                        )
+                        server, request = gate.held_requests.pop(0)
+                        await server.send(json.dumps(request))
+                        acknowledged = await ui.wait(
+                            "reading", lambda r: r["topId"] > other
+                        )
+                        assert (acknowledged["topClient"], acknowledged["offset"]) == (
+                            before["topClient"],
+                            -7,
+                        ), acknowledged
                     elif mode == "timeline":
                         await ui.call("reading", latest=True, activate=True)
                         gate.hold_requests.add("send_message")
@@ -685,6 +1085,11 @@ async def run():
         "clear",
         "leave",
         "page_position",
+        "poll_retry",
+        "nav_retry",
+        "inflight_layout",
+        "overlap",
+        "pending_anchor",
         "timeline",
         "detail_recall",
         "detail_clear",
