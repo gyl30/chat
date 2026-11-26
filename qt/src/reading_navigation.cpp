@@ -113,6 +113,11 @@ void chat_widget::begin_history_refresh()
     update_reading_navigation();
     if (target_position_)
     {
+        if (!target_position_->message)
+        {
+            return_to_latest();
+            return;
+        }
         request_position(*target_position_);
         return;
     }
@@ -137,10 +142,12 @@ void chat_widget::update_reading_navigation()
     }
     auto* viewport = messages_view_->viewport();
     auto const* scroll = messages_view_->verticalScrollBar();
-    bool const away = !tail_loaded_ || scroll->value() < scroll->maximum();
-    auto const unread = conversation_unread();
-    history_down_->setText(unread ? QStringLiteral("↓  %1").arg(unread) : QStringLiteral("↓"));
-    history_down_->setToolTip(unread ? QStringLiteral("前往未读消息") : QStringLiteral("返回最新消息"));
+    const auto unread = conversation_unread();
+    const bool returning = !reply_returns_.isEmpty();
+    const auto gap = scroll->maximum() - scroll->value();
+    const bool away = returning || !tail_loaded_ || gap > (unread ? 0 : viewport->height() / 2);
+    history_down_->setText(!returning && unread ? QStringLiteral("↓  %1").arg(unread) : QStringLiteral("↓"));
+    history_down_->setToolTip(returning ? QStringLiteral("返回引用前的位置") : unread ? QStringLiteral("前往未读消息") : QStringLiteral("返回最新消息"));
     history_down_->setAccessibleName(history_down_->toolTip());
     history_down_->adjustSize();
     history_down_->move(viewport->width() - history_down_->width() - 14, viewport->height() - history_down_->height() - 12);
@@ -171,8 +178,54 @@ void chat_widget::scroll_to_unread(QModelIndex const& index)
     scroll->setValue(scroll->value() + messages_view_->visualRect(index).top() - std::min(64, messages_view_->viewport()->height() / 5));
 }
 
+void chat_widget::jump_to_reply(qint64 id)
+{
+    if (id <= history_floor(active_conversation_))
+    {
+        return;
+    }
+    const auto target = messages_->message_index(id);
+    if (target.data(message_model::deleted_role).toBool())
+    {
+        return;
+    }
+    if (!target.isValid() && !connection_available_)
+    {
+        set_message_status(QStringLiteral("重新连接后可以查看这条消息"));
+        return;
+    }
+    reply_returns_.push_back(capture_reading_position());
+    if (target.isValid())
+    {
+        restore_reading_position({id, std::nullopt});
+    }
+    else
+    {
+        request_position({id, std::nullopt});
+    }
+    update_reading_navigation();
+}
+
 void chat_widget::navigate_down()
 {
+    if (!reply_returns_.isEmpty())
+    {
+        const auto origin = reply_returns_.takeLast();
+        if (!origin.message)
+        {
+            return_to_latest();
+        }
+        else if (messages_->message_index(origin.message).isValid())
+        {
+            restore_reading_position(origin);
+        }
+        else
+        {
+            request_position(origin);
+        }
+        update_reading_navigation();
+        return;
+    }
     auto const read = effective_read_position();
     auto const next = messages_->next_incoming(read);
     if (next.isValid() && messages_view_->visualRect(next).top() < messages_view_->viewport()->height())
@@ -209,6 +262,7 @@ void chat_widget::request_newer_messages()
 
 void chat_widget::return_to_latest()
 {
+    reply_returns_.clear();
     messages_->set_unread_boundary(0);
     target_position_.reset();
     if (tail_loaded_ && !messages_loading_)
@@ -216,6 +270,10 @@ void chat_widget::return_to_latest()
         messages_view_->doItemsLayout();
         messages_view_->scrollToBottom();
         mark_visible_messages();
+    }
+    else if (!connection_available_)
+    {
+        target_position_ = reading_position{};
     }
     else
     {

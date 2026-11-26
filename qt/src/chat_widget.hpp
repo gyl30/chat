@@ -138,6 +138,7 @@ class chat_widget final : public QWidget
     void set_message_error(qint64 user, QString message);
     void set_history_error(qint64 conversation, QString message);
 
+    void return_to_latest();
     qint64 active_conversation() const noexcept;
     qint64 latest_message_id() const;
     bool messages_ready() const;
@@ -313,7 +314,7 @@ class chat_widget final : public QWidget
     void request_older_messages();
     void update_reading_navigation();
     void resume_reading_after_menu(QMenu& menu);
-    void return_to_latest();
+    void jump_to_reply(qint64 id);
     void request_newer_messages();
     void navigate_down();
     quint64 conversation_unread() const;
@@ -482,6 +483,7 @@ class chat_widget final : public QWidget
     };
     QHash<qint64, reading_position> reading_positions_;
     std::optional<reading_position> target_position_;
+    QList<reading_position> reply_returns_;
     void request_entry_history();
     void request_position(reading_position position);
     reading_position capture_reading_position() const;

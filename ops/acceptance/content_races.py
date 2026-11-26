@@ -53,6 +53,10 @@ async def scenario(probe, mode):
                         client_id=900 + i,
                         text="更新消息 " * 50,
                     )
+            if mode == "timeline":
+                for n in range(120):
+                    tail = (await b.ok("send_message", conversation=g, text=f"{n}: " + "历史行 " * 60, client_id=300+n))["id"]
+                await a.ok("mark_read", conversation=g, message=tail)
             if mode == "older":
                 await a.ok("mark_read", conversation=g, message=other)
                 for n in range(55):
@@ -226,6 +230,32 @@ async def scenario(probe, mode):
                         await seen("preference", n)
                         state = await ui.call("state")
                         assert not any(x["id"] == mid for x in state["rows"])
+                    elif mode == "timeline":
+                        await ui.call("reading", latest=True, activate=True)
+                        gate.hold_requests.add("send_message")
+                        await ui.call("send", text="等待确认的文本")
+                        await until(lambda: gate.held_requests, "queued text")
+                        await ui.call("reading", jumpReply=other)
+                        historical = await ui.wait("reading", lambda r: r["ready"] and r["last"] < tail)
+                        assert not any(not row["id"] for row in (await ui.call("state"))["rows"])
+                        await ui.call("reading", jumpReply=mid)
+                        await ui.call("reading", unread=True)
+                        await ui.wait("reading", lambda r: r["topId"] == historical["topId"] and r["offset"] == historical["offset"])
+                        await gate.release_requests("send_message")
+                        await ui.wait("reading", lambda r: r["topId"] == historical["topId"] and r["offset"] == historical["offset"])
+                        await ui.call("reading", unread=True)
+                        await ui.wait("reading", lambda r: r["ready"] and r["viewingLatest"] and r["last"] > tail)
+                        gate.hold_requests.add("resume_session")
+                        await gate.down.close()
+                        await until(lambda: any(m["method"] == "resume_session" for _,m in gate.held_requests), "reconnect")
+                        for n in range(58):
+                            newest = (await b.ok("send_message", conversation=g, text="离线期间", client_id=700+n))["id"]
+                        await gate.release_requests("resume_session")
+                        await ui.wait("reading", lambda r: r["ready"] and r["viewingLatest"] and r["last"] == newest)
+                        await ui.call("reading", jumpReply=other)
+                        await ui.wait("reading", lambda r: r["ready"] and r["last"] < tail)
+                        await ui.call("send", text="主动发送应回到末尾")
+                        await ui.wait("reading", lambda r: r["ready"] and r["viewingLatest"] and r["last"] > newest)
                     elif mode == "page_position":
                         await ui.call("poll_ui", width=1280)
                         start = await ui.call("reading", inspect=mid, atY=-2)
@@ -477,6 +507,7 @@ async def run():
         "clear",
         "leave",
         "page_position",
+        "timeline",
         "detail_recall",
         "detail_clear",
         "detail_loss",

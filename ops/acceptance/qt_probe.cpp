@@ -1914,6 +1914,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         {
             list->scrollTo(chat->messages_->message_index(id), QAbstractItemView::PositionAtBottom);
         }
+        if (auto id = cmd["jumpReply"].toInteger())
+        {
+            chat->jump_to_reply(id);
+        }
         auto inspect = chat->messages_->message_index(cmd["inspect"].toInteger());
         if (inspect.isValid() && cmd.contains("atY"))
         {

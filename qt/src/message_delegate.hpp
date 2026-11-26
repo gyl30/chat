@@ -23,6 +23,7 @@ class message_delegate final : public QStyledItemDelegate
     bool helpEvent(QHelpEvent* event, QAbstractItemView* view, QStyleOptionViewItem const& option, QModelIndex const& index) override;
 
    signals:
+    void reply_clicked(qint64 id);
     void avatar_clicked(QModelIndex const& index);
     void read_details_clicked(QModelIndex const& index);
     void reaction_clicked(QModelIndex const& index, QString emoji);

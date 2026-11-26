@@ -140,6 +140,8 @@ struct message_layout
 {
     QString text;
     QString sender;
+    QString reply;
+    int reply_height = 0;
     QString forward_header;
     int forward_height = 0;
     QString time;
@@ -191,10 +193,18 @@ struct message_layout
         return {x, bubble_rect(row).bottom() - size + 1, size, size};
     }
 
+    QRect reply_rect(QRect const& row) const
+    {
+        const auto bubble = bubble_rect(row);
+        return {bubble.left() + chat_theme::message_padding_horizontal,
+                bubble.top() + chat_theme::message_padding_vertical + forward_height,
+                bubble.width() - 2 * chat_theme::message_padding_horizontal, reply_height};
+    }
+
     QPoint text_origin(QRect const& row) const
     {
         return bubble_rect(row).topLeft() +
-               QPoint(chat_theme::message_padding_horizontal, chat_theme::message_padding_vertical + forward_height + image_height);
+               QPoint(chat_theme::message_padding_horizontal, chat_theme::message_padding_vertical + forward_height + reply_height + image_height);
     }
 
     QUrl link_at(QRect const& row, QPoint point, QModelIndex const& index) const
@@ -256,7 +266,9 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     auto const reply = index.data(message_model::reply_text_role).toString();
     if (!reply.isEmpty())
     {
-        result.text = reply + QStringLiteral("\n\n") + result.text;
+        const QFontMetrics metrics(option.font);
+        result.reply = metrics.elidedText(reply.simplified(), Qt::ElideRight, inner_max - 10);
+        result.reply_height = metrics.height() + 8;
     }
     auto const origin = index.data(message_model::forwarded_from_role).toString();
     if (!origin.isEmpty())
@@ -450,6 +462,11 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         font.setBold(true);
         content_width = std::max(content_width, 10 + QFontMetrics(font).horizontalAdvance(result.forward_header));
         content_height += result.forward_height;
+    }
+    if (result.reply_height)
+    {
+        content_width = std::max(content_width, 10 + QFontMetrics(option.font).horizontalAdvance(result.reply));
+        content_height += result.reply_height;
     }
     content_height += result.reactions_height;
 
@@ -648,6 +665,14 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         content_top += layout.forward_height;
     }
     painter->setFont(option.font);
+    if (layout.reply_height)
+    {
+        const auto rect = layout.reply_rect(option.rect).adjusted(0, 0, 0, -4);
+        painter->fillRect(rect.adjusted(0, 1, 3 - rect.width(), -1), themed("link"));
+        painter->setPen(themed("text_secondary"));
+        painter->drawText(rect.adjusted(9, 0, 0, 0), Qt::AlignVCenter | Qt::AlignLeft, layout.reply);
+        content_top += layout.reply_height;
+    }
     if (layout.image_height > 0)
     {
         QRect frame(content_left, content_top, layout.image_width, layout.image_height - 8);
@@ -845,6 +870,11 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QSt
     }
 
     auto const layout = calculate_layout(option, index);
+    if (auto id = index.data(message_model::reply_target_role).toLongLong(); id && layout.reply_rect(option.rect).contains(mouse->pos()))
+    {
+        emit reply_clicked(id);
+        return true;
+    }
     if (layout.poll)
     {
         int action = 0;
@@ -909,7 +939,7 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QSt
     auto const bubble_x = bubble.left();
     auto const content_right = bubble_x + layout.bubble_width - chat_theme::message_padding_horizontal;
     auto const metadata_width = layout.time_width + layout.receipt_width + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0);
-    auto const content_top = y + chat_theme::message_padding_vertical + layout.forward_height + layout.image_height;
+    auto const content_top = y + chat_theme::message_padding_vertical + layout.forward_height + layout.reply_height + layout.image_height;
     if (layout.image_height > 0 &&
         QRect(bubble_x + chat_theme::message_padding_horizontal, content_top - layout.image_height, layout.image_width, layout.image_height - 8)
             .contains(mouse->position().toPoint()))

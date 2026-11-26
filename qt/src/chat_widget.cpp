@@ -1888,6 +1888,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
                 message_edit_->setFocus();
             });
     connect(messages_view_, &QListView::customContextMenuRequested, this, &chat_widget::show_message_menu);
+    connect(messages_delegate, &message_delegate::reply_clicked, this, &chat_widget::jump_to_reply);
     connect(messages_delegate,
             &message_delegate::avatar_clicked,
             this,
@@ -2490,7 +2491,7 @@ void chat_widget::show_message_menu(QPoint position)
         auto id = target_index.data(message_model::reply_target_role).toLongLong();
         if (connection_available_ && id > history_floor(conversation))
         {
-            locate_message(conversation, id);
+            jump_to_reply(id);
         }
         return;
     }
@@ -2850,7 +2851,6 @@ void chat_widget::set_user(QString const& username, qint64 user, QString const& 
     self_profile_action_->setEnabled(user > 0);
     history_floors_.clear();
     reading_positions_.clear();
-    target_position_.reset();
     draft_timer_->stop();
     drafts_.clear();
     outgoing_.clear();
@@ -2860,6 +2860,7 @@ void chat_widget::set_user(QString const& username, qint64 user, QString const& 
     reset_reply();
     active_conversation_ = 0;
     target_position_.reset();
+    reply_returns_.clear();
     ++conversation_visit_;
     observed_tail_ = requested_read_ = 0;
     tail_loaded_ = false;
@@ -3936,6 +3937,10 @@ void chat_widget::add_message(qint64 user, message_data message)
             {
                 return;
             }
+            if (new_run && !boundary && message.id > read && viewing_latest())
+            {
+                messages_->set_unread_boundary(0);
+            }
             if (boundary)
             {
                 messages_->set_unread_boundary(boundary);
@@ -3968,6 +3973,10 @@ void chat_widget::update_message(message_data message)
     if (message.conversation != active_conversation_)
     {
         return;
+    }
+    if (message.deleted)
+    {
+        reply_returns_.removeIf([&](const reading_position& p) { return p.message == message.id; });
     }
     if (message.deleted && message.id == messages_->unread_boundary())
     {
@@ -4684,6 +4693,7 @@ void chat_widget::open_conversation(conversation_data conversation)
         }
     }
     target_position_.reset();
+    reply_returns_.clear();
     active_conversation_ = user;
     ++conversation_visit_;
     observed_tail_ = requested_read_ = 0;
@@ -4747,6 +4757,7 @@ void chat_widget::discard_history(qint64 conversation, qint64 floor)
     {
         return;
     }
+    reply_returns_.removeIf([floor](const reading_position& p) { return p.message && p.message <= floor; });
     messages_->discard_through(floor);
     if (messages_->unread_boundary() <= floor)
     {
@@ -4801,6 +4812,7 @@ void chat_widget::leave_conversation(qint64 conversation)
     update_typing_label();
     active_conversation_ = 0;
     target_position_.reset();
+    reply_returns_.clear();
     ++conversation_visit_;
     observed_tail_ = requested_read_ = 0;
     tail_loaded_ = false;
@@ -5178,8 +5190,17 @@ void chat_widget::finish_text_save(qint64 client_id, QString error)
     {
         set_error(std::move(error));
     }
-    else if (drafts_.value(saved.draft_conversation).revision == saved.revision)
+    else
     {
+        if (active_conversation_ == saved.draft_conversation)
+        {
+            return_to_latest();
+        }
+        if (drafts_.value(saved.draft_conversation).revision != saved.revision)
+        {
+            update_compose_state();
+            return;
+        }
         drafts_.remove(saved.draft_conversation);
         if (saved.draft_conversation == active_conversation_)
         {
@@ -5403,6 +5424,7 @@ void chat_widget::queue_outgoing(outgoing item)
         return;
     }
     stop_typing();
+    return_to_latest();
     show_outgoing();
     update_compose_state();
     submit(outgoing_.back());

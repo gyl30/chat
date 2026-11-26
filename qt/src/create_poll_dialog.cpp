@@ -397,6 +397,10 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
                          }
                          if (error.isEmpty())
                          {
+                             if (chat.active_conversation() == room)
+                             {
+                                 chat.return_to_latest();
+                             }
                              dialog.accept();
                              return;
                          }
