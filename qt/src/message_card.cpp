@@ -62,11 +62,18 @@ int layout_bundle_card(QPainter* painter, QFont const& font, int width, QString 
     return card_footer(painter, font, y + 5, width, lines.size() > 1 ? lines.last().toString() : QString{}, QStringLiteral("查看记录 ›"));
 }
 
-int layout_poll_card(QPainter* painter, QFont const& font, int width, QString const& question, chat::poll_summary const& poll)
+int layout_poll_card(QPainter* painter,
+                     QFont const& font,
+                     int width,
+                     QString const& question,
+                     chat::poll_summary const& poll,
+                     QPoint const* point,
+                     int* action,
+                     bool pending)
 {
     auto const title = title_font(font);
     QFontMetrics const metrics(font);
-    auto text_row = [&](int y, int available, QFont const& face, QString text, QColor ink)
+    auto text_row = [&](int y, int x, int available, QFont const& face, QString text, QColor ink)
     {
         // Native Unicode line breaking keeps words and closing punctuation together where possible.
         QTextLayout paragraph(text.replace(u'\n', QChar::LineSeparator), face);
@@ -85,45 +92,64 @@ int layout_poll_card(QPainter* painter, QFont const& font, int width, QString co
         if (painter)
         {
             painter->setPen(ink);
-            paragraph.draw(painter, {0., qreal(y)});
+            paragraph.draw(painter, {qreal(x), qreal(y)});
         }
         return height;
     };
-    int y = text_row(0, width, title, question, themed("text")) + 4;
+    int y = text_row(0, 0, width, title, question, themed("text")) + 4;
     qint64 total = 0;
     for (auto const& option : poll.options)
     {
         total += option.votes;
     }
-    y += text_row(y, width, font, QStringLiteral("实名单选 · 共 %1 票").arg(total), themed("text_secondary")) + 10;
+    const bool results = poll.closed || poll.selection != 0;
+    y += text_row(y, 0, width, font, poll.closed ? QStringLiteral("实名单选 · 已结束") : QStringLiteral("实名单选"), themed("text_secondary")) + 8;
     for (auto const& option : poll.options)
     {
-        double share = total ? double(option.votes) / total : 0;
-        auto const tally = QStringLiteral("%1 票 · %2%").arg(option.votes).arg(qRound(share * 100));
-        int const available = width - metrics.horizontalAdvance(tally) - 12;
-        int const height = text_row(y, available, font, QString::fromStdString(option.label), themed("text"));
+        const int left = results ? metrics.horizontalAdvance(QStringLiteral("100%")) + 12 : 30;
+        const int height = text_row(y + 5, left, width - left, font, QString::fromStdString(option.label), themed("text"));
+        const double share = total ? double(option.votes) / total : 0;
+        const QRect row(0, y, width, height + (results ? 18 : 12));
         if (painter)
         {
             painter->setFont(font);
-            painter->setPen(themed("text_secondary"));
-            painter->drawText(QRect(0, y, width, metrics.height()), Qt::AlignRight | Qt::AlignTop, tally);
-            painter->setPen(Qt::NoPen);
-            QRectF track(0, y + height + 3, width, 4);
-            painter->setBrush(themed("border"));
-            painter->drawRoundedRect(track, 2, 2);
-            if (option.votes)
+            if (results)
             {
-                track.setWidth(width * share);
-                painter->setBrush(themed("accent"));
+                painter->setPen(themed("text_secondary"));
+                painter->drawText(QRect(0, y + 5, left - 8, metrics.height()), Qt::AlignRight, QString::number(qRound(share * 100)) + u'%');
+                QRectF track(left, y + height + 9, width - left, 4);
+                painter->setPen(Qt::NoPen);
+                painter->setBrush(themed("border"));
                 painter->drawRoundedRect(track, 2, 2);
+                painter->setBrush(themed("accent"));
+                track.setWidth(track.width() * share);
+                painter->drawRoundedRect(track, 2, 2);
+                if (option.position == poll.selection)
+                {
+                    painter->setPen(QPen(themed("accent"), 2));
+                    const QPoint p(left - 17, y + height + 10);
+                    painter->drawLine(p - QPoint(4, 1), p + QPoint(-1, 2));
+                    painter->drawLine(p + QPoint(-1, 2), p + QPoint(5, -4));
+                }
+            }
+            else
+            {
+                painter->setPen(QPen(themed("accent"), 1.5));
+                painter->setBrush(Qt::NoBrush);
+                painter->drawEllipse(QPoint(12, y + 5 + metrics.height() / 2), 7, 7);
             }
         }
-        y += height + 15;
+        if (!results && !pending && point && row.contains(*point))
+        {
+            *action = static_cast<int>(option.position);
+        }
+        y += row.height();
     }
-    return card_footer(painter,
-                       font,
-                       y,
-                       width,
-                       poll.closed ? QStringLiteral("投票已结束") : QStringLiteral("投票进行中"),
-                       poll.closed ? QStringLiteral("查看结果 ›") : QStringLiteral("参与投票 ›"));
+    const QString link = results ? QStringLiteral("查看结果 ›") : QString{};
+    int bottom = card_footer(painter, font, y, width, pending ? QStringLiteral("正在提交…") : QStringLiteral("%1 人已投票").arg(total), link);
+    if (point && results && QRect(width - metrics.horizontalAdvance(link) - 4, y, metrics.horizontalAdvance(link) + 4, bottom - y).contains(*point))
+    {
+        *action = -1;
+    }
+    return bottom;
 }

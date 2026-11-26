@@ -1,110 +1,61 @@
 #include "poll_dialog.hpp"
-#include "theme.hpp"
-#include <QComboBox>
+#include "avatar.hpp"
 #include "chat_widget.hpp"
 #include "client_bridge.hpp"
-#include <QDialogButtonBox>
+#include "theme.hpp"
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QLabel>
 #include <QLineEdit>
-#include <QListWidget>
-#include <QPlainTextEdit>
+#include <QMouseEvent>
 #include <QPushButton>
-#include <QVBoxLayout>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSet>
-#include <QMessageBox>
-#include <QStyle>
-#include <QStyledItemDelegate>
-#include <QPainter>
-#include <QTextLayout>
-#include <QScreen>
-#include "theme_manager.hpp"
+#include <QToolButton>
+#include <QVBoxLayout>
 
 namespace
 {
-enum option_role
-{
-    count_role = Qt::UserRole + 1,
-    fraction_role,
-    mine_role
-};
-
-class option_delegate final : public QStyledItemDelegate
+class option_handle final : public QLabel
 {
    public:
-    using QStyledItemDelegate::QStyledItemDelegate;
-    QSize sizeHint(QStyleOptionViewItem const& option, QModelIndex const& index) const override
+    option_handle(QWidget* row, QVBoxLayout* list) : QLabel(QStringLiteral("≡"), row), list_(list)
     {
-        auto const* list = static_cast<QListWidget const*>(parent());
-        int width = list->viewport()->width();
-        return {width, render_label(index, option.font, width - 40, nullptr, {}) + 38};
-    }
-
-    void paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const override
-    {
-        painter->save();
-        painter->setRenderHint(QPainter::Antialiasing);
-        auto row = option.rect.adjusted(2, 2, -2, -2);
-        bool selected = option.state & QStyle::State_Selected;
-        painter->setBrush(themed(option.state & QStyle::State_MouseOver ? "canvas_hover" : "canvas"));
-        painter->setPen(themed(selected ? "focus" : "border"));
-        painter->drawRoundedRect(row, 6, 6);
-        if (static_cast<QListWidget const*>(parent())->selectionMode() != QAbstractItemView::NoSelection)
-        {
-            QPoint center(row.left() + 13, row.top() + 8 + option.fontMetrics.height() / 2);
-            painter->setPen(themed(selected ? "focus" : "border_strong"));
-            painter->drawEllipse(center, 6, 6);
-            if (selected)
-            {
-                painter->setBrush(themed("focus"));
-                painter->drawEllipse(center, 3, 3);
-            }
-        }
-        int left = row.left() + 26;
-        painter->setPen(themed("text"));
-        render_label(index, option.font, option.rect.width() - 40, painter, {left, row.top() + 5});
-        double fraction = index.data(fraction_role).toDouble();
-        QString stats = QStringLiteral("%1 票 · %2%").arg(index.data(count_role).toLongLong()).arg(fraction * 100, 0, 'f', fraction == 0 ? 0 : 1);
-        auto detail = row.adjusted(26, 0, -10, -7);
-        painter->setPen(themed("text_secondary"));
-        painter->drawText(detail, Qt::AlignRight | Qt::AlignBottom, stats);
-        if (index.data(mine_role).toBool())
-        {
-            painter->setPen(themed("accent"));
-            painter->drawText(detail, Qt::AlignLeft | Qt::AlignBottom, QStringLiteral("我的投票"));
-        }
-        QRectF track(left, row.bottom() - 4, detail.width(), 3);
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(themed("border"));
-        painter->drawRoundedRect(track, 1.5, 1.5);
-        painter->setBrush(themed("accent"));
-        track.setWidth(track.width() * fraction);
-        painter->drawRoundedRect(track, 1.5, 1.5);
-        painter->restore();
+        setCursor(Qt::OpenHandCursor);
+        setToolTip(QStringLiteral("拖动调整选项顺序"));
+        setMargin(5);
     }
 
    private:
-    static int render_label(QModelIndex const& index, QFont const& font, int width, QPainter* painter, QPoint origin)
+    void mouseMoveEvent(QMouseEvent* e) override
     {
-        QTextLayout layout(index.data().toString(), font);
-        QTextOption wrap;
-        wrap.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
-        layout.setTextOption(wrap);
-        layout.beginLayout();
-        qreal height = 0;
-        for (auto line = layout.createLine(); line.isValid(); line = layout.createLine())
+        if (e->buttons() & Qt::LeftButton)
         {
-            line.setLineWidth(std::max(1, width));
-            line.setPosition({0, height});
-            height += line.height();
+            auto y = list_->parentWidget()->mapFromGlobal(e->globalPosition().toPoint()).y();
+            auto* row = parentWidget();
+            int from = list_->indexOf(row);
+            for (int i = 0; i < list_->count(); ++i)
+            {
+                auto rect = list_->itemAt(i)->geometry();
+                if ((i < from && y <= rect.center().y()) || (i > from && y >= rect.center().y() && y <= rect.bottom()))
+                {
+                    list_->removeWidget(row);
+                    list_->insertWidget(i, row);
+                    break;
+                }
+            }
         }
-        layout.endLayout();
-        if (painter)
-        {
-            layout.draw(painter, origin);
-        }
-        return qCeil(height);
     }
+    QVBoxLayout* list_;
+};
+
+struct voter_section
+{
+    QVBoxLayout* people;
+    QPushButton* more;
+    quint64 request = 0;
+    qint64 after = 0;
 };
 }    // namespace
 
@@ -114,48 +65,48 @@ std::optional<std::pair<QString, QStringList>> compose_poll(QWidget* parent)
     dialog.setWindowTitle(QStringLiteral("发起群投票"));
     auto* layout = new QVBoxLayout(&dialog);
     frame_dialog(dialog);
-    auto* question = new QLineEdit(&dialog);
-    question->setPlaceholderText(QStringLiteral("投票问题（最多 256 字）"));
-    auto* options = new QPlainTextEdit(&dialog);
-    options->setPlaceholderText(QStringLiteral("每行一个选项，2 至 10 项，每项最多 80 字"));
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    dialog.resize(420, 330);
-    auto* prompt = new QLabel(QStringLiteral("投票问题"));
-    prompt->setBuddy(question);
-    auto* labels = new QLabel(QStringLiteral("投票选项 · 每行一项"));
-    labels->setBuddy(options);
+    auto* question = new QLineEdit;
+    question->setObjectName(QStringLiteral("pollQuestion"));
+    question->setPlaceholderText(QStringLiteral("输入投票问题"));
+    layout->addWidget(new QLabel(QStringLiteral("投票问题")));
+    layout->addWidget(question);
+    layout->addWidget(new QLabel(QStringLiteral("实名单选 · 投票选项")));
+    auto* scroll = new QScrollArea;
+    scroll->setWidgetResizable(true);
+    auto* panel = new QWidget;
+    auto* rows = new QVBoxLayout(panel);
+    rows->setAlignment(Qt::AlignTop);
+    rows->setContentsMargins(4, 4, 4, 4);
+    scroll->setWidget(panel);
+    layout->addWidget(scroll, 1);
+    auto* add = new QPushButton(QStringLiteral("添加选项"));
+    add->setObjectName(QStringLiteral("addPollOption"));
+    add->setAutoDefault(false);
+    layout->addWidget(add);
     auto* feedback = new QLabel;
     feedback->setObjectName(QStringLiteral("pollFeedback"));
-    buttons->button(QDialogButtonBox::Ok)->setText(QStringLiteral("发起投票"));
-    buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("pollSubmit"));
-    buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
-    for (auto* button : buttons->buttons())
-    {
-        button->setIcon({});
-        button->style()->unpolish(button);
-        button->style()->polish(button);
-    }
-    layout->addWidget(prompt);
-    layout->addWidget(question);
-    layout->addWidget(labels);
-    layout->addWidget(options);
     layout->addWidget(feedback);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    auto* ok = buttons->button(QDialogButtonBox::Ok);
+    ok->setText(QStringLiteral("发起投票"));
+    ok->setObjectName(QStringLiteral("pollSubmit"));
+    ok->setAutoDefault(false);
+    buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
     layout->addWidget(buttons);
     auto values = [&]
     {
-        auto labels = options->toPlainText().trimmed().split(u'\n');
-        for (auto& label : labels)
+        QStringList result;
+        for (int i = 0; i < rows->count(); ++i)
         {
-            label = label.trimmed();
+            result.append(rows->itemAt(i)->widget()->findChild<QLineEdit*>()->text().trimmed());
         }
-        return labels;
+        return result;
     };
     auto validate = [&]
     {
-        auto q = question->text().trimmed();
-        auto labels = values();
-        QSet<QString> seen;
         QString error;
+        auto q = question->text().trimmed();
+        QSet<QString> seen;
         if (q.isEmpty())
         {
             error = QStringLiteral("请输入投票问题");
@@ -164,41 +115,93 @@ std::optional<std::pair<QString, QStringList>> compose_poll(QWidget* parent)
         {
             error = QStringLiteral("问题最多可写 256 个字符");
         }
-        else if (labels.size() < 2 || labels.size() > 10)
+        for (const auto& label : values())
         {
-            error = QStringLiteral("请填写 2 至 10 个选项");
-        }
-        else
-        {
-            for (auto const& label : labels)
+            if (!error.isEmpty())
             {
-                if (label.isEmpty())
-                {
-                    error = QStringLiteral("选项不能为空行");
-                }
-                else if (label.toUcs4().size() > 80)
-                {
-                    error = QStringLiteral("每个选项最多可写 80 个字符");
-                }
-                else if (seen.contains(label))
-                {
-                    error = QStringLiteral("选项不能重复");
-                }
-                if (!error.isEmpty())
-                {
-                    break;
-                }
-                seen.insert(label);
+                break;
             }
+            if (label.isEmpty())
+            {
+                error = QStringLiteral("请填写所有选项");
+            }
+            else if (label.toUcs4().size() > 80)
+            {
+                error = QStringLiteral("每个选项最多可写 80 个字符");
+            }
+            else if (seen.contains(label))
+            {
+                error = QStringLiteral("选项不能重复");
+            }
+            seen.insert(label);
         }
-        feedback->setText(error.isEmpty() ? QStringLiteral("实名单选 · 共 %1 项").arg(labels.size()) : error);
-        buttons->button(QDialogButtonBox::Ok)->setEnabled(error.isEmpty());
+        feedback->setText(error);
+        ok->setEnabled(error.isEmpty() && rows->count() >= 2);
+        add->setEnabled(rows->count() < 10);
+        for (int i = 0; i < rows->count(); ++i)
+        {
+            rows->itemAt(i)->widget()->findChild<QToolButton*>()->setEnabled(rows->count() > 2);
+        }
     };
+    auto append = [&]
+    {
+        auto* row = new QWidget(panel);
+        auto* line = new QHBoxLayout(row);
+        line->setContentsMargins(0, 0, 0, 0);
+        line->addWidget(new option_handle(row, rows));
+        auto* edit = new QLineEdit(row);
+        edit->setObjectName(QStringLiteral("pollOption"));
+        edit->setPlaceholderText(QStringLiteral("输入选项"));
+        line->addWidget(edit, 1);
+        auto* remove = new QToolButton(row);
+        remove->setText(QStringLiteral("×"));
+        remove->setToolTip(QStringLiteral("移除选项"));
+        line->addWidget(remove);
+        rows->addWidget(row);
+        QObject::connect(remove,
+                         &QToolButton::clicked,
+                         &dialog,
+                         [&, row]
+                         {
+                             int i = rows->indexOf(row);
+                             rows->removeWidget(row);
+                             row->hide();
+                             row->deleteLater();
+                             rows->itemAt(std::min(i, rows->count() - 1))->widget()->findChild<QLineEdit*>()->setFocus();
+                             validate();
+                         });
+        QObject::connect(edit, &QLineEdit::textChanged, &dialog, validate);
+        QObject::connect(edit,
+                         &QLineEdit::returnPressed,
+                         &dialog,
+                         [&, row, edit]
+                         {
+                             auto next = rows->indexOf(row) + 1;
+                             if (next < rows->count())
+                             {
+                                 rows->itemAt(next)->widget()->findChild<QLineEdit*>()->setFocus();
+                             }
+                             else if (!edit->text().trimmed().isEmpty() && add->isEnabled())
+                             {
+                                 add->click();
+                             }
+                             else if (ok->isEnabled())
+                             {
+                                 ok->setFocus();
+                             }
+                         });
+        validate();
+        edit->setFocus();
+        scroll->ensureWidgetVisible(row);
+    };
+    QObject::connect(add, &QPushButton::clicked, &dialog, append);
     QObject::connect(question, &QLineEdit::textChanged, &dialog, validate);
-    QObject::connect(options, &QPlainTextEdit::textChanged, &dialog, validate);
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    validate();
+    append();
+    append();
+    question->setFocus();
+    dialog.resize(440, 390);
     if (dialog.exec() != QDialog::Accepted)
     {
         return std::nullopt;
@@ -209,265 +212,156 @@ std::optional<std::pair<QString, QStringList>> compose_poll(QWidget* parent)
 void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 message, QWidget* parent)
 {
     QDialog dialog(parent);
-    dialog.setWindowTitle(QStringLiteral("群投票"));
+    dialog.setWindowTitle(QStringLiteral("投票结果"));
     auto* layout = new QVBoxLayout(&dialog);
     frame_dialog(dialog);
-    auto* question = new QLabel(&dialog);
+    auto* question = new QLabel;
     question->setWordWrap(true);
     question->setTextFormat(Qt::PlainText);
-    auto* options = new QListWidget(&dialog);
-    auto* status = new QLabel(&dialog);
-    status->setTextFormat(Qt::PlainText);
-    auto* actions = new QHBoxLayout;
-    auto* submit = new QPushButton(QStringLiteral("提交投票"), &dialog);
-    auto* cancel = new QPushButton(QStringLiteral("取消我的投票"), &dialog);
-    auto* close = new QPushButton(QStringLiteral("结束投票"), &dialog);
-    auto* people = new QListWidget(&dialog);
-    auto* more = new QPushButton(QStringLiteral("更多投票成员"), &dialog);
-    dialog.resize(500, 430);
-    layout->setSpacing(9);
-    options->setItemDelegate(new option_delegate(options));
-    options->setMouseTracking(true);
-    options->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-    people->setSelectionMode(QAbstractItemView::NoSelection);
-    people->setFocusPolicy(Qt::NoFocus);
-    question->setObjectName(QStringLiteral("dialogTitle"));
-    status->setObjectName(QStringLiteral("pollSummary"));
-    submit->setObjectName(QStringLiteral("pollSubmit"));
-    options->setWordWrap(true);
-    options->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    options->setResizeMode(QListView::Adjust);
-    auto* voter_option = new QComboBox;
-    voter_option->setMinimumContentsLength(8);
-    voter_option->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-    people->setMinimumHeight(48);
-    auto* viewer = new QHBoxLayout;
-    auto* viewer_label = new QLabel(QStringLiteral("查看投票成员"));
-    viewer_label->setBuddy(voter_option);
-    viewer->addWidget(viewer_label);
-    viewer->addWidget(voter_option, 1);
+    auto font = question->font();
+    font.setBold(true);
+    question->setFont(font);
     layout->addWidget(question);
+    auto* status = new QLabel;
     layout->addWidget(status);
-    layout->addWidget(options);
-    layout->addLayout(viewer);
-    layout->addWidget(people, 1);
-    layout->addWidget(more);
-    layout->addLayout(actions);
-    actions->addWidget(close);
-    actions->addStretch();
-    actions->addWidget(cancel);
-    actions->addWidget(submit);
-    qint64 cursor = 0;
-    quint64 query = 0, operation = 0, voters_query = 0;
-    chat::poll_state state;
-    auto refresh_close_visibility = [&]
+    auto* scroll = new QScrollArea;
+    scroll->setWidgetResizable(true);
+    layout->addWidget(scroll);
+    dialog.resize(450, 470);
+    QHash<qint64, voter_section> sections;
+    quint64 query = 0;
+    qint64 revision = 0;
+    auto reload = [&] { query = client.get_poll(room, message); };
+    auto load_people = [&](qint64 choice)
     {
-        auto room_state = chat.conversation(room);
-        close->setVisible(state.can_close && room_state && room_state->speech_role != chat::member_role::member && !state.summary.closed);
+        auto& section = sections[choice];
+        section.more->setEnabled(false);
+        section.request = client.get_poll_voters(room, message, choice, section.after);
     };
-    auto controls = [&]
+    auto render = [&](const chat::poll_summary& poll)
     {
-        bool writable = !operation && !query && !state.summary.closed;
-        submit->setText(state.selection ? QStringLiteral("修改投票") : QStringLiteral("提交投票"));
-        submit->setEnabled(writable && options->currentRow() >= 0 && options->currentRow() + 1 != state.selection);
-        submit->setVisible(!state.summary.closed);
-        cancel->setVisible(state.selection && !state.summary.closed);
-        cancel->setEnabled(writable);
-        close->setEnabled(writable);
-        refresh_close_visibility();
-    };
-    QObject::connect(&client, &client_bridge::conversations_received, &dialog, refresh_close_visibility);
-    auto reload = [&]
-    {
-        voters_query = 0;
-        more->setEnabled(false);
-        query = client.get_poll(room, message);
-        controls();
-    };
-    auto load_people = [&]
-    {
-        voters_query = 0;
-        voter_option->setToolTip(voter_option->currentText());
-        cursor = 0;
-        more->hide();
-        people->clear();
-        controls();
-        if (voter_option->currentIndex() >= 0)
+        if (poll.revision <= revision)
         {
-            voters_query = client.get_poll_voters(room, message, voter_option->currentIndex() + 1, 0);
+            return;
         }
+        revision = poll.revision;
+        sections.clear();
+        auto* body = new QWidget;
+        auto* groups = new QVBoxLayout(body);
+        groups->setAlignment(Qt::AlignTop);
+        qint64 total = 0;
+        for (auto const& option : poll.options)
+        {
+            total += option.votes;
+        }
+        status->setText(QStringLiteral("%1 · 共 %2 票").arg(poll.closed ? QStringLiteral("投票已结束") : QStringLiteral("实名单选")).arg(total));
+        for (auto const& option : poll.options)
+        {
+            auto* heading = new QLabel(QStringLiteral("%1%   %2   ·   %3 票")
+                                           .arg(total ? qRound(100. * option.votes / total) : 0)
+                                           .arg(QString::fromStdString(option.label))
+                                           .arg(option.votes));
+            heading->setObjectName(QStringLiteral("pollGroup"));
+            heading->setFont(font);
+            heading->setTextFormat(Qt::PlainText);
+            heading->setWordWrap(true);
+            groups->addWidget(heading);
+            auto* people = new QVBoxLayout;
+            groups->addLayout(people);
+            auto* more = new QPushButton(QStringLiteral("更多投票成员"));
+            more->setVisible(false);
+            more->setProperty("choice", qint64(option.position));
+            groups->addWidget(more);
+            sections.insert(option.position, {people, more});
+            QObject::connect(more, &QPushButton::clicked, &dialog, [&, choice = option.position] { load_people(choice); });
+            if (option.votes)
+            {
+                load_people(option.position);
+            }
+            groups->addSpacing(8);
+        }
+        int position = scroll->verticalScrollBar()->value();
+        scroll->setWidget(body);
+        scroll->verticalScrollBar()->setValue(position);
     };
-    QObject::connect(options, &QListWidget::currentRowChanged, &dialog, controls);
-    QObject::connect(voter_option, &QComboBox::currentIndexChanged, &dialog, load_people);
     QObject::connect(&client,
                      &client_bridge::poll_received,
                      &dialog,
-                     [&](quint64 request, qint64 r, qint64 id, chat::poll_state value, QString err)
+                     [&](quint64 request, qint64 r, qint64 id, chat::poll_state state, QString error)
                      {
-                         if (r != room || id != message)
-                         {
-                             return;
-                         }
-                         if (request == operation)
-                         {
-                             operation = 0;
-                             controls();
-                             if (!err.isEmpty())
-                             {
-                                 status->setText(err);
-                             }
-                             // Successful mutations also publish poll_changed. That refresh reads
-                             // the current selection and permissions, even after a dialog was reopened.
-                             return;
-                         }
-                         if (request != query)
+                         if (r != room || id != message || request != query)
                          {
                              return;
                          }
                          query = 0;
-                         if (!err.isEmpty())
+                         if (!error.isEmpty())
                          {
-                             status->setText(err);
-                             submit->setEnabled(false);
-                             cancel->setEnabled(false);
-                             state.can_close = false;
-                             close->hide();
+                             status->setText(error);
                              return;
                          }
-                         if (value.summary.revision < state.summary.revision)
-                         {
-                             return;
-                         }
-                         auto prev = options->currentRow();
-                         state = std::move(value);
                          question->setText(QString::fromStdString(state.question));
-                         qint64 total = 0;
-                         for (auto const& option : state.summary.options)
-                         {
-                             total += option.votes;
-                         }
-                         {
-                             QSignalBlocker blocker(options);
-                             QSignalBlocker viewing(voter_option);
-                             int viewed = voter_option->currentIndex();
-                             voter_option->clear();
-                             options->clear();
-                             for (auto const& option : state.summary.options)
-                             {
-                                 voter_option->addItem(QString::fromStdString(option.label));
-                                 auto* item = new QListWidgetItem(QString::fromStdString(option.label), options);
-                                 auto fraction = total ? static_cast<double>(option.votes) / total : 0.;
-                                 bool mine = state.selection == option.position;
-                                 item->setData(count_role, qlonglong(option.votes));
-                                 item->setData(fraction_role, fraction);
-                                 item->setData(mine_role, mine);
-                                 item->setData(Qt::AccessibleTextRole,
-                                               QStringLiteral("%1 · %2 票%3")
-                                                   .arg(item->text())
-                                                   .arg(option.votes)
-                                                   .arg(mine ? QStringLiteral(" · 我的投票") : QString{}));
-                             }
-                             options->setCurrentRow(prev >= 0 ? prev : state.selection ? int(state.selection) - 1 : 0);
-                             voter_option->setCurrentIndex(viewed >= 0 ? viewed : options->currentRow());
-                             int height = 2 * options->frameWidth() + 4;
-                             for (int i = 0; i < options->count(); ++i)
-                             {
-                                 height += options->sizeHintForRow(i);
-                             }
-                             options->setFixedHeight(
-                                 qBound(64, height, std::min(370, std::max(150, dialog.screen()->availableGeometry().height() - 290))));
-                             if (prev < 0)
-                             {
-                                 dialog.resize(dialog.width(), options->height() + 255);
-                             }
-                             options->setSelectionMode(state.summary.closed ? QAbstractItemView::NoSelection : QAbstractItemView::SingleSelection);
-                             if (state.summary.closed)
-                             {
-                                 options->clearSelection();
-                             }
-                         }
-                         status->setText(QStringLiteral("实名单选 · %1 · 共 %2 票")
-                                             .arg(state.summary.closed ? QStringLiteral("投票已结束") : QStringLiteral("进行中"))
-                                             .arg(total));
-                         load_people();
+                         render(state.summary);
                      });
     QObject::connect(&client,
                      &client_bridge::poll_changed,
                      &dialog,
-                     [&](chat::poll_update const& update)
+                     [&](chat::poll_update update)
                      {
-                         if (update.message == message && update.summary.revision > state.summary.revision)
+                         if (update.conversation == room && update.message == message)
                          {
-                             reload();
+                             render(update.summary);
                          }
                      });
-    QObject::connect(
-        &client,
-        &client_bridge::voters_received,
-        &dialog,
-        [&](quint64 request, qint64 id, qint64 choice, qint64 after, chat::poll_voters page, QString err)
-        {
-            if (request != voters_query || id != message || choice != voter_option->currentIndex() + 1 || after != cursor)
-            {
-                return;
-            }
-            if (!err.isEmpty())
-            {
-                status->setText(err);
-                return;
-            }
-            if (!after)
-            {
-                people->clear();
-            }
-            for (auto const& member : page.members)
-            {
-                auto name = QString::fromStdString(member.username);
-                people->addItem(member.nickname.empty() ? name : QStringLiteral("%1 (@%2)").arg(QString::fromStdString(member.nickname), name));
-            }
-            cursor = page.next;
-            more->setVisible(cursor > 0);
-            more->setEnabled(true);
-        });
-    QObject::connect(more,
-                     &QPushButton::clicked,
+    QObject::connect(&client,
+                     &client_bridge::voters_received,
                      &dialog,
-                     [&]
+                     [&](quint64 req, qint64 id, qint64 choice, qint64 after, chat::poll_voters page, QString error)
                      {
-                         more->setEnabled(false);
-                         voters_query = client.get_poll_voters(room, message, voter_option->currentIndex() + 1, cursor);
+                         auto it = sections.find(choice);
+                         if (id != message || it == sections.end() || req != it->request || after != it->after)
+                         {
+                             return;
+                         }
+                         it->request = 0;
+                         it->more->setEnabled(true);
+                         if (!error.isEmpty())
+                         {
+                             it->more->setText(QStringLiteral("重试加载成员"));
+                             it->more->show();
+                             return;
+                         }
+                         for (auto const& member : page.members)
+                         {
+                             auto name = QString::fromStdString(member.nickname.empty() ? member.username : member.nickname);
+                             auto* row = new QHBoxLayout;
+                             auto* avatar = new QLabel;
+                             chat.avatars().observe(member.id, member.avatar);
+                             auto refresh = [&, avatar, user = member.id, name]
+                             { avatar->setPixmap(avatar_icon(name, 26, chat.avatars().image(user)).pixmap(26, 26)); };
+                             refresh();
+                             QObject::connect(&chat.avatars(),
+                                              &avatar_cache::changed,
+                                              avatar,
+                                              [refresh, user = member.id](qint64 id)
+                                              {
+                                                  if (id == user)
+                                                  {
+                                                      refresh();
+                                                  }
+                                              });
+                             row->addWidget(avatar);
+                             auto* label = new QLabel(name);
+                             label->setTextFormat(Qt::PlainText);
+                             label->setObjectName(QStringLiteral("pollVoter"));
+                             label->setProperty("choice", choice);
+                             label->setToolTip(QString::fromStdString(member.username));
+                             row->addWidget(label, 1);
+                             it->people->addLayout(row);
+                         }
+                         it->after = page.next;
+                         it->more->setText(QStringLiteral("更多投票成员"));
+                         it->more->setVisible(page.next > 0);
                      });
-    QObject::connect(submit,
-                     &QPushButton::clicked,
-                     &dialog,
-                     [&]
-                     {
-                         operation = client.vote_poll(room, message, options->currentRow() + 1);
-                         controls();
-                     });
-    QObject::connect(cancel,
-                     &QPushButton::clicked,
-                     &dialog,
-                     [&]
-                     {
-                         operation = client.vote_poll(room, message, 0);
-                         controls();
-                     });
-    QObject::connect(
-        close,
-        &QPushButton::clicked,
-        &dialog,
-        [&]
-        {
-            if (!confirm_action(
-                    &dialog, QStringLiteral("结束投票"), QStringLiteral("结束后将保留结果，成员无法继续投票或改票。"), QStringLiteral("结束投票")) ||
-                !dialog.isVisible() || !close->isEnabled() || !close->isVisible())
-            {
-                return;
-            }
-            operation = client.close_poll(room, message);
-            controls();
-        });
     QObject::connect(&chat,
                      &chat_widget::history_discarded,
                      &dialog,
@@ -506,18 +400,6 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
                          }
                      });
     QObject::connect(&client, &client_bridge::disconnected, &dialog, &QDialog::reject);
-    QObject::connect(&dialog,
-                     &QDialog::finished,
-                     &dialog,
-                     [&dialog]
-                     {
-                         if (auto* confirm = dialog.findChild<QMessageBox*>(QStringLiteral("confirmationDialog")))
-                         {
-                             confirm->reject();
-                         }
-                     });
-    controls();
-    more->hide();
     reload();
     dialog.exec();
 }

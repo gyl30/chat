@@ -48,7 +48,7 @@ std::optional<std::int64_t> optional_integer(sqlite_statement const& row, int co
     return row.column_is_null(column) ? std::nullopt : std::optional(row.column_int64(column));
 }
 
-std::expected<void, sqlite_error> populate_interactions(sqlite_database& db, std::span<chat::message> messages)
+std::expected<void, sqlite_error> populate_interactions(sqlite_database& db, std::span<chat::message> messages, std::int64_t viewer)
 {
     if (messages.empty())
     {
@@ -61,7 +61,7 @@ std::expected<void, sqlite_error> populate_interactions(sqlite_database& db, std
     {
         if (message.content == "poll" && !message.deleted)
         {
-            auto summary = read_poll_summary(db, message.id);
+            auto summary = read_poll_summary(db, message.id, viewer);
             if (!summary)
             {
                 return std::unexpected(summary.error());
@@ -312,7 +312,7 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
         }
         result.has_newer = *newer;
     }
-    if (auto populated = populate_interactions(db, result.messages); !populated)
+    if (auto populated = populate_interactions(db, result.messages, user); !populated)
     {
         return std::unexpected(std::move(populated.error()));
     }
@@ -345,7 +345,7 @@ std::expected<std::optional<chat::message>, sqlite_error> read_message(sqlite_da
         return std::nullopt;
     }
     auto result = read_message_row(*statement, user, conversation);
-    if (auto populated = populate_interactions(db, std::span(&result, 1)); !populated)
+    if (auto populated = populate_interactions(db, std::span(&result, 1), user); !populated)
     {
         return std::unexpected(std::move(populated.error()));
     }

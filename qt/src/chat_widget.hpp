@@ -104,6 +104,7 @@ class chat_widget final : public QWidget
     void set_read_message(qint64 conversation, qint64 user, qint64 message);
     void reset_read_positions(qint64 conversation);
     void set_typing(qint64 conversation, qint64 user, QString username, bool typing);
+    void finish_poll_write(qint64 room, qint64 message, QString error);
     void update_poll(chat::poll_update const& update);
     void add_message(qint64 user, message_data message);
     void update_message(message_data message);
@@ -199,6 +200,7 @@ class chat_widget final : public QWidget
     void chat_history_requested(qint64 conversation, QString title);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
     void add_file_requested(qint64 conversation, QString key);
+    void poll_write_requested(qint64 room, qint64 message, qint64 choice);
     void live_poll_added(qint64 room, qint64 message);
     void create_poll_requested(qint64 room, QString question, QStringList options);
     void content_requested(qint64 conversation, qint64 message, QString kind);

@@ -623,7 +623,14 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         painter->translate(origin);
         if (layout.poll)
         {
-            layout_poll_card(painter, option.font, layout.text_width, layout.text, *layout.poll);
+            layout_poll_card(painter,
+                             option.font,
+                             layout.text_width,
+                             layout.text,
+                             *layout.poll,
+                             nullptr,
+                             nullptr,
+                             index.data(message_model::poll_pending_role).toBool());
         }
         else
         {
@@ -770,8 +777,33 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QSt
     }
 
     auto const layout = calculate_layout(option, index);
+    if (layout.poll)
+    {
+        int action = 0;
+        auto point = mouse->position().toPoint() - layout.text_origin(option.rect);
+        layout_poll_card(nullptr,
+                         option.font,
+                         layout.text_width,
+                         layout.text,
+                         *layout.poll,
+                         &point,
+                         &action,
+                         index.data(message_model::poll_pending_role).toBool());
+        if (action > 0)
+        {
+            emit vote_clicked(index, action);
+        }
+        else if (action < 0)
+        {
+            emit content_clicked(index);
+        }
+        if (action)
+        {
+            return true;
+        }
+    }
     if (auto kind = index.data(message_model::content_role).toString();
-        !kind.isEmpty() && kind != QStringLiteral("message") &&
+        kind == QStringLiteral("bundle") &&
         QRect(layout.text_origin(option.rect), QSize(layout.text_width, layout.text_height)).contains(mouse->position().toPoint()))
     {
         emit content_clicked(index);

@@ -197,22 +197,20 @@ async def scenario(probe, mode):
                         state = await ui.call("state")
                         assert not any(x["id"] == mid for x in state["rows"])
                     elif mode == "voters":
-                        gate.hold.update(("get_poll_voters", "poll_updated"))
+                        await b.ok("vote_poll", choice=1, **args)
+                        gate.hold.add("get_poll_voters")
                         await ui.call("poll_ui", open=mid)
                         await gate.caught("get_poll_voters")
-                        gate.hold.discard(
-                            "get_poll_voters"
-                        )  # Retain the captured empty option A page.
-                        await ui.call("poll_ui", view=2)
-                        await b.ok("vote_poll", choice=1, **args)
-                        await ui.call("poll_ui", view=1)
-                        await ui.wait("poll_ui", lambda r: r.get("members") == ["b"])
+                        gate.hold.clear()
+                        await b.ok("vote_poll", choice=2, **args)
+                        await ui.wait(
+                            "poll_ui", lambda r: r.get("members") == ["b"], choice=2
+                        )
                         n = await count("voters")
                         await gate.release("get_poll_voters")
                         await seen("voters", n)
-                        assert (await ui.call("poll_ui"))["members"] == [
-                            "b"
-                        ], "obsolete option A overwrote current voters"
+                        assert not (await ui.call("poll_ui", choice=1))["members"]
+                        assert (await ui.call("poll_ui", choice=2))["members"] == ["b"]
                     elif mode in ("authority", "poll_error"):
                         gate.hold.add("get_poll")
                         await ui.call("poll_ui", open=mid)
@@ -231,28 +229,29 @@ async def scenario(probe, mode):
                             await b.ok(
                                 "set_group_admin", conversation=g, user=1, admin=False
                             )
-                            await ui.wait(
-                                "poll_ui", lambda r: r.get("canClose") == False
-                            )
                         n = await count("poll")
                         await gate.release("get_poll", error=mode == "poll_error")
                         await seen("poll", n)
                         state = await ui.call("poll_ui")
-                        if mode == "authority":
-                            assert not state["canClose"], "old role restored"
-                        else:
-                            assert (
-                                "QA search failure" not in state["labels"]
-                                and state["canClose"]
-                            ), state
+                        assert "QA search failure" not in state["labels"]
+                        await ui.call("poll_ui", close=True)
+                        await ui.call("message_menu", open=mid)
+                        menu = await ui.wait(
+                            "message_menu",
+                            lambda r: r.get("open")
+                            and (("结束投票" in r["actions"]) == (mode != "authority")),
+                        )
+                        assert ("结束投票" in menu["actions"]) == (mode != "authority")
                     elif mode == "write":
-                        await ui.call("poll_ui", open=mid)
-                        await ui.wait("poll_ui", lambda r: len(r.get("rows", [])) == 2)
                         gate.hold_requests.add("vote_poll")
                         gate.hold.add("poll_updated")
-                        await ui.call("poll_ui", action="提交投票")
+                        await ui.call("poll_ui", message=mid, vote=1)
                         await until(
                             lambda: bool(gate.held_requests), "vote awaiting dispatch"
+                        )
+                        await ui.call("poll_ui", open=mid)
+                        await ui.wait(
+                            "poll_ui", lambda r: "共 0 票" in r.get("labels", "")
                         )
                         await ui.call("poll_ui", close=True)
                         await ui.call("poll_ui", open=mid)
@@ -280,7 +279,8 @@ async def scenario(probe, mode):
                         await seen("poll", n)
                         detail = await ui.call("poll_ui")
                         assert (
-                            "投票已结束" in detail["labels"] and not detail["canClose"]
+                            "投票已结束" in detail["labels"]
+                            and not (await ui.call("poll_ui", message=mid))["pending"]
                         )
                     elif mode == "paging":
                         await ui.call("poll_ui", open=mid)
@@ -289,7 +289,7 @@ async def scenario(probe, mode):
                             lambda r: len(r.get("members", [])) == 50 and r.get("more"),
                         )
                         gate.hold.add("get_poll_voters")
-                        await ui.call("poll_ui", action="更多投票成员")
+                        await ui.call("poll_ui", more=True)
                         await gate.caught("get_poll_voters")
                         gate.hold.clear()
                         await b.ok("vote_poll", choice=0, **args)
@@ -317,7 +317,9 @@ async def scenario(probe, mode):
                         await gate.release("get_messages")
                         await ui.wait(
                             "searchui",
-                            lambda r: r.get("ctx") and mid in r.get("contextIds", []) and r.get("pollRevision") == 2,
+                            lambda r: r.get("ctx")
+                            and mid in r.get("contextIds", [])
+                            and r.get("pollRevision") == 2,
                             inspect=mid,
                         )
                         gate.hold.add("get_messages")

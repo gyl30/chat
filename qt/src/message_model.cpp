@@ -209,6 +209,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             }
             return parts.join(QStringLiteral("；"));
         }
+        case poll_pending_role:
+            return pending_polls_.contains(index.data(id_role).toLongLong());
         case poll_role:
         {
             if (!message.poll || message.deleted)
@@ -606,6 +608,30 @@ void message_model::update_message(message_data const& message)
         {
             emit dataChanged(index(row, 0), index(row, 0));
         }
+    }
+}
+
+void message_model::set_poll_pending(qint64 message, bool pending)
+{
+    if (pending)
+    {
+        pending_polls_.insert(message);
+    }
+    else
+    {
+        pending_polls_.remove(message);
+    }
+    if (auto row = message_index(message); row.isValid())
+    {
+        emit dataChanged(row, row, {poll_pending_role});
+    }
+}
+
+void message_model::clear_poll_requests()
+{
+    for (auto id : std::exchange(pending_polls_, {}))
+    {
+        set_poll_pending(id, false);
     }
 }
 

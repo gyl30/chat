@@ -93,36 +93,49 @@ async def run(root, probe):
                 poll_options=["A", "B"],
                 client_id=100,
             )
-            await ui.call("poll_ui", open=separate["id"])
-            await ui.wait("poll_ui", lambda r: r.get("canClose"))
-            await ui.call("poll_ui", action="结束投票")
+
+            async def poll_menu(message, action):
+                await ui.wait(
+                    "state", lambda r: any(x["id"] == message for x in r["rows"])
+                )
+                await ui.call("message_menu", open=message)
+                await ui.wait("message_menu", lambda r: action in r.get("actions", []))
+                await ui.call("message_menu", action=action)
+
+            await poll_menu(separate["id"], "结束投票")
             await ui.wait("confirm", lambda r: r.get("open"), accept=False)
             await ui.call("confirm", cancel=True)
             assert not (await c.ok("get_poll", conversation=g, message=separate["id"]))[
                 "summary"
             ]["closed"]
-            await ui.call("poll_ui", action="结束投票")
+            await poll_menu(separate["id"], "结束投票")
             await ui.wait("confirm", lambda r: r.get("open"))
             await ui.wait(
-                "poll_ui",
-                lambda r: "投票已结束" in r.get("labels", "") and not r["canClose"] and not r["candidateMarked"],
+                "state",
+                lambda r: any(
+                    x["id"] == separate["id"] and x["pollClosed"] for x in r["rows"]
+                ),
+                polls=True,
             )
-            await ui.call("poll_ui", close=True)
             assert (await c.ok("close_poll", conversation=g, message=separate["id"]))[
                 "summary"
             ]["closed"]
             assert "error" in await b.ask("close_poll", **args)
             assert "error" in await b.ask("vote_poll", choice=4, **args)
-            await ui.call("poll_ui", open=mid)
-            await ui.wait("poll_ui", lambda r: len(r.get("rows", [])) == 3)
-            pending = await ui.call("poll_ui", choose=2)
-            assert pending["view"] == 1 and pending["candidate"] == 2
-            await ui.call("poll_ui", view=2, action="提交投票")
+            gate.hold_requests.add("vote_poll")
+            await ui.call("poll_ui", message=mid, vote=2)
+            pending = await ui.call("poll_ui", message=mid, vote=1)
+            assert pending["pending"] and pending["selection"] == 0
+            await until(lambda: bool(gate.held_requests), "vote held")
+            assert len(gate.held_requests) == 1
+            await gate.release_requests("vote_poll")
             await ui.wait(
                 "poll_ui",
-                lambda r: "我的投票" in r.get("rows", ["", ""])[1]
-                and r["members"] == ["a"],
+                lambda r: r["selection"] == 2 and not r["pending"],
+                message=mid,
             )
+            await ui.call("poll_ui", open=mid)
+            await ui.wait("poll_ui", lambda r: r.get("members") == ["a"], choice=2)
             await a.ok("set_group_member_mute", conversation=g, user=2, seconds=-1)
             assert "error" in await b.ask(
                 "send_message",
@@ -148,15 +161,18 @@ async def run(root, probe):
             same = await b.ok("vote_poll", choice=1, **args)
             assert same == state
             await a.ok("vote_poll", choice=1, **args)
-            await ui.call("poll_ui", choose=1, view=1)
             await ui.wait(
                 "poll_ui",
-                lambda r: "我的投票" in r.get("rows", [""])[0]
-                and set(r["members"]) == {"a", "b"},
+                lambda r: set(r["members"]) == {"a", "b"} and r["selection"] == 1,
+                message=mid,
             )
-            await ui.call("poll_ui", action="取消我的投票")
-            await ui.wait("poll_ui", lambda r: r.get("members") == ["b"])
             await ui.call("poll_ui", close=True)
+            await poll_menu(mid, "撤回投票")
+            await ui.wait("poll_ui", lambda r: r["selection"] == 0, message=mid)
+            assert [
+                v["username"]
+                for v in (await a.ok("get_poll_voters", choice=1, **args))["members"]
+            ] == ["b"]
             # Miss a vote entirely, then release the real authentication on reconnection.
             gate.hold_requests.add("resume_session")
             await gate.down.close()
@@ -207,6 +223,10 @@ async def run(root, probe):
                 conn.execute(
                     "UPDATE messages SET created_at=1736942400000 WHERE id=?", (mid,)
                 )
+            final_view = (await a.ok("get_poll", **args))["summary"]
+            assert final_view == dict(
+                closed["summary"], selection=final_view["selection"]
+            )
             admin("--db", db, "archive", "2025-01")
     admin("--db", db, "backup", root / "backup")
     admin("restore", root / "backup", root / "restored")
@@ -214,10 +234,10 @@ async def run(root, probe):
     with chat(restored, env) as url:
         async with AsyncExitStack() as stack:
             a, c = [await login(stack, url, k, k) for k in "ac"]
-            assert (await a.ok("get_poll", **args))["summary"] == closed["summary"]
+            assert (await a.ok("get_poll", **args))["summary"] == final_view
             assert (await a.ok("get_messages", conversation=g, around=mid))["messages"][
                 0
-            ]["poll"] == closed["summary"]
+            ]["poll"] == final_view
             assert "error" in await c.ask("get_poll", **args)
             await a.ok("delete_message", **args)
             assert "error" in await a.ask("get_poll", **args)

@@ -3,6 +3,7 @@
 
 #include <QAbstractListModel>
 #include <QList>
+#include <QSet>
 #include <QString>
 
 #include "message_data.hpp"
@@ -25,6 +26,7 @@ class message_model final : public QAbstractListModel
         markdown_role,
         content_role,
         poll_role,
+        poll_pending_role,
         outgoing_role,
         sender_name_role,
         forwarded_from_role,
@@ -83,6 +85,8 @@ class message_model final : public QAbstractListModel
     void merge_messages(QList<message_data> messages);
     bool add_message(message_data message);
     void update_message(message_data const& message);
+    void set_poll_pending(qint64 message, bool pending);
+    void clear_poll_requests();
     void set_poll(qint64 message, chat::poll_summary const& summary);
     bool set_reactions(qint64 message, qint64 revision, QList<reaction_data> reactions);
     void set_read_message(qint64 user, qint64 message);
@@ -113,6 +117,7 @@ class message_model final : public QAbstractListModel
     qint64 self_user_ = 0;
     qint64 conversation_ = 0;
     bool group_ = false;
+    QSet<qint64> pending_polls_;
     read_positions read_positions_;
     QList<member_data> members_;
 };

@@ -1464,6 +1464,21 @@ void main_window::connect_messages()
                 }
             });
     connect(client_.get(), &client_bridge::group_file_finished, chat_page_, &chat_widget::finish_group_file);
+    connect(client_.get(), &client_bridge::poll_write_finished, chat_page_, &chat_widget::finish_poll_write);
+    connect(chat_page_,
+            &chat_widget::poll_write_requested,
+            this,
+            [this](qint64 room, qint64 message, qint64 choice)
+            {
+                if (choice < 0)
+                {
+                    client_->close_poll(room, message);
+                }
+                else
+                {
+                    client_->vote_poll(room, message, choice);
+                }
+            });
     connect(chat_page_, &chat_widget::create_poll_requested, client_.get(), &client_bridge::create_poll);
     connect(chat_page_, &chat_widget::live_poll_added, client_.get(), &client_bridge::refresh_live_poll);
     connect(client_.get(), &client_bridge::poll_changed, this, [this](chat::poll_update update) { chat_page_->update_poll(update); });

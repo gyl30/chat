@@ -76,6 +76,8 @@ struct poll_summary
     std::int64_t revision = 0;
     bool closed = false;
     std::vector<poll_option> options;
+    // Choice belonging to the recipient of this snapshot (zero for an uncast ballot).
+    std::int64_t selection = 0;
 };
 struct poll_state
 {
@@ -88,6 +90,7 @@ struct poll_voter
 {
     std::int64_t id = 0;
     std::string username, nickname;
+    avatar_state avatar;
 };
 struct poll_voters
 {

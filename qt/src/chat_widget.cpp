@@ -1756,6 +1756,18 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
                 }
             });
     connect(messages_delegate,
+            &message_delegate::vote_clicked,
+            this,
+            [this](QModelIndex const& ix, qint64 choice)
+            {
+                if (connection_available_ && !ix.data(message_model::poll_pending_role).toBool())
+                {
+                    auto id = ix.data(message_model::id_role).toLongLong();
+                    messages_->set_poll_pending(id, true);
+                    emit poll_write_requested(active_conversation_, id, choice);
+                }
+            });
+    connect(messages_delegate,
             &message_delegate::content_clicked,
             this,
             [this](QModelIndex const& ix)
@@ -2237,10 +2249,37 @@ void chat_widget::show_message_menu(QPoint position)
     auto* preview = index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/"))
                         ? menu.addAction(QStringLiteral("查看图片"))
                         : nullptr;
+    auto poll = target_index.data(message_model::poll_role);
+    auto can_write_poll = [&]
+    {
+        return connection_available_ && valid_target() && poll.isValid() &&
+               !target_index.data(message_model::poll_role).value<chat::poll_summary>().closed &&
+               !target_index.data(message_model::poll_pending_role).toBool();
+    };
+    auto can_close_poll = [&]
+    {
+        auto room = this->conversation(conversation);
+        return target_index.data(message_model::outgoing_role).toBool() || (room && room->speech_role != chat::member_role::member);
+    };
+    auto voted = [&] { return target_index.data(message_model::poll_role).value<chat::poll_summary>().selection != 0; };
+    auto* retract_vote = poll.isValid() ? menu.addAction(QStringLiteral("撤回投票")) : nullptr;
+    auto* close_poll = poll.isValid() ? menu.addAction(QStringLiteral("结束投票")) : nullptr;
     auto* details =
-        ordinary ? nullptr
-                 : menu.addAction(index.data(message_model::content_role).toString() == QStringLiteral("poll") ? QStringLiteral("查看投票")
-                                                                                                               : QStringLiteral("查看聊天记录"));
+        ordinary || (poll.isValid() && !voted() && !poll.value<chat::poll_summary>().closed)
+            ? nullptr
+            : menu.addAction(index.data(message_model::content_role).toString() == QStringLiteral("poll") ? QStringLiteral("查看结果")
+                                                                                                          : QStringLiteral("查看聊天记录"));
+    if (poll.isValid())
+    {
+        auto refresh = [&]
+        {
+            retract_vote->setVisible(can_write_poll() && voted());
+            close_poll->setVisible(can_write_poll() && can_close_poll());
+        };
+        refresh();
+        connect(conversations_, &QAbstractItemModel::modelReset, &menu, refresh);
+        connect(messages_, &QAbstractItemModel::dataChanged, &menu, refresh);
+    }
     menu.addSeparator();
     auto* bookmark = menu.addAction(QStringLiteral("正在查询收藏状态…"));
     bookmark->setEnabled(false);
@@ -2346,6 +2385,22 @@ void chat_widget::show_message_menu(QPoint position)
     if (selected == bookmark)
     {
         emit bookmark_requested(message_id, !bookmark->data().toBool());
+        return;
+    }
+    if (selected == close_poll || selected == retract_vote)
+    {
+        if (selected == close_poll &&
+            (!can_write_poll() || !can_close_poll() ||
+             !confirm_action(
+                 this, QStringLiteral("结束投票"), QStringLiteral("结束后将保留结果，成员无法继续投票或改票。"), QStringLiteral("结束投票"))))
+        {
+            return;
+        }
+        if (can_write_poll() && (selected == close_poll ? can_close_poll() : voted()))
+        {
+            messages_->set_poll_pending(message_id, true);
+            emit poll_write_requested(conversation, message_id, selected == close_poll ? -1 : 0);
+        }
         return;
     }
     if (details && selected == details)
@@ -2931,7 +2986,8 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
         {
             auto index = messages_view_->currentIndex();
             auto kind = index.data(message_model::content_role).toString();
-            if (kind == QStringLiteral("bundle") || kind == QStringLiteral("poll"))
+            auto poll = index.data(message_model::poll_role).value<chat::poll_summary>();
+            if (kind == QStringLiteral("bundle") || (kind == QStringLiteral("poll") && (poll.closed || poll.selection)))
             {
                 emit content_requested(active_conversation_, index.data(message_model::id_role).toLongLong(), kind);
                 return true;
@@ -3079,6 +3135,10 @@ void chat_widget::set_list_status(QString text)
 
 void chat_widget::set_connection_available(bool available)
 {
+    if (!available)
+    {
+        messages_->clear_poll_requests();
+    }
     if (connection_available_ == available)
     {
         return;
@@ -3664,13 +3724,43 @@ void chat_widget::reset_read_positions(qint64 conversation)
     }
 }
 
+void chat_widget::finish_poll_write(qint64 room, qint64 message, QString error)
+{
+    messages_->set_poll_pending(message, false);
+    if (active_conversation_ == room && !error.isEmpty())
+    {
+        set_error(error);
+    }
+}
+
 void chat_widget::update_poll(chat::poll_update const& update)
 {
     if (update.conversation != active_conversation_ || update.message <= history_floor(update.conversation))
     {
         return;
     }
-    messages_->set_poll(update.message, update.summary);
+    const auto index = messages_->message_index(update.message);
+    const auto before = index.data(message_model::poll_role).value<chat::poll_summary>();
+    const auto& after = update.summary;
+    const bool resize =
+        index.isValid() && after.revision > before.revision && bool(before.closed || before.selection) != bool(after.closed || after.selection);
+    const auto top = messages_view_->indexAt(QPoint(1, 0));
+    const int offset = messages_view_->visualRect(top).top();
+    auto* scroll = messages_view_->verticalScrollBar();
+    const bool bottom = viewing_latest();
+    messages_->set_poll(update.message, after);
+    if (resize)
+    {
+        messages_view_->doItemsLayout();
+        if (bottom)
+        {
+            messages_view_->scrollToBottom();
+        }
+        else if (top.isValid())
+        {
+            scroll->setValue(scroll->value() + messages_view_->visualRect(top).top() - offset);
+        }
+    }
 }
 
 void chat_widget::add_message(qint64 user, message_data message)

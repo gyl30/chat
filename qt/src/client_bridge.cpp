@@ -1026,6 +1026,10 @@ chat::client::poll_handler client_bridge::poll_result(quint64 request, qint64 ro
                     {
                         emit poll_received(
                             request, room, message, result ? *result : chat::poll_state{}, result ? QString{} : display_error(result.error()));
+                        if (write)
+                        {
+                            emit poll_write_finished(room, message, result ? QString{} : display_error(result.error()));
+                        }
                         if (result && write)
                         {
                             emit poll_changed({room, message, result->summary});

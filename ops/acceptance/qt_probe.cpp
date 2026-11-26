@@ -1,3 +1,4 @@
+#include "message_delegate.hpp"
 #include <iostream>
 #include <QListWidget>
 #include <QScrollArea>
@@ -1070,64 +1071,69 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             auto mid = cmd["open"].toInteger();
             QTimer::singleShot(0, chat, [chat, mid] { emit chat->content_requested(chat->active_conversation_, mid, QStringLiteral("poll")); });
         }
+        if (cmd.contains("message"))
+        {
+            auto ix = chat->messages_->message_index(cmd["message"].toInteger());
+            auto value = ix.data(message_model::poll_role).value<chat::poll_summary>();
+            out["selection"] = static_cast<qint64>(value.selection);
+            out["pending"] = ix.data(message_model::poll_pending_role).toBool();
+            if (cmd.contains("vote") && ix.isValid())
+            {
+                auto* delegate = qobject_cast<message_delegate*>(view->itemDelegate());
+                emit delegate->vote_clicked(ix, cmd["vote"].toInteger());
+            }
+        }
         if (auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget()))
         {
             out["title"] = dialog->windowTitle();
             if (dialog->windowTitle() == QStringLiteral("发起群投票") && cmd.contains("question"))
             {
-                dialog->findChild<QLineEdit*>()->setText(cmd["question"].toString());
-                dialog->findChild<QPlainTextEdit*>()->setPlainText(cmd["options"].toString());
+                dialog->findChild<QLineEdit*>("pollQuestion")->setText(cmd["question"].toString());
+                auto values = cmd["options"].toString().split(u'\n');
+                auto fields = dialog->findChildren<QLineEdit*>("pollOption");
+                while (fields.size() < values.size())
+                {
+                    dialog->findChild<QPushButton*>("addPollOption")->click();
+                    fields = dialog->findChildren<QLineEdit*>("pollOption");
+                }
+                for (int i = 0; i < values.size(); ++i)
+                {
+                    fields[i]->setText(values[i]);
+                }
                 auto* ok = dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok);
                 out["valid"] = ok->isEnabled();
                 out["feedback"] = dialog->findChild<QLabel*>("pollFeedback")->text();
                 ok->click();
             }
-            if (dialog->windowTitle() == QStringLiteral("群投票"))
+            if (dialog->windowTitle() == QStringLiteral("投票结果"))
             {
-                auto lists = dialog->findChildren<QListWidget*>();
-                if (cmd.contains("choose"))
-                {
-                    lists[0]->setCurrentRow(cmd["choose"].toInt() - 1);
-                }
-                auto* viewing = dialog->findChild<QComboBox*>();
-                if (cmd.contains("view"))
-                {
-                    viewing->setCurrentIndex(cmd["view"].toInt() - 1);
-                }
-                out["view"] = viewing->currentIndex() + 1;
-                out["candidate"] = lists[0]->currentRow() + 1;
-                out["candidateMarked"] = !lists[0]->selectedItems().empty();
-                QJsonArray rows, names;
-                for (int i = 0; i < lists[0]->count(); ++i)
-                {
-                    rows.append(lists[0]->item(i)->data(Qt::AccessibleTextRole).toString());
-                }
-                for (int i = 0; i < lists[1]->count(); ++i)
-                {
-                    names.append(lists[1]->item(i)->text());
-                }
-                out["rows"] = rows;
-                out["members"] = names;
+                QJsonArray rows, members;
+                int choice = cmd["choice"].toInt(1);
                 for (auto* label : dialog->findChildren<QLabel*>())
                 {
-                    if (!label->text().isEmpty())
+                    out["labels"] = out["labels"].toString() + label->text() + "\n";
+                    if (label->objectName() == "pollGroup")
                     {
-                        out["labels"] = out["labels"].toString() + label->text() + "\n";
+                        rows.append(label->text());
+                    }
+                    if (label->objectName() == "pollVoter" && label->property("choice").toInt() == choice)
+                    {
+                        members.append(label->text());
                     }
                 }
-                for (auto* button : dialog->findChildren<QPushButton*>())
+                out["rows"] = rows;
+                out["members"] = members;
+                auto buttons = dialog->findChildren<QPushButton*>();
+                for (auto* button : buttons)
                 {
-                    if (button->text() == QStringLiteral("更多投票成员"))
+                    if (button->property("choice").toInt() != choice)
                     {
-                        out["more"] = button->isVisible();
+                        continue;
                     }
-                    if (button->text() == QStringLiteral("结束投票"))
+                    out["more"] = button->isVisible();
+                    if (cmd["more"].toBool() && button->isVisible())
                     {
-                        out["canClose"] = button->isVisible();
-                    }
-                    if (cmd["action"].toString() == button->text())
-                    {
-                        QTimer::singleShot(0, button, &QPushButton::click);
+                        button->click();
                     }
                 }
                 if (cmd["close"].toBool())
@@ -1265,6 +1271,19 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                     }
                 }
             };
+            QJsonArray actions;
+            for (auto* item : menu->actions())
+            {
+                if (item->isVisible())
+                {
+                    actions.append(item->text());
+                }
+            }
+            out["actions"] = actions;
+            if (cmd.contains("action"))
+            {
+                QTimer::singleShot(0, menu, [trigger, label = cmd["action"].toString()] { trigger(label); });
+            }
             if (cmd["forward"].toBool())
             {
                 QTimer::singleShot(0, menu, [trigger] { trigger(QStringLiteral("转发")); });

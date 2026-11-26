@@ -2,13 +2,14 @@
 #include "chat_session.hpp"
 #include <variant>
 
-std::expected<chat::poll_summary, sqlite_error> read_poll_summary(sqlite_database& db, std::int64_t id)
+std::expected<chat::poll_summary, sqlite_error> read_poll_summary(sqlite_database& db, std::int64_t id, std::int64_t viewer)
 {
-    auto q = db.prepare(R"SQL(SELECT p.revision,p.closed,o.position,o.label,count(v.user)
+    auto q = db.prepare(R"SQL(SELECT p.revision,p.closed,o.position,o.label,count(v.user),max(v.user=?2)
         FROM polls p JOIN poll_options o ON o.message=p.message
         LEFT JOIN poll_votes v ON v.message=o.message AND v.choice=o.position
-        WHERE p.message=? GROUP BY o.position ORDER BY o.position)SQL",
-                        id);
+        WHERE p.message=?1 GROUP BY o.position ORDER BY o.position)SQL",
+                        id,
+                        viewer);
     if (!q)
     {
         return std::unexpected(q.error());
@@ -27,6 +28,10 @@ std::expected<chat::poll_summary, sqlite_error> read_poll_summary(sqlite_databas
         }
         state.revision = q->column_int64(0);
         state.closed = q->column_int64(1) != 0;
+        if (q->column_int64(5))
+        {
+            state.selection = q->column_int64(2);
+        }
         state.options.push_back({q->column_int64(2), q->column_int64(4), std::string(q->column_text(3))});
     }
 }
@@ -42,6 +47,7 @@ struct poll_result
 {
     chat::poll_state state;
     bool changed = false;
+    std::vector<std::pair<std::int64_t, std::int64_t>> recipients;
 };
 enum class rejection
 {
@@ -95,11 +101,12 @@ std::expected<outcome, sqlite_error> access_poll(sqlite_database& db, std::int64
     }
     if (voters)
     {
-        auto list = db.prepare(R"SQL(SELECT u.id,u.username,u.nickname FROM poll_votes v JOIN users u ON u.id=v.user
+        auto list = db.prepare(
+            R"SQL(SELECT u.id,u.username,u.nickname,u.avatar_revision,a.user_id IS NOT NULL FROM poll_votes v JOIN users u ON u.id=v.user LEFT JOIN user_avatars a ON a.user_id=u.id
             WHERE v.message=? AND v.choice=? AND v.user>? ORDER BY v.user LIMIT 51)SQL",
-                               p.message,
-                               choice,
-                               p.after.value_or(0));
+            p.message,
+            choice,
+            p.after.value_or(0));
         if (!list)
         {
             return std::unexpected(list.error());
@@ -121,7 +128,10 @@ std::expected<outcome, sqlite_error> access_poll(sqlite_database& db, std::int64
                 page.next = page.members.back().id;
                 return page;
             }
-            page.members.push_back({list->column_int64(0), std::string(list->column_text(1)), std::string(list->column_text(2))});
+            page.members.push_back({list->column_int64(0),
+                                    std::string(list->column_text(1)),
+                                    std::string(list->column_text(2)),
+                                    {list->column_int64(3), list->column_int64(4) != 0}});
         }
     }
     if (close && !result.state.can_close)
@@ -159,12 +169,38 @@ std::expected<outcome, sqlite_error> access_poll(sqlite_database& db, std::int64
             return std::unexpected(err);
         }
     }
-    auto summary = read_poll_summary(db, p.message);
+    auto summary = read_poll_summary(db, p.message, user);
     if (!summary)
     {
         return std::unexpected(summary.error());
     }
     result.state.summary = std::move(*summary);
+    if (result.changed)
+    {
+        // Read visibility and personal choices in the same revision as the shared totals.
+        auto members = db.prepare(R"SQL(SELECT own.user_id, coalesce(v.choice,0)
+            FROM conversation_members own LEFT JOIN poll_votes v ON v.message=?2 AND v.user=own.user_id
+            WHERE own.conversation_id=?1 AND own.visible_after<?2)SQL",
+                                  p.conversation,
+                                  p.message);
+        if (!members)
+        {
+            return std::unexpected(members.error());
+        }
+        for (;;)
+        {
+            auto row = members->step();
+            if (!row)
+            {
+                return std::unexpected(row.error());
+            }
+            if (!*row)
+            {
+                break;
+            }
+            result.recipients.emplace_back(members->column_int64(0), members->column_int64(1));
+        }
+    }
     if (auto err = tx->commit(); err)
     {
         return std::unexpected(err);
@@ -220,12 +256,28 @@ boost::capy::task<simdjson::error_code> chat_session::handle_poll(json_rpc_reque
             std::string_view jsonrpc, method;
             chat::poll_update params;
         };
-        std::string json;
-        if (auto err = simdjson::builder::to_json_string(event{"2.0", "poll_updated", {p.conversation, p.message, poll.state.summary}}).get(json))
+        event notification{"2.0", "poll_updated", {p.conversation, p.message, poll.state.summary}};
+        for (auto [user, choice] : poll.recipients)
         {
-            co_return err;
+            auto sessions = users_.sessions(user);
+            if (sessions.empty())
+            {
+                continue;
+            }
+            notification.params.summary.selection = choice;
+            std::string json;
+            if (auto err = simdjson::builder::to_json_string(notification).get(json))
+            {
+                co_return err;
+            }
+            for (auto* session : sessions)
+            {
+                if (session != this)
+                {
+                    session->enqueue_message(json);
+                }
+            }
         }
-        co_await publish_conversation(p.conversation, std::move(json), false, p.message);
     }
     co_return serialize_json_rpc_value(poll.state, std::move(request.id), response);
 }

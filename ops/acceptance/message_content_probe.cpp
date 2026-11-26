@@ -224,7 +224,7 @@ static void check_card_actions(QListView& view, message_delegate& delegate)
         item.text = kind == QStringLiteral("poll") ? QStringLiteral("测试问题") : QStringLiteral("聊天记录\nA：正文\n共 2 条聊天记录");
         if (kind == QStringLiteral("poll"))
         {
-            item.poll = chat::poll_summary{1, false, {{1, 0, "A"}, {2, 0, "B"}}};
+            item.poll = chat::poll_summary{1, true, {{1, 0, "A"}, {2, 0, "B"}}};
         }
         assert(model.add_message(item));
         auto index = model.index(model.rowCount() - 1);
@@ -479,16 +479,19 @@ int main(int argc, char** argv)
             painter.end();
             return image;
         };
+        auto ballot = draw();
+        poll.closed = true;
         auto zero = draw();
+        assert(ballot.height() != zero.height());
         poll.options[0].votes = 1;
         auto voted = draw();
         assert(voted.size() == zero.size());
         int full_width_bar = 0;
         for (int y = 0; y < voted.height(); ++y)
         {
-            if (voted.pixelColor(4, y) == themed("accent") && voted.pixelColor(width - 5, y) == themed("accent"))
+            if (voted.pixelColor(width / 2, y) == themed("accent") && voted.pixelColor(width - 5, y) == themed("accent"))
             {
-                assert(zero.pixelColor(4, y) == themed("border"));
+                assert(zero.pixelColor(width / 2, y) == themed("border"));
                 ++full_width_bar;
             }
         }
