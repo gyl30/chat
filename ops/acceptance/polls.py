@@ -180,7 +180,7 @@ async def run(root, probe):
             await ui.wait("poll_ui", lambda r: r["selection"] == 0, message=mid)
             assert [
                 v["username"]
-                for v in (await a.ok("get_poll_voters", choice=1, **args))["members"]
+                for v in (await b.ok("get_poll_voters", choice=1, **args))["members"]
             ] == ["b"]
             # Miss a vote entirely, then release the real authentication on reconnection.
             gate.hold_requests.add("resume_session")
@@ -192,6 +192,7 @@ async def run(root, probe):
                 "reconnecting",
             )
             await c.ok("vote_poll", choices=1, **args)
+            await a.ok("vote_poll", choices=2, **args)
             await gate.release_requests("resume_session")
             await ui.wait(
                 "state",

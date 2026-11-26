@@ -65,8 +65,12 @@ async def verify_modes(url, creator, voter, observer, group):
                     == bool(state["explanation"])
                     == (own and quiz)
                 )
-                assert state["recent"] == ([] if anonymous else cast["recent"])
-            page = await observer.ask("get_poll_voters", **params, choice=1)
+                assert state["recent"] == (cast["recent"] if own else [])
+                assert state["participants"] == 1
+                if not own:
+                    assert all(not option["votes"] for option in state["options"])
+            assert "error" in await observer.ask("get_poll_voters", **params, choice=1)
+            page = await voter.ask("get_poll_voters", **params, choice=1)
             if anonymous:
                 assert "error" in page
             else:
@@ -87,6 +91,8 @@ async def verify_modes(url, creator, voter, observer, group):
                 cleared = (await voter.ok("vote_poll", **params, choices=0))["summary"]
                 assert not cleared["participants"] and not cleared["recent"]
             closed = (await creator.ok("close_poll", **params))["summary"]
+            closed_page = await creator.ask("get_poll_voters", **params, choice=1)
+            assert ("error" in closed_page) == anonymous
             assert closed["closed"] and bool(closed["correct"]) == quiz
             assert "error" in await voter.ask("vote_poll", **params, choices=1)
             await creator.ok("delete_message", **params)
@@ -116,6 +122,13 @@ async def verify_composer(ui, gate, creator, room, database):
         if kind == "single":
             assert (await ui.call("poll_ui", submit=False, **fields))["valid"]
             assert (await ui.call("poll_ui", nextOption=True))["advanced"]
+            gate.hold_requests.add("resume_session")
+            await gate.down.close()
+            await until(lambda: any(r["method"] == "resume_session" for _, r in gate.held_requests), "form disconnected")
+            offline = await ui.call("poll_ui", submit=False, **fields)
+            assert offline["question"] == question and not offline["valid"]
+            await gate.release_requests("resume_session")
+            await ui.wait("poll_ui", lambda r: r.get("valid"), submit=False, **fields)
             gate.hold.add("send_message")
         assert (await ui.call("poll_ui", **fields))["valid"]
         if kind == "single":

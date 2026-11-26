@@ -4591,6 +4591,7 @@ void chat_widget::update_compose_state()
     attachment_button_->setEnabled(allowed);
     screenshot_button_->setEnabled(allowed);
     create_poll_action_->setVisible(active_group_ && allowed);
+    emit poll_creation_availability(active_conversation_, active_group_ && allowed);
     mention_button_->setVisible(active_group_);
     mention_button_->setEnabled(allowed);
     emoji_button_->setEnabled(allowed);

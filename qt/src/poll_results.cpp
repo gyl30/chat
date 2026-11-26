@@ -107,6 +107,21 @@ class results_page final : public QWidget
                         render(update.summary);
                     }
                 });
+        connect(&client,
+                &client_bridge::profile_changed,
+                this,
+                [this](qint64 id)
+                {
+                    for (auto it = groups_.begin(); it != groups_.end(); ++it)
+                    {
+                        if (std::ranges::find(it->members, id, &chat::poll_voter::id) != it->members.end())
+                        {
+                            it->members.clear();
+                            it->after = 0;
+                            request(it.key());
+                        }
+                    }
+                });
         connect(&client, &client_bridge::voters_received, this, &results_page::received);
         connect(&chat,
                 &chat_widget::history_discarded,
@@ -148,6 +163,7 @@ class results_page final : public QWidget
     void request(qint64 choice)
     {
         auto& group = groups_[choice];
+        group.more->setProperty("retry", false);
         group.more->setEnabled(false);
         group.request = client_.get_poll_voters(room_, message_, choice, group.after);
     }
@@ -182,9 +198,9 @@ class results_page final : public QWidget
         {
             auto const& person = g.members[i];
             auto* row = existing.take(person.id);
+            auto name = QString::fromStdString(person.nickname.empty() ? person.username : person.nickname);
             if (!row)
             {
-                QString name = QString::fromStdString(person.nickname.empty() ? person.username : person.nickname);
                 row = new QPushButton(name);
                 row->setFlat(true);
                 row->setObjectName("pollVoter");
@@ -192,9 +208,8 @@ class results_page final : public QWidget
                 row->setProperty("user", qint64(person.id));
                 row->setToolTip(QString::fromStdString(person.username));
                 row->setIconSize({28, 28});
-                auto refresh = [this, row, id = person.id, name] { row->setIcon(avatar_icon(name, 28, chat_.avatars().image(id))); };
-                chat_.avatars().observe(person.id, person.avatar);
-                refresh();
+                auto refresh = [this, row, id = person.id] { row->setIcon(avatar_icon(row->text(), 28, chat_.avatars().image(id))); };
+
                 connect(&chat_.avatars(),
                         &avatar_cache::changed,
                         row,
@@ -205,8 +220,11 @@ class results_page final : public QWidget
                                 refresh();
                             }
                         });
-                connect(row, &QPushButton::clicked, this, [this, id = person.id, name] { chat_.show_user_details(id, name, this); });
+                connect(row, &QPushButton::clicked, this, [this, id = person.id, row] { chat_.show_user_details(id, row->text(), this); });
             }
+            row->setText(name);
+            chat_.avatars().observe(person.id, person.avatar);
+            row->setIcon(avatar_icon(name, 28, chat_.avatars().image(person.id)));
             g.rows->addWidget(row);
         }
         for (auto* removed : existing)

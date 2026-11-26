@@ -163,6 +163,8 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
     outer->addWidget(buttons);
     QButtonGroup answers(&dialog);
     bool sending = false;
+    bool available = true;
+    bool membership_verified = true;
     auto read = [&](QStringList& labels, chat::poll_settings& settings)
     {
         settings.anonymous = anonymous->isChecked();
@@ -236,14 +238,22 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
         chat::poll_settings settings;
         auto error = read(labels, settings);
         feedback->setText(error);
-        ok->setEnabled(!sending && error.isEmpty());
+        ok->setEnabled(membership_verified && available && !sending && error.isEmpty());
+        if (!membership_verified || !available)
+        {
+            feedback->setText(QStringLiteral("当前无法发起投票，已保留输入"));
+        }
+        else if (error.isEmpty())
+        {
+            feedback->setText(QStringLiteral("问题还可输入 %1 字").arg(256 - question->toPlainText().trimmed().toUcs4().size()));
+        }
         remaining->setText(QStringLiteral("还可添加 %1 个选项").arg(10 - labels.size()));
         remaining->setVisible(labels.size() < 10);
         explanation->setVisible(quiz->isChecked());
         for (int i = 0; i < rows->count(); ++i)
         {
             auto* row = rows->itemAt(i)->widget();
-            row->findChild<QRadioButton*>()->setVisible(quiz->isChecked());
+            row->findChild<QRadioButton*>()->setVisible(quiz->isChecked() && !row->findChild<QLineEdit*>()->text().trimmed().isEmpty());
             row->findChild<QToolButton*>()->setEnabled(rows->count() > 1);
         }
     };
@@ -367,7 +377,7 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
                      {
                          QStringList labels;
                          chat::poll_settings settings;
-                         if (sending || !read(labels, settings).isEmpty() || chat.active_conversation() != room)
+                         if (!membership_verified || !available || sending || !read(labels, settings).isEmpty() || chat.active_conversation() != room)
                          {
                              return;
                          }
@@ -396,7 +406,48 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
                          validate();
                          feedback->setText(error);
                      });
-    QObject::connect(&client, &client_bridge::disconnected, &dialog, [&] { dialog.done(QDialog::Rejected); });
+    QObject::connect(&client,
+                     &client_bridge::disconnected,
+                     &dialog,
+                     [&]
+                     {
+                         membership_verified = available = sending = false;
+                         buttons->setEnabled(true);
+                         panel->setEnabled(true);
+                         validate();
+                     });
+    QObject::connect(&client,
+                     &client_bridge::members_received,
+                     &dialog,
+                     [&](qint64 current, const QList<member_data>& members, const QString& error)
+                     {
+                         if (current == room && !membership_verified && error.isEmpty())
+                         {
+                             membership_verified = std::ranges::find(members, chat.self_user(), &member_data::id) != members.end();
+                             if (!membership_verified)
+                             {
+                                 dialog.done(QDialog::Rejected);
+                                 return;
+                             }
+                             validate();
+                         }
+                     });
+    QObject::connect(&chat,
+                     &chat_widget::poll_creation_availability,
+                     &dialog,
+                     [&](qint64 current, bool allowed)
+                     {
+                         if (current != room)
+                         {
+                             dialog.done(QDialog::Rejected);
+                             return;
+                         }
+                         if (available != allowed)
+                         {
+                             available = allowed;
+                             validate();
+                         }
+                     });
     QObject::connect(&chat,
                      &chat_widget::conversation_selected,
                      &dialog,

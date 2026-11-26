@@ -2,7 +2,9 @@
 #include "chat_session.hpp"
 #include <variant>
 
-std::expected<chat::poll_summary, sqlite_error> read_poll_summary(sqlite_database& db, std::int64_t id, std::int64_t viewer)
+namespace
+{
+std::expected<chat::poll_summary, sqlite_error> read_poll_totals(sqlite_database& db, std::int64_t id, std::int64_t viewer)
 {
     auto q = db.prepare(R"SQL(SELECT p.revision,p.closed,o.position,o.label,count(v.user),p.anonymous,p.multiple,p.correct,p.explanation,
         (SELECT count(*) FROM poll_votes WHERE message=p.message),
@@ -37,11 +39,8 @@ std::expected<chat::poll_summary, sqlite_error> read_poll_summary(sqlite_databas
             state.quiz = q->column_int64(7) != 0;
             state.participants = q->column_int64(9);
             state.selection = q->column_int64(10);
-            if (state.closed || state.selection)
-            {
-                state.correct = q->column_int64(7);
-                state.explanation = q->column_text(8);
-            }
+            state.correct = q->column_int64(7);
+            state.explanation = q->column_text(8);
         }
         state.options.push_back({q->column_int64(2), q->column_int64(4), std::string(q->column_text(3))});
     }
@@ -75,8 +74,20 @@ std::expected<chat::poll_summary, sqlite_error> read_poll_summary(sqlite_databas
     return state;
 }
 
-namespace
+void project_ballot(chat::poll_summary& summary, std::int64_t selection)
 {
+    summary.selection = selection;
+    if (!selection && !summary.closed)
+    {
+        summary.recent.clear();
+        summary.correct = 0;
+        summary.explanation.clear();
+        for (auto& option : summary.options)
+        {
+            option.votes = 0;
+        }
+    }
+}
 struct[[= simdjson::deny_unknown_fields]] poll_params
 {
     std::int64_t conversation = 0, message = 0;
@@ -86,8 +97,6 @@ struct poll_result
 {
     chat::poll_state state;
     bool changed = false;
-    std::int64_t answer = 0;
-    std::string explanation;
     std::vector<std::pair<std::int64_t, std::int64_t>> recipients;
 };
 enum class rejection
@@ -109,7 +118,7 @@ std::expected<outcome, sqlite_error> access_poll(sqlite_database& db, std::int64
     }
     auto access = db.prepare(R"SQL(SELECT m.body, m.sender_id=?1 OR c.owner_id=?1 OR own.is_admin,p.closed,
         coalesce((SELECT choices FROM poll_votes WHERE message=m.id AND user=?1),0),
-        (SELECT count(*) FROM poll_options WHERE message=m.id),p.anonymous,p.multiple,p.correct,p.explanation,p.revision FROM readable_messages m
+        (SELECT count(*) FROM poll_options WHERE message=m.id),p.anonymous,p.multiple,p.correct,p.revision FROM readable_messages m
         JOIN polls p ON p.message=m.id JOIN conversations c ON c.id=m.conversation_id
         JOIN conversation_members own ON own.conversation_id=c.id AND own.user_id=?1
         WHERE c.id=?2 AND m.id=?3 AND NOT m.deleted AND m.id>own.visible_after)SQL",
@@ -136,11 +145,10 @@ std::expected<outcome, sqlite_error> access_poll(sqlite_database& db, std::int64
     auto const previous = access->column_int64(3);
     auto const count = access->column_int64(4);
     auto const choices = p.choices.value_or(0);
-    result.answer = access->column_int64(7);
-    result.explanation = access->column_text(8);
+    bool const quiz = access->column_int64(7) != 0;
     if (voters)
     {
-        if (access->column_int64(5))
+        if (access->column_int64(5) || (!closed && !previous))
         {
             return rejection::forbidden;
         }
@@ -197,7 +205,7 @@ std::expected<outcome, sqlite_error> access_poll(sqlite_database& db, std::int64
     }
     if (vote && previous != choices)
     {
-        if (result.answer && previous)
+        if (quiz && previous)
         {
             return rejection::forbidden;
         }
@@ -207,7 +215,7 @@ std::expected<outcome, sqlite_error> access_poll(sqlite_database& db, std::int64
                                  p.message,
                                  user,
                                  choices,
-                                 access->column_int64(9) + 1)
+                                 access->column_int64(8) + 1)
                            : db.exec("DELETE FROM poll_votes WHERE message=? AND user=?", p.message, user);
         if (err)
         {
@@ -226,7 +234,7 @@ std::expected<outcome, sqlite_error> access_poll(sqlite_database& db, std::int64
             return std::unexpected(err);
         }
     }
-    auto summary = read_poll_summary(db, p.message, user);
+    auto summary = read_poll_totals(db, p.message, user);
     if (!summary)
     {
         return std::unexpected(summary.error());
@@ -265,6 +273,17 @@ std::expected<outcome, sqlite_error> access_poll(sqlite_database& db, std::int64
     return result;
 }
 }    // namespace
+
+std::expected<chat::poll_summary, sqlite_error> read_poll_summary(sqlite_database& db, std::int64_t id, std::int64_t viewer)
+{
+    auto summary = read_poll_totals(db, id, viewer);
+    if (summary)
+    {
+        project_ballot(*summary, summary->selection);
+    }
+    return summary;
+}
+
 boost::capy::task<simdjson::error_code> chat_session::handle_poll(json_rpc_request& request, std::string& response)
 {
     if (!request.id.present)
@@ -314,7 +333,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_poll(json_rpc_reque
             std::string_view jsonrpc, method;
             chat::poll_update params;
         };
-        event notification{"2.0", "poll_updated", {p.conversation, p.message, poll.state.summary}};
         for (auto [user, choice] : poll.recipients)
         {
             auto sessions = users_.sessions(user);
@@ -322,10 +340,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_poll(json_rpc_reque
             {
                 continue;
             }
-            auto& summary = notification.params.summary;
-            summary.selection = choice;
-            summary.correct = choice || summary.closed ? poll.answer : 0;
-            summary.explanation = summary.correct ? poll.explanation : std::string{};
+            event notification{"2.0", "poll_updated", {p.conversation, p.message, poll.state.summary}};
+            project_ballot(notification.params.summary, choice);
             std::string json;
             if (auto err = simdjson::builder::to_json_string(notification).get(json))
             {
@@ -340,5 +356,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_poll(json_rpc_reque
             }
         }
     }
+    project_ballot(poll.state.summary, poll.state.summary.selection);
     co_return serialize_json_rpc_value(poll.state, std::move(request.id), response);
 }

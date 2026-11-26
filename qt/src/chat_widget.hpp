@@ -182,6 +182,7 @@ class chat_widget final : public QWidget
     void profile_received(qint64 user, QString username, QString nickname, QString signature);
     void profile_edit_requested(QString nickname, QString signature);
     void friendship_updated();
+    void poll_creation_availability(qint64 room, bool allowed);
     void contact_remove_requested(qint64 user);
     void contact_add_finished(qint64 user, QString error);
     void settings_requested();
