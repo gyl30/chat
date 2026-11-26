@@ -396,6 +396,12 @@ std::expected<messages_result, error> parse_message_page(dom::element response, 
 
     messages_result result;
     result.has_more = more_value->get_bool().value_unsafe();
+    auto newer = find_field(response, "has_newer");
+    if (!newer || !newer->is_bool())
+    {
+        return std::unexpected(make_error(error_kind::protocol, "Invalid history boundary"));
+    }
+    result.has_newer = newer->get_bool().value_unsafe();
     auto floor = integer_field(response, "visible_after");
     auto hidden = find_field(response, "hidden");
     if (!floor || !hidden || !hidden->is_bool())

@@ -149,12 +149,18 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         std::vector<message_payload> messages;
         decltype(chat::messages_result::read_positions) read_positions;
         bool has_more;
+        bool has_newer;
         std::int64_t visible_after;
         bool hidden;
         std::optional<std::int64_t> first_unread;
     };
-    result value{
-        {}, std::move((*history)->read_positions), (*history)->has_more, (*history)->visible_after, (*history)->hidden, (*history)->first_unread};
+    result value{{},
+                 std::move((*history)->read_positions),
+                 (*history)->has_more,
+                 (*history)->has_newer,
+                 (*history)->visible_after,
+                 (*history)->hidden,
+                 (*history)->first_unread};
     value.messages.reserve((*history)->messages.size());
     for (auto const& message : (*history)->messages)
     {

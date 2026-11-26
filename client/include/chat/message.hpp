@@ -214,6 +214,7 @@ struct messages_result
     std::int64_t visible_after = 0;
     bool hidden = false;
     bool has_more = false;
+    bool has_newer = false;
     std::optional<std::int64_t> first_unread;
 };
 

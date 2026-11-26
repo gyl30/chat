@@ -297,6 +297,7 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
         return std::unexpected(std::move(more.error()));
     }
     result.has_more = *more;
+    result.has_newer = after.has_value() && *more;
     if (!after)
     {
         std::ranges::reverse(result.messages);
@@ -308,6 +309,7 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
         {
             return std::unexpected(std::move(newer.error()));
         }
+        result.has_newer = *newer;
     }
     if (auto populated = populate_interactions(db, result.messages); !populated)
     {
