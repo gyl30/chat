@@ -163,7 +163,7 @@ class results_page final : public QWidget
     void request(qint64 choice)
     {
         auto& group = groups_[choice];
-        group.more->setProperty("retry", false);
+        group.more->setText(QStringLiteral("正在加载成员…"));
         group.more->setEnabled(false);
         group.request = client_.get_poll_voters(room_, message_, choice, group.after);
     }
@@ -288,21 +288,15 @@ class results_page final : public QWidget
                     {
                         return;
                     }
-                    if (g.more->property("retry").toBool())
-                    {
-                        g.more->setProperty("retry", false);
-                    }
-                    else
+                    if (g.members.size() >= g.limit())
                     {
                         g.wanted = std::min<qint64>(g.votes, g.limit() + 50);
-                        if (!g.after || g.members.size() >= g.wanted)
-                        {
-                            populate(g, choice);
-                            return;
-                        }
                         populate(g, choice);
                     }
-                    request(choice);
+                    if (g.members.size() < g.limit())
+                    {
+                        request(choice);
+                    }
                 });
         connect(collapse,
                 &QPushButton::clicked,
@@ -377,7 +371,6 @@ class results_page final : public QWidget
         if (!error.isEmpty())
         {
             g.more->setText(QStringLiteral("重试加载成员"));
-            g.more->setProperty("retry", true);
             g.more->setEnabled(true);
             g.more->show();
             return;

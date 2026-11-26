@@ -235,8 +235,11 @@ int layout_poll_card(QPainter* painter,
                 }
                 if (chosen || correct)
                 {
-                    painter->setPen(QPen(ink, 2));
                     QPoint p(left - 16, y + h + 10);
+                    painter->setPen(Qt::NoPen);
+                    painter->setBrush(ink);
+                    painter->drawEllipse(p, 7, 7);
+                    painter->setPen(QPen(themed("on_accent"), 1.6, Qt::SolidLine, Qt::RoundCap));
                     if (poll.quiz && !correct)
                     {
                         painter->drawLine(p - QPoint(3, 3), p + QPoint(3, 3));
