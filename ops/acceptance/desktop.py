@@ -508,18 +508,23 @@ async def contacts_cases(ui, stack, url, a):
     await a.ok("move_friend", user=2, group="同事")
     await a.ok("set_friend_remark", user=2, remark="小北")
     await ui.wait("contacts", lambda r: r["names"] == ["小北"])
-    assert (await ui.call("contacts", group="同事", filter="小北"))["names"] == ["小北"]
+    await ui.wait("contacts", lambda r: r["groups"] == {"我的好友": 0, "同事": 1})
+    assert not (await ui.call("contacts", toggle="同事"))["names"]
+    await ui.call("contacts", close=True)
+    assert not (await ui.call("contacts", open=True))["names"]
+    matches = await ui.call("contacts", filter="小北")
+    assert matches["names"] == ["小北"] and matches["groups"] == {"同事": 1}
     assert (await ui.call("contacts", filter="b"))["names"] == ["小北"]
     assert not (await ui.call("contacts", filter="无匹配"))["names"]
+    restored = await ui.call("contacts", filter="")
+    assert not restored["names"] and restored["groups"] == {"同事": 1, "我的好友": 0}
     await a.ok("rename_friend_group", group="同事", name="工作")
-    await ui.wait("contacts", lambda r: r["group"] == "全部好友")
-    assert (await ui.call("contacts", group="工作", filter=""))["names"] == ["小北"]
+    await ui.wait("contacts", lambda r: r["groups"] == {"我的好友": 0, "工作": 1} and r["names"] == ["小北"])
     await ui.call("contacts", profile=True)
     await ui.wait("contacts", lambda r: r.get("profile") == "b" and r["friend"])
     await ui.call("contacts", closeProfile=True)
     await a.ok("delete_friend_group", group="工作")
-    await ui.wait("contacts", lambda r: r["group"] == "全部好友")
-    assert (await ui.call("contacts", group="我的好友"))["names"] == ["小北"]
+    await ui.wait("contacts", lambda r: r["groups"] == {"我的好友": 1} and r["names"] == ["小北"])
 
     c = await login(stack, url, "c", "c", True)
     await c.ok("send_friend_request", user=1)

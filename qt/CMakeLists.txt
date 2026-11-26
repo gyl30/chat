@@ -73,6 +73,8 @@ add_executable(client
     src/user_data.hpp
     src/user_delegate.cpp
     src/user_delegate.hpp
+    src/friend_list_model.cpp
+    src/friend_list_model.hpp
     src/user_model.cpp
     src/user_model.hpp
 )

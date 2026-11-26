@@ -36,6 +36,7 @@
 #include <QPushButton>
 #include "main_window.hpp"
 #include "chat_widget.hpp"
+#include "friend_list_model.hpp"
 #include "client_bridge.hpp"
 #include "download_tasks.hpp"
 #include <optional>
@@ -253,10 +254,30 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         {
             chat->contact_search_->setText(cmd["filter"].toString());
         }
-        if (cmd.contains("group"))
+        auto* friends = chat->friends_list_;
+        if (cmd.contains("toggle"))
         {
-            auto* groups = chat->friend_groups_;
-            groups->setCurrentIndex(groups->findText(cmd["group"].toString()));
+            for (int row = 0; row < friends->rowCount(); ++row)
+            {
+                auto ix = friends->index(row, 0);
+                if (ix.data(friend_list_model::header_role).toBool() && ix.data() == cmd["toggle"].toString())
+                {
+                    auto* view = chat->contacts_view_;
+                    view->scrollTo(ix);
+                    auto pos = view->visualRect(ix).center();
+                    for (auto type : {QEvent::MouseButtonPress, QEvent::MouseButtonRelease})
+                    {
+                        QMouseEvent ev(type,
+                                       pos,
+                                       view->viewport()->mapToGlobal(pos),
+                                       Qt::LeftButton,
+                                       type == QEvent::MouseButtonPress ? Qt::LeftButton : Qt::NoButton,
+                                       Qt::NoModifier);
+                        QApplication::sendEvent(view->viewport(), &ev);
+                    }
+                    break;
+                }
+            }
         }
         if (cmd["requests"].toBool())
         {
@@ -276,7 +297,16 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         }
         if (cmd["profile"].toBool())
         {
-            auto const index = chat->contacts_view_->model()->index(0, 0);
+            QModelIndex index;
+            for (int row = 0; row < friends->rowCount(); ++row)
+            {
+                auto candidate = friends->index(row);
+                if (friends->source_index(candidate).isValid())
+                {
+                    index = candidate;
+                    break;
+                }
+            }
             if (index.isValid())
             {
                 auto const id = index.data(user_model::id_role).toLongLong();
@@ -354,13 +384,21 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             }
         }
         QJsonArray contacts;
-        auto const* contacts_model = chat->contacts_view_->model();
-        for (int row = 0; row < contacts_model->rowCount(); ++row)
+        QJsonObject groups;
+        for (int row = 0; row < friends->rowCount(); ++row)
         {
-            contacts.append(contacts_model->index(row, 0).data(Qt::DisplayRole).toString());
+            auto ix = friends->index(row);
+            if (ix.data(friend_list_model::header_role).toBool())
+            {
+                groups[ix.data().toString()] = ix.data(friend_list_model::count_role).toInt();
+            }
+            else
+            {
+                contacts.append(ix.data().toString());
+            }
         }
         out["names"] = contacts;
-        out["group"] = chat->friend_groups_->currentText();
+        out["groups"] = groups;
         out["requests"] = chat->incoming_friends_->count();
         if (cmd["close"].toBool())
         {
