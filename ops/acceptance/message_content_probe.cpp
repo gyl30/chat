@@ -505,30 +505,51 @@ int main(int argc, char** argv)
         poll.participants = 1;
         auto voted = draw();
         assert(voted.size() == zero.size());
-        int full_width_bar = 0;
-        for (int y = 0; y < voted.height(); ++y)
+        auto check_bars = [&](QList<int> votes, int participants, QList<int> percentages, bool multiple = false)
         {
-            if (voted.pixelColor(width / 2, y) == themed("accent") && voted.pixelColor(width - 5, y) == themed("accent"))
+            poll.participants = participants;
+            poll.multiple = multiple;
+            poll.options.clear();
+            for (int i = 0; i < votes.size(); ++i)
             {
-                assert(zero.pixelColor(width / 2, y) == themed("bubble_in"));
-                ++full_width_bar;
+                poll.options.push_back({i + 1, votes[i], "选项"});
             }
-        }
-        assert(full_width_bar >= 2);
-        auto split = poll;
-        split.participants = 100;
-        split.options = {{1, 50, "A"}, {2, 25, "B"}, {3, 25, "C"}};
-        assert(poll_percentages(split) == QList<int>({50, 25, 25}));
-        split.multiple = true;
-        split.participants = 50;
-        assert(poll_percentages(split) == QList<int>({100, 50, 50}));
-        split.multiple = false;
-        split.participants = 3;
-        for (auto& option : split.options)
-        {
-            option.votes = 1;
-        }
-        assert(poll_percentages(split) == QList<int>({33, 33, 33}));
+            assert(poll_percentages(poll) == percentages);
+            auto image = draw();
+            QFont percent_font(view->font());
+            percent_font.setWeight(QFont::DemiBold);
+            const int left = QFontMetrics(percent_font).horizontalAdvance(QStringLiteral("100%")) + 12;
+            QList<int> widths;
+            int longest = 0;
+            for (int y = 0; y < image.height(); ++y)
+            {
+                int length = 0;
+                for (int x = left; x < width; ++x)
+                {
+                    length += image.pixelColor(x, y) == themed("accent");
+                }
+                if (length > 0)
+                {
+                    longest = std::max(longest, length);
+                }
+                else if (longest > 0)
+                {
+                    widths.append(std::exchange(longest, 0));
+                }
+            }
+            assert(widths.size() == percentages.size());
+            for (int i = 0; i < widths.size(); ++i)
+            {
+                const int expected = qRound(4 + (width - left - 8) * percentages[i] / 100.);
+                assert(std::abs(widths[i] - expected) <= 1);
+            }
+        };
+        check_bars({1, 0, 1, 0}, 2, {50, 0, 50, 0});
+        check_bars({4, 7, 3, 4}, 18, {22, 39, 17, 22});
+        check_bars({1, 0, 0}, 1, {100, 0, 0});
+        check_bars({1, 1, 1}, 3, {33, 33, 33});
+        check_bars({4, 2, 2}, 4, {100, 50, 50}, true);
+        check_bars({0, 0}, 0, {0, 0});
         for (int i = 3; i <= 10; ++i)
         {
             poll.options.push_back({i, 0, QString(80, QChar(0x754c)).toStdString()});

@@ -204,18 +204,18 @@ int layout_poll_card(QPainter* painter,
         }
     }
     y += std::max(18, type_height) + 8;
-    auto percents = poll_percentages(poll);
-    qint64 maximum = 0;
-    for (const auto& o : poll.options)
-    {
-        maximum = std::max<qint64>(maximum, o.votes);
-    }
+    const auto percents = poll_percentages(poll);
+    auto percent_font = font;
+    percent_font.setWeight(QFont::DemiBold);
+    const QFontMetrics percent_metrics(percent_font);
+    const int result_left = percent_metrics.horizontalAdvance(QStringLiteral("100%")) + 12;
+    constexpr int bar_height = 4, min_bar = 4, bar_right = 4, bar_gap = 6;
     for (const auto& option : poll.options)
     {
         auto bit = chat::poll_bit(option.position);
         bool chosen = (poll.selection & bit) != 0;
         bool correct = poll.correct == option.position;
-        int left = results ? metrics.horizontalAdvance(QStringLiteral("100%")) + 12 : 30;
+        int left = results ? result_left : 30;
         int h = text_row(y + 5, left, width - left, font, QString::fromStdString(option.label), themed("text"));
         QRect row(0, y, width, h + (results ? 18 : 12));
         auto ink = themed(correct ? "online" : poll.quiz && chosen ? "danger" : "accent");
@@ -224,18 +224,23 @@ int layout_poll_card(QPainter* painter,
             painter->setFont(font);
             if (results)
             {
+                const auto percent = percents[option.position - 1];
+                painter->setFont(percent_font);
                 painter->setPen(themed("text_secondary"));
-                painter->drawText(QRect(0, y + 5, left - 8, metrics.height()), Qt::AlignRight, QString::number(percents[option.position - 1]) + u'%');
-                if (option.votes)
-                {
-                    QRectF bar(left, y + h + 9, (width - left) * double(option.votes) / maximum, 4);
-                    painter->setPen(Qt::NoPen);
-                    painter->setBrush(ink);
-                    painter->drawRoundedRect(bar, 2, 2);
-                }
+                painter->drawText(QRect(0, y + 5, left - 5, percent_metrics.height()), Qt::AlignRight, QString::number(percent) + u'%');
+                const auto bar_y = y + 5 + std::max(h, percent_metrics.height()) + bar_gap;
+                const auto available = width - left - bar_right;
+                auto track = ink;
+                track.setAlphaF(0.15f);
+                painter->setPen(Qt::NoPen);
+                painter->setBrush(track);
+                painter->drawRoundedRect(QRectF(left, bar_y, available, bar_height), 2, 2);
+                painter->setBrush(ink);
+                const auto length = min_bar + (available - min_bar) * percent / 100.;
+                painter->drawRoundedRect(QRectF(left, bar_y, length, bar_height), 2, 2);
                 if (chosen || correct)
                 {
-                    QPoint p(left - 16, y + h + 10);
+                    QPoint p(left - 16, bar_y + bar_height / 2);
                     painter->setPen(Qt::NoPen);
                     painter->setBrush(ink);
                     painter->drawEllipse(p, 7, 7);
