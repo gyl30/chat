@@ -1835,8 +1835,15 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     connect(messages_,
             &QAbstractItemModel::dataChanged,
             this,
-            [this](QModelIndex const&, QModelIndex const&, QList<int> const& roles)
+            [this, messages_delegate](QModelIndex const& first, QModelIndex const& last, QList<int> const& roles)
             {
+                const auto selected = messages_delegate->text_index();
+                if (selected.isValid() && selected.row() >= first.row() && selected.row() <= last.row() &&
+                    (roles.isEmpty() || roles.contains(message_model::text_role)))
+                {
+                    messages_delegate->clear_text_selection();
+                    messages_view_->viewport()->update();
+                }
                 // Retraction changes which indexes are selectable without emitting selectionChanged.
                 if (messages_view_->selectionMode() == QAbstractItemView::ExtendedSelection && roles.isEmpty())
                 {
@@ -2225,6 +2232,7 @@ void chat_widget::set_message_selection(bool enabled)
     preserve_reading(
         [&]
         {
+            static_cast<message_delegate*>(messages_view_->itemDelegate())->clear_text_selection();
             messages_view_->setSelectionMode(enabled ? QAbstractItemView::ExtendedSelection : QAbstractItemView::NoSelection);
             if (!enabled)
             {
@@ -2341,6 +2349,8 @@ void chat_widget::show_message_menu(QPoint position)
     auto* copy = !index.data(message_model::text_role).toString().isEmpty()
                      ? menu.addAction(svg_icon(u"copy", themed("text_secondary")), QStringLiteral("复制"))
                      : nullptr;
+    auto* delegate = static_cast<message_delegate*>(messages_view_->itemDelegate());
+    auto* copy_selection = delegate->selected_text(index, *messages_view_).isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制选中文字"));
     auto* forward = ordinary ? menu.addAction(QStringLiteral("转发")) : nullptr;
     auto* picker = can_send() ? menu.addMenu(QStringLiteral("表情回应")) : nullptr;
     auto const own_reaction = index.data(message_model::own_reaction_role).toString();
@@ -2517,6 +2527,15 @@ void chat_widget::show_message_menu(QPoint position)
             {
                 QGuiApplication::clipboard()->setText(url.toString(QUrl::FullyEncoded));
             }
+        }
+        return;
+    }
+    if (copy_selection && selected == copy_selection)
+    {
+        const auto text = delegate->selected_text(target_index, *messages_view_);
+        if (!text.isEmpty())
+        {
+            QGuiApplication::clipboard()->setText(text);
         }
         return;
     }
@@ -3016,6 +3035,13 @@ void chat_widget::send_image(QImage const& image)
 
 bool chat_widget::eventFilter(QObject* object, QEvent* event)
 {
+    if (messages_view_ && object == messages_view_->viewport() && messages_view_->selectionMode() == QAbstractItemView::NoSelection &&
+        (event->type() == QEvent::MouseMove || event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick ||
+         event->type() == QEvent::MouseButtonRelease) &&
+        static_cast<message_delegate*>(messages_view_->itemDelegate())->select_text(*messages_view_, *static_cast<QMouseEvent*>(event)))
+    {
+        return true;
+    }
     if (messages_view_ && object == messages_view_->viewport() &&
         (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::MouseButtonDblClick ||
          event->type() == QEvent::ContextMenu))
@@ -3146,6 +3172,16 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
     if (object == messages_view_ && event->type() == QEvent::KeyPress && messages_view_->selectionMode() == QAbstractItemView::NoSelection)
     {
         auto const* key = static_cast<QKeyEvent*>(event);
+        if (key->matches(QKeySequence::Copy))
+        {
+            auto* delegate = static_cast<message_delegate*>(messages_view_->itemDelegate());
+            const auto text = delegate->selected_text(delegate->text_index(), *messages_view_);
+            if (!text.isEmpty())
+            {
+                QApplication::clipboard()->setText(text);
+                return true;
+            }
+        }
         if (key->modifiers() == Qt::NoModifier && (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter))
         {
             auto index = messages_view_->currentIndex();

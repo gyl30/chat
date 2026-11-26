@@ -207,6 +207,29 @@ struct message_layout
                QPoint(chat_theme::message_padding_horizontal, chat_theme::message_padding_vertical + forward_height + reply_height + image_height);
     }
 
+    int character_at(QPoint local, bool extend) const
+    {
+        if (markdown)
+        {
+            local.ry() -= prefix_height;
+            if (!extend && (!QRectF(QPointF(), markdown->size()).contains(local) ||
+                            !markdown->code_for_link(QUrl(markdown->documentLayout()->anchorAt(local))).isEmpty()))
+            {
+                return -1;
+            }
+            return markdown->documentLayout()->hitTest(local, extend ? Qt::FuzzyHit : Qt::ExactHit);
+        }
+        for (int i = 0; i < text_layout->lineCount(); ++i)
+        {
+            const auto line = text_layout->lineAt(i);
+            if (extend ? local.y() < line.y() + line.height() : line.naturalTextRect().contains(local))
+            {
+                return line.xToCursor(local.x());
+            }
+        }
+        return extend ? int(text_layout->text().size()) : -1;
+    }
+
     QUrl link_at(QRect const& row, QPoint point, QModelIndex const& index) const
     {
         if (index.data(message_model::send_state_role).toInt() != message_model::sent)
@@ -578,6 +601,99 @@ message_delegate::message_delegate(QObject* parent, qint64 const* context_anchor
 {
 }
 
+void message_delegate::clear_text_selection()
+{
+    text_index_ = QModelIndex{};
+    anchor_ = cursor_ = 0;
+    dragging_text_ = false;
+}
+
+bool message_delegate::select_text(QAbstractItemView& view, QMouseEvent& event)
+{
+    const auto kind = event.type();
+    const bool motion = kind == QEvent::MouseMove;
+    if (kind == QEvent::MouseButtonRelease)
+    {
+        return event.button() == Qt::LeftButton && std::exchange(dragging_text_, false);
+    }
+    if (motion ? !(event.buttons() & Qt::LeftButton) : event.button() != Qt::LeftButton)
+    {
+        return false;
+    }
+    const auto point = event.position().toPoint();
+    const auto index = motion ? QModelIndex(text_index_) : view.indexAt(point);
+    if (!motion)
+    {
+        clear_text_selection();
+        view.viewport()->update();
+        press_point_ = point;
+    }
+    if (index.data(message_model::content_role).toString() != QStringLiteral("message") ||
+        !index.data(message_model::attachment_name_role).toString().isEmpty() ||
+        (motion && !dragging_text_ && (point - press_point_).manhattanLength() < QApplication::startDragDistance()))
+    {
+        return false;
+    }
+    QStyleOptionViewItem option;
+    option.initFrom(&view);
+    option.widget = &view;
+    option.rect = view.visualRect(index);
+    const auto layout = calculate_layout(option, index);
+    const int hit = layout.character_at(point - layout.text_origin(option.rect), motion);
+    if (hit < 0)
+    {
+        return dragging_text_;
+    }
+    cursor_ = hit;
+    if (!motion)
+    {
+        text_index_ = index;
+        anchor_ = hit;
+    }
+    if (kind == QEvent::MouseButtonDblClick)
+    {
+        QTextDocument plain;
+        if (!layout.markdown)
+        {
+            plain.setPlainText(layout.text);
+        }
+        QTextCursor word(layout.markdown ? static_cast<QTextDocument*>(layout.markdown.get()) : &plain);
+        word.setPosition(hit);
+        word.select(QTextCursor::WordUnderCursor);
+        anchor_ = word.selectionStart();
+        cursor_ = word.selectionEnd();
+    }
+    dragging_text_ = motion || kind == QEvent::MouseButtonDblClick;
+    if (dragging_text_)
+    {
+        view.setFocus(Qt::MouseFocusReason);
+        view.viewport()->update(option.rect);
+    }
+    return dragging_text_;
+}
+
+QString message_delegate::selected_text(QModelIndex const& index, QAbstractItemView const& view) const
+{
+    if (!index.isValid() || index != text_index_ || anchor_ == cursor_ || index.data(message_model::deleted_role).toBool())
+    {
+        return {};
+    }
+    const int start = std::min(anchor_, cursor_);
+    const int length = std::abs(cursor_ - anchor_);
+    if (!index.data(message_model::markdown_role).toBool())
+    {
+        return index.data(message_model::text_role).toString().mid(start, length);
+    }
+    QStyleOptionViewItem option;
+    option.initFrom(&view);
+    option.rect = view.visualRect(index);
+    const auto layout = calculate_layout(option, index);
+    QTextCursor text(layout.markdown.get());
+    text.setPosition(start);
+    text.setPosition(start + length, QTextCursor::KeepAnchor);
+    return text.selectedText().replace(QChar::ParagraphSeparator, u'\n');
+}
+
 void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const
 {
     painter->save();
@@ -697,7 +813,17 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     painter->setPen(themed("text"));
     auto const metadata_width = layout.time_width + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0) + layout.receipt_width;
     auto origin = layout.text_origin(option.rect);
-    layout.text_layout->draw(painter, origin);
+    const int start = std::min(anchor_, cursor_);
+    const int length = index == text_index_ ? std::abs(cursor_ - anchor_) : 0;
+    QTextCharFormat highlight;
+    highlight.setBackground(themed("accent"));
+    highlight.setForeground(themed("on_accent"));
+    QList<QTextLayout::FormatRange> selection;
+    if (length && !layout.markdown)
+    {
+        selection.push_back({start, length, highlight});
+    }
+    layout.text_layout->draw(painter, origin, selection);
     if (layout.bundle || layout.poll)
     {
         painter->save();
@@ -729,6 +855,13 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         QAbstractTextDocumentLayout::PaintContext context;
         context.palette.setColor(QPalette::Text, themed("text"));
         context.palette.setColor(QPalette::Link, themed("link"));
+        if (length && start + length < layout.markdown->characterCount())
+        {
+            QTextCursor text(layout.markdown.get());
+            text.setPosition(start);
+            text.setPosition(start + length, QTextCursor::KeepAnchor);
+            context.selections.push_back({text, highlight});
+        }
         layout.markdown->documentLayout()->draw(painter, context);
         layout.markdown->draw_quote_guides(*painter);
         painter->restore();
