@@ -105,7 +105,7 @@ async def run(root, probe):
             await ui.wait("confirm", lambda r: r.get("open"))
             await ui.wait(
                 "poll_ui",
-                lambda r: "投票已结束" in r.get("labels", "") and not r["canClose"],
+                lambda r: "投票已结束" in r.get("labels", "") and not r["canClose"] and not r["candidateMarked"],
             )
             await ui.call("poll_ui", close=True)
             assert (await c.ok("close_poll", conversation=g, message=separate["id"]))[

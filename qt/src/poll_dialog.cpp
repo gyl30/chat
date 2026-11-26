@@ -49,12 +49,16 @@ class option_delegate final : public QStyledItemDelegate
         painter->setBrush(themed(option.state & QStyle::State_MouseOver ? "canvas_hover" : "canvas"));
         painter->setPen(themed(selected ? "focus" : "border"));
         painter->drawRoundedRect(row, 6, 6);
-        QPoint center(row.left() + 13, row.top() + 8 + option.fontMetrics.height() / 2);
-        painter->drawEllipse(center, 6, 6);
-        if (selected)
+        if (static_cast<QListWidget const*>(parent())->selectionMode() != QAbstractItemView::NoSelection)
         {
-            painter->setBrush(themed("focus"));
-            painter->drawEllipse(center, 3, 3);
+            QPoint center(row.left() + 13, row.top() + 8 + option.fontMetrics.height() / 2);
+            painter->setPen(themed(selected ? "focus" : "border_strong"));
+            painter->drawEllipse(center, 6, 6);
+            if (selected)
+            {
+                painter->setBrush(themed("focus"));
+                painter->drawEllipse(center, 3, 3);
+            }
         }
         int left = row.left() + 26;
         painter->setPen(themed("text"));
@@ -256,6 +260,11 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
     qint64 cursor = 0;
     quint64 query = 0, operation = 0, voters_query = 0;
     chat::poll_state state;
+    auto refresh_close_visibility = [&]
+    {
+        auto room_state = chat.conversation(room);
+        close->setVisible(state.can_close && room_state && room_state->speech_role != chat::member_role::member && !state.summary.closed);
+    };
     auto controls = [&]
     {
         bool writable = !operation && !query && !state.summary.closed;
@@ -265,10 +274,9 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
         cancel->setVisible(state.selection && !state.summary.closed);
         cancel->setEnabled(writable);
         close->setEnabled(writable);
-        auto room_state = chat.conversation(room);
-        close->setVisible(state.can_close && room_state && room_state->speech_role != chat::member_role::member && !state.summary.closed);
+        refresh_close_visibility();
     };
-    QObject::connect(&client, &client_bridge::conversations_received, &dialog, controls);
+    QObject::connect(&client, &client_bridge::conversations_received, &dialog, refresh_close_visibility);
     auto reload = [&]
     {
         voters_query = 0;
@@ -322,6 +330,7 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
                              status->setText(err);
                              submit->setEnabled(false);
                              cancel->setEnabled(false);
+                             state.can_close = false;
                              close->hide();
                              return;
                          }
@@ -372,6 +381,10 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
                                  dialog.resize(dialog.width(), options->height() + 255);
                              }
                              options->setSelectionMode(state.summary.closed ? QAbstractItemView::NoSelection : QAbstractItemView::SingleSelection);
+                             if (state.summary.closed)
+                             {
+                                 options->clearSelection();
+                             }
                          }
                          status->setText(QStringLiteral("实名单选 · %1 · 共 %2 票")
                                              .arg(state.summary.closed ? QStringLiteral("投票已结束") : QStringLiteral("进行中"))

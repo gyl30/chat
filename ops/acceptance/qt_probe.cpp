@@ -1096,6 +1096,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 }
                 out["view"] = viewing->currentIndex() + 1;
                 out["candidate"] = lists[0]->currentRow() + 1;
+                out["candidateMarked"] = !lists[0]->selectedItems().empty();
                 QJsonArray rows, names;
                 for (int i = 0; i < lists[0]->count(); ++i)
                 {
