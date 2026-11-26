@@ -1082,6 +1082,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             auto ix = chat->messages_->message_index(cmd["message"].toInteger());
             auto value = ix.data(message_model::poll_role).value<chat::poll_summary>();
             out["selection"] = static_cast<qint64>(value.selection);
+            out["closed"] = value.closed;
             out["draftChoices"] = ix.data(message_model::poll_draft_role).toLongLong();
             out["pending"] = ix.data(message_model::poll_pending_role).toBool();
             if (cmd.contains("vote") && ix.isValid())
@@ -1115,7 +1116,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 }
                 if (cmd["closeComposer"].toBool())
                 {
-                    QTimer::singleShot(0, dialog, [dialog] { dialog->done(QDialog::Rejected); });
+                    QTimer::singleShot(0, dialog, &QDialog::reject);
                 }
                 out["feedback"] = dialog->findChild<QLabel*>("pollFeedback")->text();
                 if (cmd["retry"].toBool())
@@ -2005,6 +2006,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         out["offset"] = list->visualRect(top).top();
         out["topClient"] = top.data(message_model::client_id_role).toLongLong();
         out["topText"] = top.data(message_model::text_role).toString().left(40);
+        out["topFailed"] = top.data(message_model::send_state_role).toInt() == message_model::failed;
         out["tailLoaded"] = chat->tail_loaded_;
         out["oldestLoaded"] = chat->history_exhausted_;
         out["count"] = static_cast<qint64>(chat->conversation_unread());

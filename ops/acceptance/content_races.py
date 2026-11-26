@@ -40,9 +40,12 @@ async def scenario(probe, mode):
                         client_id=800 + i,
                         text="历史消息与长行换行 " * 45,
                     )
+            mid = None
             if mode in ("nav_retry", "inflight_layout", "overlap"):
                 series = []
                 for n in range(100):
+                    if mode == "inflight_layout" and n == 64:
+                        mid = await create(1)
                     series.append(
                         (
                             await b.ok(
@@ -54,7 +57,7 @@ async def scenario(probe, mode):
                         )["id"]
                     )
                 await a.ok("mark_read", conversation=g, message=series[-1])
-            mid = await create(1)
+            mid = mid or await create(1)
             args = dict(conversation=g, message=mid)
             other = (
                 await b.ok("send_message", conversation=g, text="来源", client_id=2)
@@ -435,6 +438,33 @@ async def scenario(probe, mode):
                             )
                             == 1
                         )
+                        await ui.wait("select", lambda r: r["ok"], conv=g)
+                        await ui.wait("reading", lambda r: r["ready"])
+                        await ui.call("poll_ui", create=True)
+                        await ui.wait("poll_ui", lambda r: r.get("editable"))
+                        await ui.call("poll_ui", submit=False, **fields)
+                        await ui.call("poll_ui", closeComposer=True)
+                        await ui.wait("confirm", lambda r: r["open"], accept=False)
+                        await ui.call("confirm", cancel=True)
+                        await ui.wait(
+                            "poll_ui", lambda r: r.get("question") == fields["question"]
+                        )
+                        await ui.call("poll_ui", closeComposer=True)
+                        await ui.wait("confirm", lambda r: r["open"], accept=False)
+                        await ui.call("confirm")
+                        await ui.wait(
+                            "poll_ui", lambda r: "title" not in r, message=mid
+                        )
+                        await ui.call("poll_ui", create=True)
+                        await ui.wait("poll_ui", lambda r: r.get("editable"))
+                        await ui.call("poll_ui", submit=False, **fields)
+                        await ui.call("logout")
+                        await ui.wait("state", lambda r: r["user"] == 0)
+                        await ui.wait(
+                            "poll_ui",
+                            lambda r: r.get("title") != "发起群投票",
+                            message=mid,
+                        )
                     elif mode == "nav_retry":
                         await ui.call("reading", jumpReply=series[12])
                         await ui.wait(
@@ -512,6 +542,17 @@ async def scenario(probe, mode):
                             "reading",
                             lambda r: r["ready"] and r["topId"] == historical["topId"],
                         )
+                        unchanged = await ui.call("reading")
+                        gate.hold.add("get_messages")
+                        await gate.down.close()
+                        await gate.caught("get_messages")
+                        await reconnect_held({"after": unchanged["first"] - 1})
+                        await ui.wait(
+                            "reading",
+                            lambda r: r["ready"]
+                            and (r["topId"], r["offset"])
+                            == (unchanged["topId"], unchanged["offset"]),
+                        )
                         # The actual unread frontier is outside the currently loaded interval.
                         newest = (
                             await b.ok(
@@ -582,6 +623,23 @@ async def scenario(probe, mode):
                             await seen("reaction", n)
                             after = await ui.call("reading")
                             assert (after["topId"], after["offset"]) == (row, -2), after
+                        n = await count("update")
+                        await b.ok("vote_poll", choices=1, **args)
+                        await b.ok("close_poll", **args)
+                        await seen("update", n)
+                        await ui.wait("poll_ui", lambda r: r["closed"], message=mid)
+                        assert (await ui.call("reading"))["topId"] == row
+                        await ui.call("poll_ui", open=mid)
+                        await ui.wait("poll_ui", lambda r: r.get("members") == ["b"])
+                        await ui.call("poll_ui", close=True)
+                        after = await ui.call("reading")
+                        assert (after["topId"], after["offset"]) == (row, -2), after
+                        assert (await ui.call("multi", start=row))["valid"] == [row]
+                        selected = await ui.call("reading", inspect=row, atY=-2)
+                        assert (selected["topId"], selected["offset"]) == (row, -2)
+                        await ui.call("multi", key="esc")
+                        after = await ui.call("reading")
+                        assert (after["topId"], after["offset"]) == (row, -2), after
                         n = await count("edit")
                         await b.ok("delete_message", conversation=g, message=series[64])
                         await seen("edit", n)
@@ -689,6 +747,41 @@ async def scenario(probe, mode):
                             before["topClient"],
                             -7,
                         ), acknowledged
+                        await until(
+                            lambda: gate.held_requests,
+                            "third pending message in flight",
+                        )
+                        last_pending = await ui.call(
+                            "reading", pendingAt="排队 2", atY=-7
+                        )
+                        assert (
+                            last_pending["topClient"] and last_pending["offset"] == -7
+                        ), last_pending
+                        _, rejected = gate.held_requests.pop(0)
+                        await gate.down.send(
+                            json.dumps(
+                                dict(
+                                    jsonrpc="2.0",
+                                    id=rejected["id"],
+                                    error=dict(code=-32602, message="Invalid params"),
+                                )
+                            )
+                        )
+                        failure = await ui.wait("reading", lambda r: r["topFailed"])
+                        assert (failure["topClient"], failure["offset"]) == (
+                            last_pending["topClient"],
+                            -7,
+                        ), failure
+                        await ui.call("message_menu", open=0)
+                        await ui.wait(
+                            "message_menu",
+                            lambda r: "删除待发消息" in r.get("actions", []),
+                        )
+                        await ui.call("message_menu", action="删除待发消息")
+                        await ui.wait(
+                            "state", lambda r: not r["rows"], pendingOnly=True
+                        )
+                        assert not (await ui.call("reading"))["topFailed"]
                     elif mode == "timeline":
                         await ui.call("reading", latest=True, activate=True)
                         gate.hold_requests.add("send_message")
