@@ -230,7 +230,7 @@ class client_bridge final : public QObject
     void group_file_finished(qint64 id, QString error, bool unavailable);
     void files_changed(qint64 conversation, QString error);
     void files_received(qint64 conversation, chat::conversation_file_page page, bool older, QString error);
-    void poll_created(qint64 request, QString error);
+    void poll_created(qint64 request, QString error, bool refused);
     void poll_changed(chat::poll_update update);
     void poll_write_finished(qint64 room, qint64 message, QString error);
     void poll_received(quint64 request, qint64 room, qint64 message, chat::poll_state state, QString error);

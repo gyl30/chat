@@ -162,6 +162,7 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
     buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
     outer->addWidget(buttons);
     QButtonGroup answers(&dialog);
+    qint64 request_id = 0;
     bool sending = false;
     bool available = true;
     bool membership_verified = true;
@@ -239,7 +240,19 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
         auto error = read(labels, settings);
         feedback->setText(error);
         ok->setEnabled(membership_verified && available && !sending && error.isEmpty());
-        if (!membership_verified || !available)
+        ok->setText(request_id && !sending ? QStringLiteral("重试创建") : QStringLiteral("创建"));
+        panel->setEnabled(!request_id);
+        buttons->button(QDialogButtonBox::Cancel)->setEnabled(!sending);
+        if (sending)
+        {
+            feedback->setText(QStringLiteral("正在创建投票…"));
+        }
+        else if (request_id)
+        {
+            feedback->setText(ok->isEnabled() ? QStringLiteral("创建结果尚未确认，可重试原请求")
+                                              : QStringLiteral("创建结果尚未确认，恢复发送权限后可重试"));
+        }
+        else if (!membership_verified || !available)
         {
             feedback->setText(QStringLiteral("当前无法发起投票，已保留输入"));
         }
@@ -362,14 +375,18 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     dialog.discard = [&]
     {
+        if (request_id)
+        {
+            return !sending &&
+                   confirm_action(
+                       &dialog, QStringLiteral("关闭投票表单"), QStringLiteral("这次创建尚未确认，投票可能已经发送。"), QStringLiteral("关闭"));
+        }
         QStringList labels;
         chat::poll_settings settings;
         read(labels, settings);
-        return !sending &&
-               ((question->toPlainText().isEmpty() && labels.isEmpty() && explanation->toPlainText().isEmpty()) ||
+        return ((question->toPlainText().isEmpty() && labels.isEmpty() && explanation->toPlainText().isEmpty()) ||
                 confirm_action(&dialog, QStringLiteral("放弃投票草稿"), QStringLiteral("关闭后将丢弃已填写的问题和选项。"), QStringLiteral("放弃")));
     };
-    auto const id = chat::client::new_client_id();
     QObject::connect(buttons,
                      &QDialogButtonBox::accepted,
                      &dialog,
@@ -381,17 +398,20 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
                          {
                              return;
                          }
+                         if (!request_id)
+                         {
+                             request_id = chat::client::new_client_id();
+                         }
                          sending = true;
-                         buttons->setEnabled(false);
-                         panel->setEnabled(false);
-                         client.create_poll(room, id, question->toPlainText().trimmed(), labels, std::move(settings));
+                         validate();
+                         client.create_poll(room, request_id, question->toPlainText().trimmed(), labels, std::move(settings));
                      });
     QObject::connect(&client,
                      &client_bridge::poll_created,
                      &dialog,
-                     [&](qint64 request, QString error)
+                     [&](qint64 request, QString error, bool refused)
                      {
-                         if (request != id)
+                         if (request != request_id)
                          {
                              return;
                          }
@@ -405,10 +425,12 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
                              return;
                          }
                          sending = false;
-                         panel->setEnabled(true);
-                         buttons->setEnabled(true);
+                         if (refused)
+                         {
+                             request_id = 0;
+                         }
                          validate();
-                         feedback->setText(error);
+                         feedback->setText(refused ? error : QStringLiteral("%1。创建结果尚未确认，可重试原请求。").arg(error));
                      });
     QObject::connect(&client,
                      &client_bridge::disconnected,
@@ -416,8 +438,6 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
                      [&]
                      {
                          membership_verified = available = sending = false;
-                         buttons->setEnabled(true);
-                         panel->setEnabled(true);
                          validate();
                      });
     QObject::connect(&client,

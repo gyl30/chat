@@ -1016,7 +1016,10 @@ void client_bridge::create_poll(qint64 room, qint64 request, QString question, Q
                                              {
                                                  emit message_received(to_message_data(*result));
                                              }
-                                             emit poll_created(request, result ? QString{} : display_error(result.error()));
+                                             // These rejections precede publication. A lost or unparseable reply does not.
+                                             const bool refused = !result && result.error().kind == chat::error_kind::rpc &&
+                                                                  (result.error().code == -32602 || result.error().code == chat::group_speech_muted);
+                                             emit poll_created(request, result ? QString{} : display_error(result.error()), refused);
                                          });
                          });
 }
