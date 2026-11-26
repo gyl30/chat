@@ -82,7 +82,7 @@ struct poll_settings
     bool anonymous = true;
     bool multiple = false;
     std::int64_t correct = 0;
-    std::string explanation;
+    std::string explanation{};
 };
 
 // Options are numbered 1..10. One ballot is an atomic set of these bits.
@@ -95,8 +95,8 @@ struct poll_summary
     std::vector<poll_option> options;
     bool anonymous = true, multiple = false, quiz = false;
     std::int64_t participants = 0, correct = 0;
-    std::string explanation;
-    std::vector<poll_voter> recent;
+    std::string explanation{};
+    std::vector<poll_voter> recent{};
     // Personal ballot of the recipient.
     std::int64_t selection = 0;
 };

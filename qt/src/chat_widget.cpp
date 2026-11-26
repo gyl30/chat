@@ -1765,7 +1765,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     messages_view_->viewport()->installEventFilter(this);
     messages_view_->installEventFilter(this);
     messages_view_->setModel(messages_);
-    auto* messages_delegate = new message_delegate(messages_view_);
+    auto* messages_delegate = new message_delegate(messages_view_, nullptr, &avatars_);
     messages_view_->setItemDelegate(messages_delegate);
     messages_view_->setContextMenuPolicy(Qt::CustomContextMenu);
     messages_view_->setSelectionMode(QAbstractItemView::NoSelection);
@@ -1887,25 +1887,6 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
                 {
                     auto id = ix.data(message_model::id_role).toLongLong();
                     auto poll = ix.data(message_model::poll_role).value<chat::poll_summary>();
-                    if (choice == poll_solution)
-                    {
-                        if (!poll.explanation.empty())
-                        {
-                            QDialog answer(this);
-                            answer.setWindowTitle(QStringLiteral("答案解析"));
-                            auto* layout = new QVBoxLayout(&answer);
-                            frame_dialog(answer);
-                            auto* text = new QLabel(QString::fromStdString(poll.explanation));
-                            text->setTextFormat(Qt::PlainText);
-                            text->setWordWrap(true);
-                            layout->addWidget(text);
-                            auto* done = new QPushButton(QStringLiteral("关闭"));
-                            layout->addWidget(done);
-                            connect(done, &QPushButton::clicked, &answer, &QDialog::accept);
-                            answer.exec();
-                        }
-                        return;
-                    }
                     if (poll.closed || poll.selection || poll.options.empty())
                     {
                         return;

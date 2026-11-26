@@ -557,7 +557,7 @@ bool message_model::add_message(message_data message)
 
 void message_model::update_message(message_data const& message)
 {
-    if (message.deleted || (message.poll && (message.poll->selection || message.poll->closed)))
+    if (message.deleted)
     {
         poll_drafts_.remove(message.id);
     }
@@ -609,6 +609,10 @@ void message_model::update_message(message_data const& message)
             }
             if (message.poll && merge_poll(current, *message.poll))
             {
+                if (message.poll->closed || message.poll->selection)
+                {
+                    poll_drafts_.remove(message.id);
+                }
                 changed = true;
             }
             if (!current.deleted && message.reaction_revision > current.reaction_revision)

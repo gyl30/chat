@@ -133,6 +133,19 @@ static void check_display_roles()
     m.content = "poll";
     m.poll = chat::poll_summary{1, false, {{1, 0, "选项"}}};
     assert(check("问题") == "问题");
+    m.poll->multiple = true;
+    m.poll->selection = 1;
+    m.poll->revision = 2;
+    model.set_poll(m.id, *m.poll);
+    auto retracted = *m.poll;
+    retracted.selection = 0;
+    retracted.multiple = true;
+    retracted.revision++;
+    model.set_poll(m.id, retracted);
+    model.set_poll_draft(m.id, 1);
+    model.merge_messages({m});
+    assert(model.message_index(m.id).data(message_model::poll_draft_role).toLongLong() == 1);
+
     m.deleted = true;
     assert(check("问题") == "消息已撤回");
     m = {};
@@ -499,6 +512,20 @@ int main(int argc, char** argv)
             }
         }
         assert(full_width_bar >= 2);
+        auto split = poll;
+        split.participants = 100;
+        split.options = {{1, 50, "A"}, {2, 25, "B"}, {3, 25, "C"}};
+        assert(poll_percentages(split) == QList<int>({50, 25, 25}));
+        split.multiple = true;
+        split.participants = 50;
+        assert(poll_percentages(split) == QList<int>({100, 50, 50}));
+        split.multiple = false;
+        split.participants = 3;
+        for (auto& option : split.options)
+        {
+            option.votes = 1;
+        }
+        assert(poll_percentages(split) == QList<int>({33, 33, 33}));
         for (int i = 3; i <= 10; ++i)
         {
             poll.options.push_back({i, 0, QString(80, QChar(0x754c)).toStdString()});

@@ -8,6 +8,7 @@
 #include <QDialogButtonBox>
 #include <QLabel>
 #include <QLineEdit>
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -18,11 +19,28 @@
 
 namespace
 {
+class option_edit final : public QLineEdit
+{
+   protected:
+    void keyPressEvent(QKeyEvent* event) override
+    {
+        if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)
+        {
+            emit returnPressed();
+            event->accept();
+            return;
+        }
+        QLineEdit::keyPressEvent(event);
+    }
+};
+
 class option_handle final : public QLabel
 {
    public:
-    option_handle(QWidget* row, QVBoxLayout* list) : QLabel(QStringLiteral("≡"), row), list_(list)
+    option_handle(QWidget* row, QVBoxLayout* list, std::function<void()> changed)
+        : QLabel(QStringLiteral("≡"), row), list_(list), changed_(std::move(changed))
     {
+        setObjectName("pollHandle");
         setCursor(Qt::OpenHandCursor);
         setToolTip(QStringLiteral("拖动调整选项顺序"));
         setMargin(5);
@@ -35,20 +53,30 @@ class option_handle final : public QLabel
         {
             auto y = list_->parentWidget()->mapFromGlobal(e->globalPosition().toPoint()).y();
             auto* row = parentWidget();
+            if (row->findChild<QLineEdit*>()->text().trimmed().isEmpty())
+            {
+                return;
+            }
             int from = list_->indexOf(row);
             for (int i = 0; i < list_->count(); ++i)
             {
+                if (list_->itemAt(i)->widget()->findChild<QLineEdit*>()->text().trimmed().isEmpty())
+                {
+                    continue;
+                }
                 auto rect = list_->itemAt(i)->geometry();
                 if ((i < from && y <= rect.center().y()) || (i > from && y >= rect.center().y() && y <= rect.bottom()))
                 {
                     list_->removeWidget(row);
                     list_->insertWidget(i, row);
+                    changed_();
                     break;
                 }
             }
         }
     }
     QVBoxLayout* list_;
+    std::function<void()> changed_;
 };
 
 class poll_form final : public QDialog
@@ -69,6 +97,7 @@ class poll_form final : public QDialog
 void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
 {
     poll_form dialog(&chat);
+    dialog.setObjectName("pollForm");
     dialog.setWindowTitle(QStringLiteral("发起群投票"));
     auto* outer = new QVBoxLayout(&dialog);
     frame_dialog(dialog);
@@ -128,6 +157,8 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
     ok->setText(QStringLiteral("创建"));
     ok->setObjectName("pollSubmit");
     ok->setAutoDefault(false);
+    ok->setIcon({});
+    buttons->button(QDialogButtonBox::Cancel)->setIcon({});
     buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
     outer->addWidget(buttons);
     QButtonGroup answers(&dialog);
@@ -188,6 +219,17 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
         }
         return QString{};
     };
+    auto tab_order = [&]
+    {
+        QWidget* previous = question;
+        for (int i = 0; i < rows->count(); ++i)
+        {
+            auto* field = rows->itemAt(i)->widget()->findChild<QLineEdit*>();
+            QWidget::setTabOrder(previous, field);
+            previous = field;
+        }
+        QWidget::setTabOrder(previous, anonymous);
+    };
     auto validate = [&]
     {
         QStringList labels;
@@ -208,10 +250,28 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
     std::function<void()> append;
     auto ensure_tail = [&]
     {
+        while (rows->count() > 1)
+        {
+            auto* last = rows->itemAt(rows->count() - 1)->widget();
+            auto* before = rows->itemAt(rows->count() - 2)->widget()->findChild<QLineEdit*>();
+            if (!last->findChild<QLineEdit*>()->text().trimmed().isEmpty() || !before->text().trimmed().isEmpty())
+            {
+                break;
+            }
+            if (last->isAncestorOf(dialog.focusWidget()))
+            {
+                before->setFocus();
+            }
+            rows->removeWidget(last);
+            last->hide();
+            last->setParent(nullptr);
+            last->deleteLater();
+        }
         if (rows->count() < 10 && (!rows->count() || !rows->itemAt(rows->count() - 1)->widget()->findChild<QLineEdit*>()->text().trimmed().isEmpty()))
         {
             append();
         }
+        tab_order();
         validate();
     };
     append = [&]
@@ -223,15 +283,16 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
         correct->setToolTip(QStringLiteral("设为正确答案"));
         answers.addButton(correct);
         line->addWidget(correct);
-        auto* edit = new QLineEdit;
+        auto* edit = new option_edit;
         edit->setObjectName("pollOption");
         edit->setPlaceholderText(QStringLiteral("填写选项"));
         line->addWidget(edit, 1);
         auto* remove = new QToolButton;
+        remove->setObjectName("pollRemove");
         remove->setText(QStringLiteral("×"));
         remove->setToolTip(QStringLiteral("移除选项"));
         line->addWidget(remove);
-        line->addWidget(new option_handle(row, rows));
+        line->addWidget(new option_handle(row, rows, tab_order));
         rows->addWidget(row);
         QObject::connect(edit, &QLineEdit::textChanged, &dialog, ensure_tail);
         QObject::connect(correct, &QRadioButton::toggled, &dialog, validate);

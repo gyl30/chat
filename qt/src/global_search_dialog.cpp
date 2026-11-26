@@ -212,7 +212,7 @@ global_search_dialog::global_search_dialog(
     messages_ = new message_model(context_, &chat.avatars());
     messages_->set_self_user(self_);
     context_->setModel(messages_);
-    context_->setItemDelegate(new message_delegate(context_, &context_anchor_));
+    context_->setItemDelegate(new message_delegate(context_, &context_anchor_, &chat.avatars()));
     layout->addWidget(context_, 1);
     status_ = new QLabel(this);
     status_->setTextFormat(Qt::PlainText);

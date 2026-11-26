@@ -1,6 +1,6 @@
 #include "message_card.hpp"
 #include "avatar.hpp"
-#include <numeric>
+
 #include <chat/message.hpp>
 #include "theme_manager.hpp"
 #include <QPainter>
@@ -164,10 +164,12 @@ int layout_poll_card(QPainter* painter,
     {
         type += QStringLiteral(" · 已结束");
     }
-    const int avatarWidth = int(poll.recent.size()) * 15 + 5;
+    const int solution_width = poll.explanation.empty() ? 0 : 26;
+    const int avatar_width = int(poll.recent.size()) * 15 + 5;
+    const int type_height = text_row(y, 0, width - avatar_width - solution_width, font, type, themed("text_secondary"));
     if (painter)
     {
-        int x = width - avatarWidth;
+        int x = std::min(width - avatar_width - solution_width, metrics.horizontalAdvance(type) + 8);
         for (const auto& person : poll.recent)
         {
             paint_avatar(*painter,
@@ -178,7 +180,30 @@ int layout_poll_card(QPainter* painter,
             x += 15;
         }
     }
-    y += std::max(18, text_row(y, 0, width - avatarWidth, font, type, themed("text_secondary"))) + 8;
+    if (solution_width)
+    {
+        QRect hit(width - solution_width, y - 2, solution_width, 24);
+        if (painter)
+        {
+            painter->setBrush(Qt::NoBrush);
+            painter->setPen(QPen(themed("link"), 1.5));
+            painter->drawEllipse(hit.center(), 8, 8);
+            painter->setFont(title);
+            painter->drawText(hit, Qt::AlignCenter, QStringLiteral("?"));
+        }
+        if (point && hit.contains(*point))
+        {
+            if (action)
+            {
+                *action = poll_solution;
+            }
+            if (tooltip)
+            {
+                *tooltip = QStringLiteral("查看答案解析");
+            }
+        }
+    }
+    y += std::max(18, type_height) + 8;
     auto percents = poll_percentages(poll);
     qint64 maximum = 0;
     for (const auto& o : poll.options)
@@ -279,10 +304,6 @@ int layout_poll_card(QPainter* painter,
         }
         y += rect.height();
     };
-    if (!poll.explanation.empty())
-    {
-        footer(QStringLiteral("查看答案解析"), poll_solution, true);
-    }
     if (has_poll_results(poll))
     {
         footer(QStringLiteral("查看结果"), poll_results, true);
@@ -300,7 +321,7 @@ int layout_poll_card(QPainter* painter,
         }
         else
         {
-            footer(count, 0, false);
+            y += text_row(y + 6, 0, width, font, count, themed("text_secondary")) + 10;
         }
     }
     return y;

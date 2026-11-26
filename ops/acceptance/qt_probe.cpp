@@ -13,6 +13,7 @@
 #include <QTextBrowser>
 #include <QClipboard>
 #include <QCheckBox>
+#include <QRadioButton>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QDialogButtonBox>
@@ -1062,6 +1063,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     }
     else if (op == "poll_ui")
     {
+        if (cmd.contains("width"))
+        {
+            window.resize(cmd["width"].toInt(), 800);
+        }
         if (cmd["create"].toBool())
         {
             QTimer::singleShot(0, chat->create_poll_action_, &QAction::trigger);
@@ -1076,6 +1081,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             auto ix = chat->messages_->message_index(cmd["message"].toInteger());
             auto value = ix.data(message_model::poll_role).value<chat::poll_summary>();
             out["selection"] = static_cast<qint64>(value.selection);
+            out["draftChoices"] = ix.data(message_model::poll_draft_role).toLongLong();
             out["pending"] = ix.data(message_model::poll_pending_role).toBool();
             if (cmd.contains("vote") && ix.isValid())
             {
@@ -1086,21 +1092,60 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         if (auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget()))
         {
             out["title"] = dialog->windowTitle();
+            if (dialog->windowTitle() == QStringLiteral("发起群投票"))
+            {
+                auto* question = dialog->findChild<QPlainTextEdit*>("pollQuestion");
+                out["question"] = question->toPlainText();
+                out["feedback"] = dialog->findChild<QLabel*>("pollFeedback")->text();
+                if (cmd["retry"].toBool())
+                {
+                    dialog->findChild<QPushButton*>("pollSubmit")->click();
+                }
+                if (cmd["nextOption"].toBool())
+                {
+                    auto fields = dialog->findChildren<QLineEdit*>("pollOption");
+                    auto* from = fields.at(1);
+                    from->setFocus();
+                    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                    QApplication::sendEvent(from, &enter);
+                    out["advanced"] = dialog->isVisible() && fields.at(2)->hasFocus();
+                }
+            }
             if (dialog->windowTitle() == QStringLiteral("发起群投票") && cmd.contains("question"))
             {
                 dialog->findChild<QPlainTextEdit*>("pollQuestion")->setPlainText(cmd["question"].toString());
                 auto values = cmd["options"].toString().split(u'\n');
-                dialog->findChild<QCheckBox*>("pollAnonymous")->setChecked(cmd["anonymous"].toBool(false));
+                if (cmd.contains("anonymous"))
+                {
+                    dialog->findChild<QCheckBox*>("pollAnonymous")->setChecked(cmd["anonymous"].toBool());
+                }
+                dialog->findChild<QCheckBox*>("pollMultiple")->setChecked(cmd["multiple"].toBool());
+                dialog->findChild<QCheckBox*>("pollQuiz")->setChecked(cmd["quiz"].toBool());
                 auto fields = dialog->findChildren<QLineEdit*>("pollOption");
                 for (auto* field : fields)
                 {
                     field->clear();
                 }
-                for (int i = 0; i < values.size(); ++i) dialog->findChildren<QLineEdit*>("pollOption").at(i)->setText(values[i]);
+                for (int i = 0; i < values.size(); ++i)
+                {
+                    auto* field = dialog->findChildren<QLineEdit*>("pollOption").at(i);
+                    field->setText(values[i]);
+                    if (i + 1 == cmd["correct"].toInt())
+                    {
+                        field->parentWidget()->findChild<QRadioButton*>()->click();
+                    }
+                }
+                if (cmd.contains("explanation"))
+                {
+                    dialog->findChild<QPlainTextEdit*>("pollExplanation")->setPlainText(cmd["explanation"].toString());
+                }
                 auto* ok = dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok);
                 out["valid"] = ok->isEnabled();
                 out["feedback"] = dialog->findChild<QLabel*>("pollFeedback")->text();
-                ok->click();
+                if (cmd["submit"].toBool(true))
+                {
+                    ok->click();
+                }
             }
         }
         if (auto* dialog = chat->poll_page_)
@@ -1125,6 +1170,16 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             }
             out["rows"] = rows;
             out["members"] = members;
+            if (cmd["collapse"].toBool())
+            {
+                for (auto* button : dialog->findChildren<QPushButton*>("pollCollapse"))
+                {
+                    if (button->property("choice").toInt() == choice && button->isVisible())
+                    {
+                        button->click();
+                    }
+                }
+            }
             auto buttons = dialog->findChildren<QPushButton*>("pollMore");
             for (auto* button : buttons)
             {

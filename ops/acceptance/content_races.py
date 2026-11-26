@@ -25,15 +25,34 @@ async def scenario(probe, mode):
                         text="问题",
                         client_id=cid,
                         poll_options=["A", "B"],
-                        poll_settings=dict(anonymous=False,multiple=False,correct=0,explanation=""),
+                        poll_settings=dict(
+                            anonymous=False, multiple=False, correct=0, explanation=""
+                        ),
                     )
                 )["id"]
 
+            if mode == "page_position":
+                for i in range(8):
+                    await b.ok(
+                        "send_message",
+                        conversation=g,
+                        client_id=800 + i,
+                        text="历史消息与长行换行 " * 45,
+                    )
             mid = await create(1)
             args = dict(conversation=g, message=mid)
             other = (
                 await b.ok("send_message", conversation=g, text="来源", client_id=2)
             )["id"]
+            if mode == "page_position":
+                await a.ok("vote_poll", choices=1, **args)
+                for i in range(8):
+                    await b.ok(
+                        "send_message",
+                        conversation=g,
+                        client_id=900 + i,
+                        text="更新消息 " * 50,
+                    )
             if mode == "older":
                 await a.ok("mark_read", conversation=g, message=other)
                 for n in range(55):
@@ -57,10 +76,16 @@ async def scenario(probe, mode):
                         client_id=4,
                     )
                 )["id"]
-            if mode in ("authority","poll_error","closed","voters","paging"):
-                await a.ok("vote_poll",choices=2,**args)
-            if mode in ("authority","poll_error","closed"):
-                await b.ok("vote_poll",choices=1,**args)
+            if mode.startswith("detail_") or mode in (
+                "authority",
+                "poll_error",
+                "closed",
+                "voters",
+                "paging",
+            ):
+                await a.ok("vote_poll", choices=2, **args)
+            if mode in ("authority", "poll_error", "closed"):
+                await b.ok("vote_poll", choices=1, **args)
             if mode == "paging":
                 # The 50 fixture voters precede the UI login. Exercise all subsequent changes
                 # against the running server, including cancel and both actual page queries.
@@ -201,6 +226,44 @@ async def scenario(probe, mode):
                         await seen("preference", n)
                         state = await ui.call("state")
                         assert not any(x["id"] == mid for x in state["rows"])
+                    elif mode == "page_position":
+                        await ui.call("poll_ui", width=1280)
+                        start = await ui.call("reading", inspect=mid, atY=-2)
+                        expected = (start["topId"], start["offset"])
+                        assert expected == (mid, -2)
+                        await ui.call("poll_ui", open=mid)
+                        await ui.wait("poll_ui", lambda r: r.get("members") == ["a"])
+                        state = await ui.call("reading")
+                        assert (state["topId"], state["offset"]) == expected, (
+                            state["topId"],
+                            state["offset"],
+                            expected,
+                        )
+                        await ui.call("poll_ui", close=True)
+                        state = await ui.call("reading")
+                        assert (state["topId"], state["offset"]) == expected
+                    elif mode.startswith("detail_"):
+                        gate.hold.add("get_poll_voters")
+                        await ui.call("poll_ui", open=mid)
+                        await gate.caught("get_poll_voters")
+                        page = await ui.call("poll_ui", choice=2)
+                        assert page["title"] == "投票结果" and page["rows"]
+                        if mode == "detail_recall":
+                            await b.ok("delete_message", **args)
+                        elif mode == "detail_clear":
+                            await a.ok("clear_history", conversation=g, through=other)
+                        elif mode == "detail_loss":
+                            await a.ok("dissolve_group", conversation=g)
+                        else:
+                            await gate.down.close()
+                        await ui.wait(
+                            "poll_ui", lambda r: "title" not in r, message=mid
+                        )
+                        if mode != "detail_disconnect":
+                            n = await count("voters")
+                            await gate.release("get_poll_voters")
+                            await seen("voters", n)
+                            assert "rows" not in await ui.call("poll_ui")
                     elif mode == "voters":
                         await b.ok("vote_poll", choices=1, **args)
                         gate.hold.add("get_poll_voters")
@@ -209,13 +272,18 @@ async def scenario(probe, mode):
                         gate.hold.clear()
                         await b.ok("vote_poll", choices=2, **args)
                         await ui.wait(
-                            "poll_ui", lambda r: r.get("members") == ["a","b"], choice=2
+                            "poll_ui",
+                            lambda r: r.get("members") == ["a", "b"],
+                            choice=2,
                         )
                         n = await count("voters")
                         await gate.release("get_poll_voters")
                         await seen("voters", n)
                         assert not (await ui.call("poll_ui", choice=1))["members"]
-                        assert (await ui.call("poll_ui", choice=2))["members"] == ["a","b"]
+                        assert (await ui.call("poll_ui", choice=2))["members"] == [
+                            "a",
+                            "b",
+                        ]
                     elif mode in ("authority", "poll_error"):
                         gate.hold.add("get_poll")
                         await ui.call("poll_ui", open=mid)
@@ -250,19 +318,30 @@ async def scenario(probe, mode):
                     elif mode == "write":
                         gate.hold_requests.add("vote_poll")
                         await ui.call("poll_ui", message=mid, vote=1)
-                        await until(lambda: bool(gate.held_requests), "vote awaiting dispatch")
+                        await until(
+                            lambda: bool(gate.held_requests), "vote awaiting dispatch"
+                        )
                         # Another device votes first while this device's write is held.
                         await a.ok("vote_poll", choices=2, **args)
-                        await ui.wait("poll_ui",lambda r:r["selection"]==2, message=mid)
+                        await ui.wait(
+                            "poll_ui", lambda r: r["selection"] == 2, message=mid
+                        )
                         for attempt in range(2):
                             await ui.call("poll_ui", open=mid)
-                            await ui.wait("poll_ui", lambda r:r.get("members")==["a"],choice=2)
-                            if not attempt: await ui.call("poll_ui",close=True)
+                            await ui.wait(
+                                "poll_ui", lambda r: r.get("members") == ["a"], choice=2
+                            )
+                            if not attempt:
+                                await ui.call("poll_ui", close=True)
                         gate.hold.add("poll_updated")
                         await gate.release_requests("vote_poll")
-                        await ui.wait("poll_ui",lambda r:r.get("members")==["a"], choice=1)
-                        assert not (await ui.call("poll_ui",choice=2))["members"]
-                        assert (await a.ok("get_poll", **args))["summary"]["selection"] == 1
+                        await ui.wait(
+                            "poll_ui", lambda r: r.get("members") == ["a"], choice=1
+                        )
+                        assert not (await ui.call("poll_ui", choice=2))["members"]
+                        assert (await a.ok("get_poll", **args))["summary"][
+                            "selection"
+                        ] == 1
                     elif mode == "closed":
                         gate.hold.add("get_poll")
                         await ui.call("poll_ui", open=mid)
@@ -300,6 +379,12 @@ async def scenario(probe, mode):
                         n = await count("voters")
                         await gate.release("get_poll_voters")
                         await seen("voters", n)
+                        assert (await ui.call("poll_ui"))["members"] == state["members"]
+                        await ui.call("poll_ui", collapse=True)
+                        assert (await ui.call("poll_ui"))["members"] == state[
+                            "members"
+                        ][:10]
+                        await ui.call("poll_ui", more=True)
                         assert (await ui.call("poll_ui"))["members"] == state["members"]
                     elif mode == "context":
                         await ui.call("searchui", open=True)
@@ -361,6 +446,11 @@ async def run():
         "switch",
         "clear",
         "leave",
+        "page_position",
+        "detail_recall",
+        "detail_clear",
+        "detail_loss",
+        "detail_disconnect",
         "voters",
         "paging",
         "poll_error",

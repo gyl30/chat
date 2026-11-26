@@ -774,6 +774,17 @@ QMainWindow {
             width: 9px;
             height: 9px;
         }
+        QDialog#pollForm QToolButton#pollRemove {
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 5px;
+            color: ${text_secondary};
+            padding: 3px 6px;
+        }
+        QDialog#pollForm QToolButton#pollRemove:hover { color: ${danger}; background: ${danger_soft}; }
+        QDialog#pollForm QToolButton#pollRemove:focus { border-color: ${focus}; }
+        QDialog#pollForm QPlainTextEdit { background: ${surface}; border: 1px solid ${input_border}; border-radius: 6px; padding: 4px; }
+        QDialog#pollForm QPlainTextEdit:focus { border-color: ${focus}; }
         QWidget#pollResults { background: ${panel}; }
         QWidget#pollResults QPushButton {
             color: ${link};

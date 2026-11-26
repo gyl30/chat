@@ -556,7 +556,10 @@ QPainterPath bubble_path(QRect const& bubble, bool outgoing, bool group_start, b
 
 }    // namespace
 
-message_delegate::message_delegate(QObject* parent, qint64 const* context_anchor) : QStyledItemDelegate(parent), context_anchor_(context_anchor) {}
+message_delegate::message_delegate(QObject* parent, qint64 const* context_anchor, avatar_cache const* avatars)
+    : QStyledItemDelegate(parent), context_anchor_(context_anchor), avatars_(avatars)
+{
+}
 
 void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const
 {
@@ -686,7 +689,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
                              index.data(message_model::poll_pending_role).toBool(),
                              index.data(message_model::poll_draft_role).toLongLong(),
                              nullptr,
-                             static_cast<const message_model*>(index.model())->poll_avatars());
+                             avatars_);
         }
         else
         {
@@ -854,14 +857,19 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QSt
                          &point,
                          &action,
                          index.data(message_model::poll_pending_role).toBool(),
-                         index.data(message_model::poll_draft_role).toLongLong(),
-                         nullptr,
-                         static_cast<const message_model*>(index.model())->poll_avatars());
+                         index.data(message_model::poll_draft_role).toLongLong());
         if (context_anchor_)
         {
             return false;
         }
-        if (action > 0 || action == poll_submit || action == poll_solution)
+        if (action == poll_solution)
+        {
+            QToolTip::showText(mouse->globalPosition().toPoint(),
+                               QString::fromStdString(layout.poll->explanation).toHtmlEscaped(),
+                               option.widget ? const_cast<QWidget*>(option.widget) : nullptr);
+            return true;
+        }
+        if (action > 0 || action == poll_submit)
         {
             emit vote_clicked(index, action);
         }

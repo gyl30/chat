@@ -86,7 +86,6 @@ class message_model final : public QAbstractListModel
     void merge_messages(QList<message_data> messages);
     bool add_message(message_data message);
     void update_message(message_data const& message);
-    avatar_cache const* poll_avatars() const { return avatars_; }
     void set_poll_draft(qint64 message, qint64 choices);
     void set_poll_pending(qint64 message, bool pending);
     void clear_poll_requests();

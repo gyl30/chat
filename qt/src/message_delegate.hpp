@@ -4,12 +4,14 @@
 #include <QStyledItemDelegate>
 #include <QUrl>
 
+class avatar_cache;
+
 class message_delegate final : public QStyledItemDelegate
 {
     Q_OBJECT
 
    public:
-    explicit message_delegate(QObject* parent = nullptr, qint64 const* context_anchor = nullptr);
+    explicit message_delegate(QObject* parent = nullptr, qint64 const* context_anchor = nullptr, avatar_cache const* avatars = nullptr);
 
     void paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const override;
     QSize sizeHint(QStyleOptionViewItem const& option, QModelIndex const& index) const override;
@@ -31,6 +33,7 @@ class message_delegate final : public QStyledItemDelegate
    private:
     // A read-only context keeps its anchor outlined independently of keyboard focus.
     qint64 const* context_anchor_;
+    avatar_cache const* avatars_;
 };
 
 #endif

@@ -11,7 +11,7 @@ from desktop import Desktop, Gate, until
 from websockets.asyncio.server import serve
 from isolated import chat, login
 from recovery import admin
-from poll_modes import verify_modes
+from poll_modes import verify_modes, verify_composer
 
 
 async def run(root, probe):
@@ -65,7 +65,12 @@ async def run(root, probe):
             ]:
                 invalid = await ui.call("poll_ui", question=question, options=labels)
                 assert not invalid["valid"] and expected in invalid["feedback"]
-            await ui.call("poll_ui", question="开发会议", options="周一\n周三\n周五")
+            await ui.call(
+                "poll_ui",
+                question="开发会议",
+                options="周一\n周三\n周五",
+                anonymous=False,
+            )
 
             def placed():
                 with sqlite3.connect(db) as conn:
@@ -146,7 +151,8 @@ async def run(root, probe):
                 client_id=321,
             )
             await asyncio.gather(
-                b.ok("vote_poll", choices=1, **args), c.ok("vote_poll", choices=4, **args)
+                b.ok("vote_poll", choices=1, **args),
+                c.ok("vote_poll", choices=4, **args),
             )
             state = await b.ok("get_poll", **args)
             assert [o["votes"] for o in state["summary"]["options"]] == [
@@ -169,6 +175,7 @@ async def run(root, probe):
             )
             await ui.call("poll_ui", close=True)
             await verify_modes(url, a, b, c, g)
+            await verify_composer(ui, gate, a, g, db)
             await poll_menu(mid, "撤回投票")
             await ui.wait("poll_ui", lambda r: r["selection"] == 0, message=mid)
             assert [
@@ -229,6 +236,32 @@ async def run(root, probe):
             assert final_view == dict(
                 closed["summary"], selection=final_view["selection"]
             )
+            restored_modes = []
+            for multiple, correct in ((True, 0), (False, 2)):
+                question = "归档问答" if correct else "归档多选"
+                poll = await a.ok(
+                    "send_message",
+                    conversation=g,
+                    text=question,
+                    client_id=19000 + correct,
+                    poll_options=["第一项", "第二项"],
+                    poll_settings=dict(
+                        anonymous=True,
+                        multiple=multiple,
+                        correct=correct,
+                        explanation="选择第二项" if correct else "",
+                    ),
+                )
+                item = dict(conversation=g, message=poll["id"])
+                state = (await a.ok("vote_poll", **item, choices=2 if correct else 3))[
+                    "summary"
+                ]
+                restored_modes.append((item, state))
+                with sqlite3.connect(db) as conn:
+                    conn.execute(
+                        "UPDATE messages SET created_at=1736942400000 WHERE id=?",
+                        (poll["id"],),
+                    )
             admin("--db", db, "archive", "2025-01")
     admin("--db", db, "backup", root / "backup")
     admin("restore", root / "backup", root / "restored")
@@ -241,6 +274,11 @@ async def run(root, probe):
                 0
             ]["poll"] == final_view
             assert "error" in await c.ask("get_poll", **args)
+            for item, state in restored_modes:
+                assert (await a.ok("get_poll", **item))["summary"] == state
+                assert (await c.ok("get_poll", **item))["summary"]["correct"] == 0
+                assert "error" in await c.ask("get_poll_voters", **item, choice=2)
+                await a.ok("delete_message", **item)
             await a.ok("delete_message", **args)
             assert "error" in await a.ask("get_poll", **args)
             with sqlite3.connect(restored) as conn:

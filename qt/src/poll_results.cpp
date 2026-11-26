@@ -239,6 +239,8 @@ class results_page final : public QWidget
         line->addWidget(tally);
         auto* collapse = new QPushButton(QStringLiteral("收起"));
         collapse->setFlat(true);
+        collapse->setObjectName("pollCollapse");
+        collapse->setProperty("choice", choice);
         line->addWidget(collapse);
         box->addLayout(line);
         auto* rows = new QVBoxLayout;

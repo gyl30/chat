@@ -95,7 +95,7 @@ message_search_dialog::message_search_dialog(
     results_->setObjectName(QStringLiteral("messageSearchResults"));
     results_->setAccessibleName(QStringLiteral("消息搜索结果"));
     results_->setModel(visible_messages_);
-    results_->setItemDelegate(new message_delegate(results_));
+    results_->setItemDelegate(new message_delegate(results_, nullptr, avatars));
     results_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     results_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     results_->setContextMenuPolicy(Qt::CustomContextMenu);
