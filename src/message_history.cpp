@@ -250,6 +250,7 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
         if (*row)
         {
             result.first_unread = unread->column_int64(0);
+            around = result.first_unread;
         }
     }
 

@@ -1543,14 +1543,6 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
             [this] { emit message_search_requested(active_conversation_, self_user_, active_group_, active_username_, {}); });
     chat_layout->addWidget(header);
 
-    unread_start_button_ = new QPushButton(QStringLiteral("查看本次未读起点"), chat_panel);
-    unread_start_button_->setObjectName(QStringLiteral("entryUnreadButton"));
-    unread_start_button_->setToolTip(QStringLiteral("查看进入会话前的第一条未读消息，不改变当前已读位置"));
-    unread_start_button_->setAutoDefault(false);
-    unread_start_button_->hide();
-    chat_layout->addWidget(unread_start_button_, 0, Qt::AlignHCenter);
-    connect(unread_start_button_, &QPushButton::clicked, this, [this] { emit message_context_requested(active_conversation_, unread_start_); });
-
     connection_status_ = new QToolButton(chat_panel);
     connection_status_->setObjectName(QStringLiteral("connectionStatusButton"));
     connection_status_->setToolButtonStyle(Qt::ToolButtonTextOnly);
@@ -1641,6 +1633,11 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     auto* chat_panel = chat_layout->parentWidget();
     messages_ = new message_model(this, &avatars_, &images_);
     messages_view_ = new message_list_view(chat_panel);
+    history_down_ = new QPushButton(messages_view_->viewport());
+    history_down_->setObjectName(QStringLiteral("historyDownButton"));
+    history_down_->setAutoDefault(false);
+    history_down_->hide();
+    connect(history_down_, &QPushButton::clicked, this, &chat_widget::navigate_down);
     messages_view_->setMouseTracking(true);
     messages_view_->setObjectName(QStringLiteral("messageList"));
     messages_view_->setAccessibleName(QStringLiteral("消息记录"));
@@ -2227,6 +2224,7 @@ void chat_widget::show_message_menu(QPoint position)
     auto const url =
         messages_view_->selectionMode() == QAbstractItemView::ExtendedSelection ? QUrl{} : message_delegate::link_at(option, index, position);
     auto const code = message_delegate::code_at(option, index, position);
+    auto* locate_reply = index.data(message_model::reply_target_role).toLongLong() > 0 ? menu.addAction(QStringLiteral("查看被回复的消息")) : nullptr;
     auto* copy_code = code.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制代码"));
     auto* open_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("打开链接"));
     auto* copy_link = url.isEmpty() ? nullptr : menu.addAction(QStringLiteral("复制链接"));
@@ -2296,6 +2294,15 @@ void chat_widget::show_message_menu(QPoint position)
     auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
     if (!selected || !valid_target())
     {
+        return;
+    }
+    if (selected == locate_reply)
+    {
+        auto id = target_index.data(message_model::reply_target_role).toLongLong();
+        if (connection_available_ && id > history_floor(conversation))
+        {
+            locate_message(conversation, id);
+        }
         return;
     }
     if (copy_code && selected == copy_code)
@@ -2587,6 +2594,10 @@ void chat_widget::connect_chat_controls()
                 {
                     request_older_messages();
                 }
+                else if (value == messages_view_->verticalScrollBar()->maximum())
+                {
+                    request_newer_messages();
+                }
             });
     main_menu_button_->installEventFilter(this);
     contacts_requests_button_->installEventFilter(this);
@@ -2633,9 +2644,8 @@ void chat_widget::set_user(QString const& username, qint64 user, QString const& 
     reset_reply();
     active_conversation_ = 0;
     ++conversation_visit_;
-    unread_start_ = 0;
-    unread_pending_ = timeline_current_ = jump_to_latest_ = false;
-    withdrawn_before_unread_.clear();
+    observed_tail_ = requested_read_ = 0;
+    tail_loaded_ = false;
     update_reading_navigation();
     update_pinned_message();
     active_username_.clear();
@@ -2788,14 +2798,36 @@ void chat_widget::send_image(QImage const& image)
 
 bool chat_widget::eventFilter(QObject* object, QEvent* event)
 {
-    if (messages_view_ && object == messages_view_->viewport() && event->type() == QEvent::Wheel && !timeline_current_ && !messages_loading_ &&
-        connection_available_ && active_conversation_ > 0)
+    if (messages_view_ && object == messages_view_->viewport() &&
+        (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::MouseButtonDblClick ||
+         event->type() == QEvent::ContextMenu))
+    {
+        auto point = event->type() == QEvent::ContextMenu ? static_cast<QContextMenuEvent*>(event)->pos()
+                                                          : static_cast<QMouseEvent*>(event)->position().toPoint();
+        auto index = messages_view_->indexAt(point);
+        if (index.data(message_model::unread_boundary_role).toBool())
+        {
+            QStyleOptionViewItem option;
+            option.initFrom(messages_view_);
+            option.rect = messages_view_->visualRect(index);
+            if (message_delegate::on_unread_divider(option, index, point))
+            {
+                return true;
+            }
+        }
+    }
+    if (messages_view_ && object == messages_view_->viewport() && event->type() == QEvent::Wheel && messages_ready() && connection_available_)
     {
         auto* wheel = static_cast<QWheelEvent*>(event);
         auto* scroll = messages_view_->verticalScrollBar();
-        if (scroll->value() == scroll->maximum() && (wheel->pixelDelta().y() < 0 || wheel->angleDelta().y() < 0))
+        if (!history_exhausted_ && scroll->value() == scroll->minimum() && (wheel->pixelDelta().y() > 0 || wheel->angleDelta().y() > 0))
         {
-            return_to_latest();
+            request_older_messages();
+            return true;
+        }
+        if (!tail_loaded_ && scroll->value() == scroll->maximum() && (wheel->pixelDelta().y() < 0 || wheel->angleDelta().y() < 0))
+        {
+            request_newer_messages();
             return true;
         }
     }
@@ -2913,6 +2945,14 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
         }
         if (key->modifiers() == Qt::NoModifier && (key->key() == Qt::Key_PageUp || key->key() == Qt::Key_PageDown))
         {
+            if (key->key() == Qt::Key_PageUp && messages_view_->verticalScrollBar()->value() == messages_view_->verticalScrollBar()->minimum())
+            {
+                request_older_messages();
+            }
+            if (key->key() == Qt::Key_PageDown && messages_view_->verticalScrollBar()->value() == messages_view_->verticalScrollBar()->maximum())
+            {
+                request_newer_messages();
+            }
             messages_view_->verticalScrollBar()->triggerAction(key->key() == Qt::Key_PageUp ? QAbstractSlider::SliderPageStepSub
                                                                                             : QAbstractSlider::SliderPageStepAdd);
             return true;
@@ -2946,22 +2986,30 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
     if (object == messages_view_->viewport() && (event->type() == QEvent::Resize || event->type() == QEvent::Show))
     {
         auto* scroll = messages_view_->verticalScrollBar();
-        if (event->type() == QEvent::Resize && scroll->value() == scroll->maximum())
+        update_reading_navigation();
+        if (event->type() == QEvent::Resize && tail_loaded_ && scroll->value() == scroll->maximum())
         {
             auto const position = scroll->value();
-            auto const conversation = active_conversation_;
-            QTimer::singleShot(0,
-                               messages_view_,
-                               [this, position, conversation]
-                               {
-                                   if (conversation == active_conversation_ && messages_view_->verticalScrollBar()->value() == position)
-                                   {
-                                       messages_view_->scrollToBottom();
-                                       mark_visible_messages();
-                                   }
-                               });
+            auto const visit = conversation_visit_;
+            QTimer::singleShot(
+                0,
+                messages_view_,
+                [this, position, visit]
+                {
+                    if (visit == conversation_visit_ && tail_loaded_ && messages_ready() && messages_view_->verticalScrollBar()->value() == position)
+                    {
+                        messages_view_->scrollToBottom();
+                        mark_visible_messages();
+                    }
+                });
         }
-        QTimer::singleShot(0, messages_view_, [this] { load_visible_images(); });
+        QTimer::singleShot(0,
+                           messages_view_,
+                           [this]
+                           {
+                               load_visible_images();
+                               mark_visible_messages();
+                           });
     }
     return QWidget::eventFilter(object, event);
 }
@@ -3074,7 +3122,7 @@ void chat_widget::set_connection_available(bool available)
     }
     if (!available && active_group_)
     {
-        messages_->set_read_positions({});
+        messages_->set_read_positions({{self_user_, messages_->read_position(self_user_)}});
     }
     for (auto* action : findChildren<QAction*>())
     {
@@ -3088,7 +3136,8 @@ void chat_widget::set_connection_available(bool available)
     set_messages_loading(available && active_conversation_ > 0);
     if (!available)
     {
-        timeline_current_ = false;
+        requested_read_ = 0;
+        tail_loaded_ = false;
     }
     update_reading_navigation();
     update_compose_state();
@@ -3169,6 +3218,7 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
         }
     }
     conversations_->set_conversations(std::move(conversations));
+    update_reading_navigation();
     update_compose_state();
     update_pinned_message();
     for (auto const& item : presence_)
@@ -3480,9 +3530,9 @@ chat::friendship_state chat_widget::friend_state(qint64 user) const
 void chat_widget::set_messages(qint64 user,
                                QList<message_data> messages,
                                read_positions positions,
-                               bool older,
-                               bool recovering,
+                               history_page page,
                                bool has_more,
+                               bool has_newer,
                                std::optional<qint64> first_unread)
 {
     if (user != active_conversation_)
@@ -3490,24 +3540,16 @@ void chat_widget::set_messages(qint64 user,
         return;
     }
 
-    bool unread_unavailable = false;
-    if (!older && !recovering && unread_pending_)
-    {
-        unread_pending_ = false;
-        if (first_unread && *first_unread > history_floor(user) && !withdrawn_before_unread_.contains(*first_unread))
-        {
-            unread_start_ = *first_unread;
-        }
-        unread_unavailable = first_unread && !unread_start_;
-        withdrawn_before_unread_.clear();
-    }
+    bool const position_page = page == history_page::latest || page == history_page::unread;
+    auto* scroll = messages_view_->verticalScrollBar();
+    QPersistentModelIndex const top = messages_view_->indexAt(QPoint(1, 0));
+    auto const offset = messages_view_->visualRect(top).top();
+    auto const previous_tail = messages_->last_message_id();
+    auto const page_end = messages.isEmpty() ? 0 : messages.back().id;
     for (auto const& message : messages)
     {
         settle(message);
     }
-    auto* scroll = messages_view_->verticalScrollBar();
-    auto const old_maximum = scroll->maximum();
-    auto const old_value = scroll->value();
     for (auto it = messages.begin(); it != messages.end();)
     {
         if (visible_message(*it))
@@ -3519,57 +3561,68 @@ void chat_widget::set_messages(qint64 user,
             it = messages.erase(it);
         }
     }
+    if (position_page && !messages.isEmpty() && (messages.front().id > previous_tail || messages.back().id < messages_->first_message_id()))
+    {
+        // A navigation jump can skip entire pages. Keep the new interval separate from the old one.
+        messages_->discard_stored_rows();
+    }
     messages_->merge_messages(std::move(messages));
     messages_->set_read_positions(std::move(positions));
-    set_messages_loading(recovering && has_more);
-    if (!older)
+    if (page != history_page::older)
     {
-        timeline_current_ = !messages_loading_;
+        tail_loaded_ = !has_newer && observed_tail_ <= messages_->last_message_id();
     }
-    if (!recovering)
+    if (position_page || page == history_page::older)
     {
-        history_exhausted_ = history_exhausted_ || !has_more;
+        history_exhausted_ = !has_more;
     }
-
-    if (!older)
+    QModelIndex anchor;
+    if (page == history_page::unread && first_unread)
     {
-        messages_loaded_ = true;
-        set_message_status(unread_unavailable           ? QStringLiteral("本次未读起点已不可用")
-                           : messages_->rowCount() == 0 ? QStringLiteral("暂无消息")
-                                                        : QString{});
-        bool const follow = !recovering || old_value == old_maximum || (timeline_current_ && jump_to_latest_);
-        if (timeline_current_)
+        anchor = messages_->next_incoming(std::max(*first_unread - 1, messages_->read_position(self_user_)));
+        if (!anchor.isValid() && has_newer)
         {
-            jump_to_latest_ = false;
+            // A concurrent clear, withdrawal or another device's receipt overtook the entry snapshot.
+            messages_->discard_stored_rows();
+            set_messages_loading(true);
+            emit history_requested(user, history_page::unread);
+            return;
         }
-        if (follow)
-        {
-            QTimer::singleShot(0,
-                               messages_view_,
-                               [this, visit = conversation_visit_]
-                               {
-                                   if (visit == conversation_visit_)
-                                   {
-                                       messages_view_->scrollToBottom();
-                                       mark_visible_messages();
-                                   }
-                               });
-        }
-        update_reading_navigation();
+        messages_->set_unread_boundary(anchor.data(message_model::id_role).toLongLong());
+    }
+    if (page == history_page::latest)
+    {
+        messages_->set_unread_boundary(0);
+    }
+    messages_view_->doItemsLayout();
+    if (anchor.isValid())
+    {
+        scroll_to_unread(anchor);
+    }
+    else if (position_page)
+    {
+        messages_view_->scrollToBottom();
+    }
+    else if (top.isValid())
+    {
+        scroll->setValue(scroll->value() + messages_view_->visualRect(top).top() - offset);
+    }
+    messages_loaded_ = true;
+    set_message_status(messages_->rowCount() == 0 ? QStringLiteral("暂无消息") : QString{});
+    // Refresh changed rows inside the loaded interval. Ordinary downward paging stops after one page.
+    if (page == history_page::refresh && has_more && page_end > 0 && page_end < previous_tail)
+    {
+        set_messages_loading(true);
+        emit history_requested(user, history_page::refresh, page_end);
         return;
     }
-
-    set_message_status({});
-    QTimer::singleShot(0,
-                       messages_view_,
-                       [this, scroll, old_maximum, old_value, visit = conversation_visit_]
-                       {
-                           if (visit == conversation_visit_)
-                           {
-                               scroll->setValue(old_value + scroll->maximum() - old_maximum);
-                           }
-                       });
+    set_messages_loading(false);
+    if (!tail_loaded_ && (!messages_->last_message_id() || (page != history_page::older && !has_newer && observed_tail_ > page_end)))
+    {
+        request_newer_messages();
+    }
     update_reading_navigation();
+    mark_visible_messages();
 }
 
 void chat_widget::locate_message(qint64 conversation, qint64 message)
@@ -3599,6 +3652,7 @@ void chat_widget::set_read_message(qint64 conversation, qint64 user, qint64 mess
     if (conversation == active_conversation_)
     {
         messages_->set_read_message(user, message);
+        update_reading_navigation();
     }
 }
 
@@ -3606,7 +3660,7 @@ void chat_widget::reset_read_positions(qint64 conversation)
 {
     if (conversation == active_conversation_ && active_group_)
     {
-        messages_->set_read_positions({});
+        messages_->set_read_positions({{self_user_, messages_->read_position(self_user_)}});
     }
 }
 
@@ -3627,29 +3681,41 @@ void chat_widget::add_message(qint64 user, message_data message)
         return;
     }
 
+    observed_tail_ = std::max(observed_tail_, message.id);
+    if (!tail_loaded_ || !messages_loaded_)
+    {
+        return;
+    }
+
     auto* scroll = messages_view_->verticalScrollBar();
-    auto const position = scroll->value();
-    auto const at_bottom = timeline_current_ && position == scroll->maximum();
+    auto const at_bottom = scroll->value() == scroll->maximum();
+    // A fresh unread run gets a fresh marker, even during the same visit.
+    auto const read = messages_->read_position(self_user_);
+    bool const new_run = !messages_->unread_boundary() || !messages_->next_incoming(read).isValid();
+    auto const boundary = new_run && !viewing_latest() && message.from != self_user_ && !message.deleted && message.id > read ? message.id : 0;
+    QPersistentModelIndex const top = at_bottom ? QModelIndex{} : messages_view_->indexAt(QPoint(1, 0));
+    auto const offset = messages_view_->visualRect(top).top();
     auto const poll = message.poll ? message.id : 0;
     if (messages_->add_message(std::move(message)))
     {
+        if (boundary)
+        {
+            messages_->set_unread_boundary(boundary);
+        }
         if (poll)
         {
             emit live_poll_added(user, poll);
         }
         set_message_status({});
+        messages_view_->doItemsLayout();
         if (at_bottom)
         {
-            QTimer::singleShot(0,
-                               messages_view_,
-                               [this, user, position]
-                               {
-                                   if (user == active_conversation_ && messages_view_->verticalScrollBar()->value() == position)
-                                   {
-                                       messages_view_->scrollToBottom();
-                                       mark_visible_messages();
-                                   }
-                               });
+            messages_view_->scrollToBottom();
+            mark_visible_messages();
+        }
+        else if (top.isValid())
+        {
+            scroll->setValue(scroll->value() + messages_view_->visualRect(top).top() - offset);
         }
     }
 }
@@ -3658,11 +3724,6 @@ void chat_widget::update_message(message_data message)
 {
     if (message.deleted)
     {
-        if (message.conversation == active_conversation_ && unread_pending_)
-        {
-            withdrawn_before_unread_.insert(message.id);
-        }
-        invalidate_unread_start(message.conversation, message.id);
         discard_draft_reply(message.conversation, message.id, true);
     }
     if (!visible_message(message))
@@ -3670,7 +3731,7 @@ void chat_widget::update_message(message_data message)
         return;
     }
     // A withdrawal can precede delivery of the original message in the live timeline.
-    if (message.deleted && message.conversation == active_conversation_ && timeline_current_ && message.id >= messages_->first_message_id())
+    if (message.deleted && message.conversation == active_conversation_ && tail_loaded_ && message.id >= messages_->first_message_id())
     {
         messages_->add_message(message);
     }
@@ -3678,6 +3739,11 @@ void chat_widget::update_message(message_data message)
     if (message.conversation != active_conversation_)
     {
         return;
+    }
+    if (message.deleted && message.id == messages_->unread_boundary())
+    {
+        messages_->set_unread_boundary(messages_->next_incoming(message.id).data(message_model::id_role).toLongLong());
+        update_reading_navigation();
     }
     if (reply_to_ == message.id)
     {
@@ -3791,7 +3857,6 @@ void chat_widget::set_history_error(qint64 conversation, QString message)
     if (conversation == active_conversation_)
     {
         set_messages_loading(false);
-        jump_to_latest_ = false;
         update_reading_navigation();
         set_message_status(std::move(message));
     }
@@ -4369,10 +4434,9 @@ void chat_widget::open_conversation(conversation_data conversation)
     images_.discard_queued();
     active_conversation_ = user;
     ++conversation_visit_;
-    unread_start_ = 0;
-    unread_pending_ = true;
-    withdrawn_before_unread_.clear();
-    timeline_current_ = jump_to_latest_ = false;
+    observed_tail_ = requested_read_ = 0;
+    messages_loaded_ = false;
+    tail_loaded_ = false;
     update_reading_navigation();
     update_chat_header(active_username_);
     apply_draft();
@@ -4383,7 +4447,6 @@ void chat_widget::open_conversation(conversation_data conversation)
     load_draft_reply();
     show_outgoing();
     update_pinned_message();
-    messages_loaded_ = false;
     set_messages_loading(true);
     history_exhausted_ = false;
     show_loading_status();
@@ -4427,11 +4490,20 @@ void chat_widget::discard_history(qint64 conversation, qint64 floor)
     {
         return;
     }
-    if (unread_start_ > 0 && unread_start_ <= floor)
-    {
-        invalidate_unread_start(conversation, unread_start_);
-    }
     messages_->discard_through(floor);
+    if (messages_->unread_boundary() <= floor)
+    {
+        messages_->set_unread_boundary(0);
+    }
+    if (observed_tail_ <= floor)
+    {
+        observed_tail_ = 0;
+    }
+    if (!messages_->last_message_id())
+    {
+        request_newer_messages();
+    }
+    update_reading_navigation();
     update_pinned_message();
     show_outgoing();
 }
@@ -4447,12 +4519,7 @@ void chat_widget::close_conversation(qint64 conversation)
 {
     discard_draft_reply(conversation, std::numeric_limits<qint64>::max());
     drop_outgoing(conversation);
-    bool const lost_start = conversation == active_conversation_ && unread_start_ > 0;
     leave_conversation(conversation);
-    if (lost_start)
-    {
-        set_message_status(QStringLiteral("本次未读起点已不可用"));
-    }
 }
 
 void chat_widget::leave_conversation(qint64 conversation)
@@ -4475,9 +4542,8 @@ void chat_widget::leave_conversation(qint64 conversation)
     update_typing_label();
     active_conversation_ = 0;
     ++conversation_visit_;
-    unread_start_ = 0;
-    unread_pending_ = timeline_current_ = jump_to_latest_ = false;
-    withdrawn_before_unread_.clear();
+    observed_tail_ = requested_read_ = 0;
+    tail_loaded_ = false;
     update_reading_navigation();
     update_pinned_message();
     active_peer_ = 0;
@@ -4621,19 +4687,18 @@ void chat_widget::show_read_details(qint64 conversation, qint64 message)
     dialog.exec();
 }
 
-std::optional<qint64> chat_widget::recovery_cursor() const
-{
-    return messages_loaded_ ? std::optional<qint64>(std::max<qint64>(0, messages_->first_message_id() - 1)) : std::nullopt;
-}
-
 bool chat_widget::messages_ready() const { return messages_loaded_ && !messages_loading_; }
 
 bool chat_widget::viewing_latest() const
 {
     auto const* scroll = messages_view_->verticalScrollBar();
-    return connection_available_ && timeline_current_ && messages_ready() && messages_view_->isVisible() && window()->isActiveWindow() &&
-           !window()->isMinimized() && !QApplication::activeModalWidget() && !QApplication::activePopupWidget() &&
-           scroll->value() == scroll->maximum();
+    return reading_enabled() && tail_loaded_ && scroll->value() == scroll->maximum();
+}
+
+bool chat_widget::reading_enabled() const
+{
+    return connection_available_ && messages_ready() && messages_view_->isVisible() && window()->isActiveWindow() && !window()->isMinimized() &&
+           !QApplication::activeModalWidget() && !QApplication::activePopupWidget();
 }
 
 void chat_widget::set_messages_loading(bool loading)
@@ -4651,42 +4716,100 @@ void chat_widget::set_messages_loading(bool loading)
 
 void chat_widget::begin_history_refresh()
 {
-    timeline_current_ = false;
     set_messages_loading(true);
     update_reading_navigation();
+    emit history_requested(active_conversation_,
+                           messages_loaded_ ? history_page::refresh : history_page::unread,
+                           std::max<qint64>(0, messages_->first_message_id() - 1));
 }
 
 void chat_widget::update_reading_navigation()
 {
-    unread_start_button_->setVisible(unread_start_ > 0);
-    unread_start_button_->setEnabled(connection_available_);
+    if (!history_down_)
+    {
+        return;
+    }
+    auto* viewport = messages_view_->viewport();
+    auto const* scroll = messages_view_->verticalScrollBar();
+    bool const away = !tail_loaded_ || scroll->value() < scroll->maximum();
+    auto const unread = conversation_unread();
+    history_down_->setText(unread ? QStringLiteral("↓  %1").arg(unread) : QStringLiteral("↓"));
+    history_down_->setToolTip(unread ? QStringLiteral("前往未读消息") : QStringLiteral("返回最新消息"));
+    history_down_->setAccessibleName(history_down_->toolTip());
+    history_down_->adjustSize();
+    history_down_->move(viewport->width() - history_down_->width() - 14, viewport->height() - history_down_->height() - 12);
+    history_down_->setVisible(active_conversation_ > 0 && messages_loaded_ && away);
+    history_down_->setEnabled(connection_available_ && !messages_loading_);
 }
 
-void chat_widget::invalidate_unread_start(qint64 conversation, qint64 anchor)
+quint64 chat_widget::conversation_unread() const
 {
-    if (conversation == active_conversation_ && anchor > 0 && anchor == unread_start_)
+    auto const& rooms = conversations_->items();
+    auto room = std::ranges::find(rooms, active_conversation_, &conversation_data::id);
+    return room != rooms.end() ? room->unread : 0;
+}
+
+void chat_widget::scroll_to_unread(QModelIndex const& index)
+{
+    auto* scroll = messages_view_->verticalScrollBar();
+    scroll->setValue(scroll->value() + messages_view_->visualRect(index).top() - std::min(64, messages_view_->viewport()->height() / 5));
+}
+
+void chat_widget::navigate_down()
+{
+    auto const marker = messages_->message_index(messages_->unread_boundary());
+    auto const next = messages_->next_incoming(messages_->read_position(self_user_));
+    auto const height = messages_view_->viewport()->height();
+    if (!conversation_unread())
     {
-        unread_start_ = 0;
-        update_reading_navigation();
-        set_message_status(QStringLiteral("本次未读起点已不可用"));
+        return_to_latest();
+        return;
+    }
+    if (marker.isValid() && messages_view_->visualRect(marker).top() >= height && (next.isValid() || !tail_loaded_))
+    {
+        scroll_to_unread(marker);
+    }
+    else if (next.isValid() && messages_view_->visualRect(next).bottom() >= height)
+    {
+        auto rect = messages_view_->visualRect(next);
+        messages_view_->scrollTo(
+            next, rect.height() >= height && rect.top() < height ? QAbstractItemView::PositionAtBottom : QAbstractItemView::PositionAtCenter);
+    }
+    else if (!tail_loaded_)
+    {
+        set_messages_loading(true);
+        emit history_requested(active_conversation_, history_page::unread);
+    }
+    else
+    {
+        return_to_latest();
+    }
+    mark_visible_messages();
+}
+
+void chat_widget::request_newer_messages()
+{
+    if (connection_available_ && messages_ready() && !tail_loaded_)
+    {
+        set_messages_loading(true);
+        emit history_requested(
+            active_conversation_, history_page::newer, std::max(messages_->last_message_id(), history_floor(active_conversation_)));
     }
 }
 
 void chat_widget::return_to_latest()
 {
-    if (timeline_current_)
+    if (tail_loaded_)
     {
+        messages_->set_unread_boundary(0);
+        messages_view_->doItemsLayout();
         messages_view_->scrollToBottom();
         mark_visible_messages();
     }
     else
     {
-        jump_to_latest_ = true;
-        if (!messages_loading_)
-        {
-            begin_history_refresh();
-            emit latest_messages_requested(active_conversation_);
-        }
+        set_messages_loading(true);
+        emit history_requested(active_conversation_, history_page::latest);
     }
 }
 
@@ -4697,10 +4820,41 @@ void chat_widget::resume_reading_after_menu(QMenu& menu)
 
 void chat_widget::mark_visible_messages()
 {
-    auto const message = messages_->last_message_id();
-    if (active_conversation_ > 0 && viewing_latest() && message > messages_->read_position(self_user_))
+    if (!reading_enabled())
     {
-        emit read_requested(active_conversation_, message);
+        return;
+    }
+    auto const height = messages_view_->viewport()->height();
+    auto bottom = messages_view_->indexAt(QPoint(1, height - 1));
+    auto const floor = std::max(requested_read_, messages_->read_position(self_user_));
+    for (int row = bottom.isValid() ? bottom.row() : messages_->rowCount() - 1; row >= 0; --row)
+    {
+        auto index = messages_->index(row, 0);
+        auto rect = messages_view_->visualRect(index);
+        if (rect.bottom() < 0)
+        {
+            break;
+        }
+        auto const id = index.data(message_model::id_role).toLongLong();
+        if (id > 0 && id <= floor)
+        {
+            break;
+        }
+        if (id > floor && rect.bottom() < height && !index.data(message_model::outgoing_role).toBool() &&
+            !index.data(message_model::deleted_role).toBool())
+        {
+            requested_read_ = id;
+            emit read_requested(active_conversation_, id);
+            break;
+        }
+    }
+}
+
+void chat_widget::read_failed(qint64 conversation)
+{
+    if (conversation == active_conversation_)
+    {
+        requested_read_ = 0;
     }
 }
 
@@ -4743,7 +4897,7 @@ void chat_widget::create_group()
 
 void chat_widget::request_older_messages()
 {
-    if (!connection_available_ || active_conversation_ <= 0 || !messages_loaded_ || !timeline_current_ || messages_loading_ || history_exhausted_)
+    if (!connection_available_ || active_conversation_ <= 0 || !messages_loaded_ || messages_loading_ || history_exhausted_)
     {
         return;
     }
@@ -4756,7 +4910,7 @@ void chat_widget::request_older_messages()
     }
 
     set_messages_loading(true);
-    emit older_messages_requested(active_conversation_, before);
+    emit history_requested(active_conversation_, history_page::older, before);
 }
 
 void chat_widget::send_current_message()
@@ -4983,11 +5137,12 @@ void chat_widget::update_pending_text(qint64 conversation,
     if (conversation == active_conversation_)
     {
         auto const* scroll = messages_view_->verticalScrollBar();
-        bool const follow = added && scroll->value() == scroll->maximum();
+        bool const follow = added && tail_loaded_ && scroll->value() == scroll->maximum();
         show_outgoing();
         if (follow)
         {
-            QTimer::singleShot(0, messages_view_, [this] { messages_view_->scrollToBottom(); });
+            messages_view_->doItemsLayout();
+            messages_view_->scrollToBottom();
         }
     }
 }
@@ -5168,12 +5323,13 @@ void chat_widget::queue_outgoing(outgoing item)
     stop_typing();
     // Like a new message: followed at the bottom, while someone reading history keeps their place.
     auto* scroll = messages_view_->verticalScrollBar();
-    auto const at_bottom = scroll->value() == scroll->maximum();
+    auto const at_bottom = tail_loaded_ && scroll->value() == scroll->maximum();
     show_outgoing();
     update_compose_state();
     if (at_bottom)
     {
-        QTimer::singleShot(0, messages_view_, [this] { messages_view_->scrollToBottom(); });
+        messages_view_->doItemsLayout();
+        messages_view_->scrollToBottom();
     }
     submit(outgoing_.back());
 }

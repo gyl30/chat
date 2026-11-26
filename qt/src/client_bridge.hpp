@@ -97,7 +97,7 @@ class client_bridge final : public QObject
     void get_user_profile(qint64 user);
     void set_user_profile(QString nickname, QString signature);
     void get_presence();
-    void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {}, bool capture_unread = false);
+    void get_messages(qint64 conversation, history_page page, qint64 cursor = 0);
     void create_poll(qint64 room, QString question, QStringList options);
     void refresh_live_poll(qint64 room, qint64 message);
     quint64 get_poll(qint64 room, qint64 message);
@@ -180,9 +180,9 @@ class client_bridge final : public QObject
     void messages_received(qint64 conversation,
                            QList<message_data> messages,
                            read_positions positions,
-                           bool older,
-                           bool recovering,
+                           history_page page,
                            bool has_more,
+                           bool has_newer,
                            std::optional<qint64> first_unread,
                            QString error_message);
     void message_received(message_data message);

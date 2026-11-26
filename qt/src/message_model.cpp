@@ -148,6 +148,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
     auto const outgoing = message.from == self_user_;
     switch (role)
     {
+        case unread_boundary_role:
+            return !pending && unread_boundary_ > 0 && unread_boundary_ == message.id;
         case id_role:
             return message.id;
         case client_id_role:
@@ -277,6 +279,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return message.deleted;
         case edited_at_role:
             return message.edited_at;
+        case reply_target_role:
+            return !pending && !message.deleted && !message.reply.deleted ? message.reply.id : 0;
         case reply_text_role:
             return !message.deleted && message.reply.id > 0
                        ? QStringLiteral("↪ %1\n%2")
@@ -317,6 +321,7 @@ void message_model::reset(qint64 conversation, bool group)
 {
     beginResetModel();
     end_page();
+    unread_boundary_ = 0;
     conversation_ = conversation;
     group_ = group;
     read_positions_.clear();
@@ -324,6 +329,39 @@ void message_model::reset(qint64 conversation, bool group)
     messages_.clear();
     pending_.clear();
     endResetModel();
+}
+
+QModelIndex message_model::message_index(qint64 id) const
+{
+    auto it = std::ranges::lower_bound(messages_, id, {}, &message_data::id);
+    return it != messages_.end() && it->id == id ? index(it - messages_.begin(), 0) : QModelIndex{};
+}
+
+QModelIndex message_model::next_incoming(qint64 after) const
+{
+    auto it = std::ranges::upper_bound(messages_, after, {}, &message_data::id);
+    while (it != messages_.end() && (it->deleted || it->from == self_user_))
+    {
+        ++it;
+    }
+    return it == messages_.end() ? QModelIndex{} : index(it - messages_.begin(), 0);
+}
+
+void message_model::set_unread_boundary(qint64 id)
+{
+    if (id == unread_boundary_)
+    {
+        return;
+    }
+    auto old = message_index(unread_boundary_);
+    unread_boundary_ = id;
+    for (auto row : {old, message_index(id)})
+    {
+        if (row.isValid())
+        {
+            emit dataChanged(index(std::max(0, row.row() - 1), 0), row, {unread_boundary_role, Qt::SizeHintRole});
+        }
+    }
 }
 
 void message_model::set_pending(QList<pending_message> pending)
@@ -409,6 +447,17 @@ void message_model::reconcile_page_row(message_data& message) const
     else if (it->poll)
     {
         merge_poll(message, *it->poll);
+    }
+}
+
+void message_model::discard_stored_rows()
+{
+    if (!messages_.isEmpty())
+    {
+        beginRemoveRows({}, 0, messages_.size() - 1);
+        messages_.clear();
+        unread_boundary_ = 0;
+        endRemoveRows();
     }
 }
 

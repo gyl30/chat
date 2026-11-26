@@ -1764,7 +1764,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         out["focus"] = QApplication::focusWidget() ? QApplication::focusWidget()->objectName() : QString{};
         out["colorScheme"] = static_cast<int>(QGuiApplication::styleHints()->colorScheme());
         out["themeCanvas"] = theme_manager::instance().color(QStringLiteral("canvas")).name();
-        for (auto const* name : {"entryUnreadButton",
+        for (auto const* name : {"historyDownButton",
                                  "chatHeaderButton",
                                  "mainMenuButton",
                                  "windowMinimizeButton",
@@ -1817,7 +1817,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     }
     else if (op == "reading")
     {
-        auto* unread = button("entryUnreadButton");
+        auto* unread = button("historyDownButton");
         auto* list = window.findChild<QListView*>("messageList");
         if (cmd["activate"].toBool())
         {
@@ -1846,7 +1846,29 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             QTimer::singleShot(0, unread, &QPushButton::click);
         }
         out["unread"] = unread->isVisible();
-        out["latest"] = !chat->timeline_current_ || list->verticalScrollBar()->value() != list->verticalScrollBar()->maximum();
+        out["boundary"] = chat->messages_->unread_boundary();
+        auto top = list->indexAt(QPoint(1, 0));
+        out["topId"] = top.data(message_model::id_role).toLongLong();
+        out["offset"] = list->visualRect(top).top();
+        out["count"] = static_cast<qint64>(chat->conversation_unread());
+        for (int row = 0; row < conv->model()->rowCount(); ++row)
+        {
+            auto ix = conv->model()->index(row, 0);
+            if (ix.data(conversation_model::folder_header_role).toBool())
+            {
+                auto folders = out["folderCounts"].toObject();
+                folders[ix.data().toString()] = ix.data(conversation_model::unread_role).toLongLong();
+                out["folderCounts"] = folders;
+            }
+        }
+        auto marker = chat->messages_->message_index(chat->messages_->unread_boundary());
+        out["boundaryTop"] = list->visualRect(marker).top();
+        out["height"] = list->viewport()->height();
+        if (auto context = cmd["context"].toInteger())
+        {
+            QTimer::singleShot(0, chat, [chat, context] { emit chat->message_context_requested(chat->active_conversation(), context); });
+        }
+        out["latest"] = !chat->tail_loaded_ || list->verticalScrollBar()->value() != list->verticalScrollBar()->maximum();
         out["ready"] = chat->messages_ready();
         out["viewingLatest"] = chat->viewing_latest();
         out["active"] = window.isActiveWindow();

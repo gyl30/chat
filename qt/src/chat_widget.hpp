@@ -97,9 +97,9 @@ class chat_widget final : public QWidget
     void set_messages(qint64 conversation,
                       QList<message_data> messages,
                       read_positions positions,
-                      bool older,
-                      bool recovering,
+                      history_page page,
                       bool has_more,
+                      bool has_newer,
                       std::optional<qint64> first_unread);
     void set_read_message(qint64 conversation, qint64 user, qint64 message);
     void reset_read_positions(qint64 conversation);
@@ -138,11 +138,9 @@ class chat_widget final : public QWidget
 
     qint64 active_conversation() const noexcept;
     qint64 latest_message_id() const;
-    std::optional<qint64> recovery_cursor() const;
     bool messages_ready() const;
     bool viewing_latest() const;
-    bool capture_unread() const { return unread_pending_; }
-    void invalidate_unread_start(qint64 conversation, qint64 anchor);
+    void read_failed(qint64 conversation);
     void begin_history_refresh();
     void mark_visible_messages();
     qint64 self_user() const { return self_user_; }
@@ -159,8 +157,7 @@ class chat_widget final : public QWidget
     void avatar_clear_requested();
     void avatar_update_finished(QString error);
     void conversation_selected(qint64 user, bool group);
-    void older_messages_requested(qint64 user, qint64 before);
-    void latest_messages_requested(qint64 conversation);
+    void history_requested(qint64 conversation, history_page page, qint64 cursor = 0);
     void send_message_requested(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision, chat::text_options options);
     void draft_save_requested(qint64 user, qint64 conversation, qint64 revision, qint64 reply, QString text, chat::text_options options);
     void draft_reply_requested(qint64 conversation, qint64 anchor, qint64 revision);
@@ -306,6 +303,11 @@ class chat_widget final : public QWidget
     void update_reading_navigation();
     void resume_reading_after_menu(QMenu& menu);
     void return_to_latest();
+    void request_newer_messages();
+    void navigate_down();
+    quint64 conversation_unread() const;
+    bool reading_enabled() const;
+    void scroll_to_unread(QModelIndex const& index);
     void send_current_message();
     void draft_edited();
     void save_active_draft();
@@ -452,13 +454,12 @@ class chat_widget final : public QWidget
     qint64 active_peer_ = 0;
     bool active_group_ = false;
     QString active_username_;
-    QPushButton* unread_start_button_ = nullptr;
+    QPushButton* history_down_ = nullptr;
     quint64 conversation_visit_ = 0;
-    qint64 unread_start_ = 0;
-    QSet<qint64> withdrawn_before_unread_;
-    bool unread_pending_ = false;
-    bool timeline_current_ = false;
-    bool jump_to_latest_ = false;
+    qint64 observed_tail_ = 0;
+    qint64 requested_read_ = 0;
+    bool tail_loaded_ = false;
+
     bool messages_loaded_ = false;
     bool messages_loading_ = false;
     bool history_exhausted_ = false;

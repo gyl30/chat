@@ -34,6 +34,7 @@ async def scenario(probe, mode):
                 await b.ok("send_message", conversation=g, text="来源", client_id=2)
             )["id"]
             if mode == "older":
+                await a.ok("mark_read", conversation=g, message=other)
                 for n in range(55):
                     await a.ok(
                         "send_message",

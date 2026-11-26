@@ -78,6 +78,11 @@ async def main(root, probe, baseline):
                     )
 
                 if not baseline:
+                    # Keep the image outside the main timeline, so activating it exercises around.
+                    tail = (await a.ok("get_messages", conversation=conv))["messages"][
+                        -1
+                    ]["id"]
+                    await a.ok("mark_read", conversation=conv, message=tail)
                     older = dict(conversation=conv, category="links")
                     reverse = await a.ok("get_messages", **older)
                     assert [m["id"] for m in reverse["messages"]] == [archived]

@@ -50,7 +50,7 @@ QDate local_date(QModelIndex const& index)
 
 bool same_group(QModelIndex const& lhs, QModelIndex const& rhs)
 {
-    if (!lhs.isValid() || !rhs.isValid() || outgoing_at(lhs) != outgoing_at(rhs) ||
+    if (!lhs.isValid() || !rhs.isValid() || rhs.data(message_model::unread_boundary_role).toBool() || outgoing_at(lhs) != outgoing_at(rhs) ||
         lhs.data(message_model::from_role) != rhs.data(message_model::from_role))
     {
         return false;
@@ -149,6 +149,7 @@ struct message_layout
     int bubble_width = 0;
     int bubble_height = 0;
     int day_height = 0;
+    int unread_height = 0;
     int top_margin = 0;
     QList<reaction_data> reactions;
     QList<QRect> reaction_rects;
@@ -167,7 +168,7 @@ struct message_layout
     {
         int const margin = chat_theme::message_side_margin + chat_theme::message_avatar_skip;
         int const x = outgoing ? row.right() - margin - bubble_width + 1 : row.left() + margin;
-        return {x, row.top() + day_height + top_margin, bubble_width, bubble_height};
+        return {x, row.top() + day_height + unread_height + top_margin, bubble_width, bubble_height};
     }
 
     QRect avatar_rect(QRect const& row) const
@@ -432,6 +433,7 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
 
     result.bubble_width = std::min(bubble_max, content_width + chat_theme::message_padding_horizontal * 2);
     result.bubble_height = content_height + chat_theme::message_padding_vertical * 2;
+    result.unread_height = index.data(message_model::unread_boundary_role).toBool() ? QFontMetrics(date_font(option)).height() + 12 : 0;
     if (result.day_start && !date_text(index).isEmpty())
     {
         result.day_height = chat_theme::message_date_margin_top + chat_theme::message_date_height + chat_theme::message_date_margin_bottom;
@@ -557,6 +559,19 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         painter->drawText(pill, Qt::AlignCenter, label);
     }
 
+    if (layout.unread_height)
+    {
+        QRect band(option.rect.left() + 16, y + layout.day_height, option.rect.width() - 32, layout.unread_height);
+        auto const label = QStringLiteral("未读消息");
+        painter->setFont(date_font(option));
+        int const gap = painter->fontMetrics().horizontalAdvance(label) / 2 + 10;
+        auto const center = band.center();
+        painter->setPen(themed("input_border"));
+        painter->drawLine(band.left(), center.y(), center.x() - gap, center.y());
+        painter->drawLine(center.x() + gap, center.y(), band.right(), center.y());
+        painter->setPen(themed("text_secondary"));
+        painter->drawText(band, Qt::AlignCenter, label);
+    }
     auto const bubble = layout.bubble_rect(option.rect);
     if (auto rect = layout.avatar_rect(option.rect); !rect.isEmpty())
     {
@@ -689,8 +704,15 @@ QSize message_delegate::sizeHint(QStyleOptionViewItem const& option, QModelIndex
     auto const layout = calculate_layout(option, index);
     return {
         option.rect.width(),
-        layout.day_height + layout.top_margin + layout.bubble_height + chat_theme::message_margin_bottom,
+        layout.day_height + layout.unread_height + layout.top_margin + layout.bubble_height + chat_theme::message_margin_bottom,
     };
+}
+
+bool message_delegate::on_unread_divider(QStyleOptionViewItem const& option, QModelIndex const& index, QPoint position)
+{
+    auto const layout = calculate_layout(option, index);
+    auto const y = position.y() - option.rect.top() - layout.day_height;
+    return y >= 0 && y < layout.unread_height;
 }
 
 QUrl message_delegate::link_at(QStyleOptionViewItem const& option, QModelIndex const& index, QPoint position)

@@ -69,6 +69,8 @@ async def run(root, probe):
                 file = await attach(
                     502, b"data", "example.bin", "application/octet-stream"
                 )
+                # This scenario selects latest attachments and then pages up to older rows.
+                await a.ok("mark_read", conversation=group, message=file)
                 gate = Gate(url)
                 proxy = await stack.enter_async_context(
                     serve(gate.handle, "127.0.0.1", 0)

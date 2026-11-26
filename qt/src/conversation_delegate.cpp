@@ -74,9 +74,15 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
         }
         QRect arrow(option.rect.left() + chat_theme::dialog_left + (chat_theme::dialog_avatar_size - 16) / 2, row.center().y() - 7, 16, 16);
         (index.data(conversation_model::collapsed_role).toBool() ? collapsed_ : expanded_).paint(painter, arrow);
-        auto const label = row.adjusted(arrow.right() + 7 - row.left(), 0, -8, 0);
+        auto label = row.adjusted(arrow.right() + 7 - row.left(), 0, -8, 0);
         painter->setFont(option.font);
         painter->setPen(themed("text_secondary"));
+        if (auto const unread = index.data(conversation_model::unread_role).toULongLong())
+        {
+            auto const badge = unread > 99 ? QStringLiteral("99+") : QString::number(unread);
+            painter->drawText(label, Qt::AlignRight | Qt::AlignVCenter, badge);
+            label.adjust(0, 0, -option.fontMetrics.horizontalAdvance(badge) - 8, 0);
+        }
         painter->drawText(
             label, Qt::AlignLeft | Qt::AlignVCenter, option.fontMetrics.elidedText(index.data().toString(), Qt::ElideRight, label.width()));
         painter->restore();

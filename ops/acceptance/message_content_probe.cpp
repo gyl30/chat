@@ -326,7 +326,7 @@ int main(int argc, char** argv)
     item.username = "target";
     QString const long_url = "https://example.test/" + QString(95, 'a');
     item.text = QStringLiteral("看http://例子.测试/猫。\n") + long_url + QStringLiteral("，还有 file:///tmp/f javascript:void(0) data:text/plain,x");
-    chat.set_messages(12, {item}, {}, false, false, false, {});
+    chat.set_messages(12, {item}, {}, history_page::latest, false, false, {});
     chat.show();
     app.processEvents();
     chat.activateWindow();

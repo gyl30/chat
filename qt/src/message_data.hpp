@@ -10,6 +10,15 @@
 #include <QHash>
 #include <optional>
 
+enum class history_page
+{
+    unread,
+    refresh,
+    latest,
+    older,
+    newer,
+};
+
 enum class send_status
 {
     sent,

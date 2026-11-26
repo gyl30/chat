@@ -56,6 +56,18 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
             return true;
         }
         auto id = folder < folders_.size() ? folders_[folder].first : qint64(0);
+        if (role == unread_role)
+        {
+            quint64 count = 0;
+            for (auto const& room : conversations_)
+            {
+                if (room.folder == id)
+                {
+                    count += room.unread;
+                }
+            }
+            return count;
+        }
         if (role == collapsed_role)
         {
             return collapsed_.contains(id);

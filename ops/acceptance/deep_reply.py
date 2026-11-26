@@ -49,6 +49,11 @@ async def run(root, probe, baseline):
                         "INSERT INTO messages(conversation_id,sender_id,body,created_at) VALUES(?,2,?,?)",
                         ((conv, f"更新的文字 {i}", 1767225600000) for i in range(70)),
                     )
+                # Restore the reply with its target outside the unread context and latest page.
+                tail = (await account.ok("get_messages", conversation=conv))[
+                    "messages"
+                ][-1]["id"]
+                await account.ok("mark_read", conversation=conv, message=tail)
                 await start()
                 restored = await ui.wait(
                     "state", lambda s: s["reply"] and "旧正文" in s["preview"]

@@ -1328,7 +1328,7 @@ void main_window::connect_group_actions()
                 if (connected_ && !reconnecting_)
                 {
                     global_search_dialog dialog(*client_, *chat_page_, this);
-                    dialog.locate(conversation, anchor, [this, conversation, anchor] { chat_page_->invalidate_unread_start(conversation, anchor); });
+                    dialog.locate(conversation, anchor, {});
                     dialog.exec();
                 }
             });
@@ -1413,7 +1413,6 @@ void main_window::connect_group_actions()
             {
                 chat_page_->reset_read_positions(conversation);
                 chat_page_->begin_history_refresh();
-                client_->get_messages(conversation, {}, chat_page_->recovery_cursor(), chat_page_->capture_unread());
             }
         },
         Qt::AutoConnection);
@@ -1427,20 +1426,15 @@ void main_window::connect_messages()
             this,
             [this](qint64 user, bool group)
             {
-                client_->get_messages(user, {}, {}, chat_page_->capture_unread());
+                client_->get_messages(user, history_page::unread);
                 if (group)
                 {
                     client_->get_members(user);
                 }
             });
 
-    connect(chat_page_,
-            &chat_widget::latest_messages_requested,
-            this,
-            [this](qint64 conversation) { client_->get_messages(conversation, {}, chat_page_->recovery_cursor(), chat_page_->capture_unread()); });
-
+    connect(chat_page_, &chat_widget::history_requested, client_.get(), &client_bridge::get_messages);
     chat_page_->set_downloads(client_->downloads());
-    connect(chat_page_, &chat_widget::older_messages_requested, this, [this](qint64 user, qint64 before) { client_->get_messages(user, before); });
 
     connect(chat_page_, &chat_widget::send_message_requested, client_.get(), &client_bridge::send_message);
     connect(chat_page_, &chat_widget::draft_save_requested, client_.get(), &client_bridge::save_draft);
@@ -1586,9 +1580,9 @@ void main_window::connect_messages()
         [this](qint64 user,
                QList<message_data> messages,
                read_positions positions,
-               bool older,
-               bool recovering,
+               history_page page,
                bool has_more,
+               bool has_newer,
                std::optional<qint64> first_unread,
                QString const& error_message)
         {
@@ -1598,7 +1592,7 @@ void main_window::connect_messages()
                 return;
             }
 
-            chat_page_->set_messages(user, std::move(messages), std::move(positions), older, recovering, has_more, first_unread);
+            chat_page_->set_messages(user, std::move(messages), std::move(positions), page, has_more, has_newer, first_unread);
         },
         Qt::AutoConnection);
 
@@ -1644,7 +1638,6 @@ void main_window::connect_messages()
                 if (conversation == chat_page_->active_conversation())
                 {
                     chat_page_->begin_history_refresh();
-                    client_->get_messages(conversation, {}, chat_page_->recovery_cursor(), chat_page_->capture_unread());
                 }
             }
         },
@@ -1696,7 +1689,14 @@ void main_window::connect_messages()
         client_.get(),
         &client_bridge::messages_read,
         this,
-        [this](qint64 conversation, qint64 user, qint64 message) { chat_page_->set_read_message(conversation, user, message); },
+        [this](qint64 conversation, qint64 user, qint64 message)
+        {
+            chat_page_->set_read_message(conversation, user, message);
+            if (user == chat_page_->self_user())
+            {
+                client_->get_conversations();
+            }
+        },
         Qt::AutoConnection);
 
     connect(
@@ -1707,6 +1707,7 @@ void main_window::connect_messages()
         {
             if (!error_message.isEmpty())
             {
+                chat_page_->read_failed(user);
                 chat_page_->set_message_error(user, error_message);
                 return;
             }
@@ -2446,21 +2447,18 @@ void main_window::finish_reconnect()
     }
     reconnect_notice_visible_ = false;
 
-    // The recovery cursor is taken before resending, so no acknowledgement can move it past
-    // messages others sent while the link was down.
     auto const user = chat_page_->active_conversation();
-    auto const cursor = chat_page_->recovery_cursor();
+    if (user > 0)
+    {
+        chat_page_->begin_history_refresh();
+        client_->get_members(user);
+    }
     client_->restore_drafts(chat_page_->self_user());
     client_->restore_texts();
     client_->restore_attachments();
     client_->get_conversations();
     client_->get_contacts();
     client_->get_friend_requests();
-    if (user > 0)
-    {
-        client_->get_messages(user, {}, cursor, chat_page_->capture_unread());
-        client_->get_members(user);
-    }
 }
 
 void main_window::stop_reconnect()

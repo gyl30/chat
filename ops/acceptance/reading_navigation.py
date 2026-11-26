@@ -36,9 +36,11 @@ async def run(
             group = (
                 await b.ok(
                     "create_group",
-                    title="原生阅读导航测试：这是一条足够长的会话名称，用于验证窄窗口里的标题和阅读按钮"
-                    if native
-                    else "导航",
+                    title=(
+                        "原生阅读导航测试：这是一条足够长的会话名称，用于验证窄窗口里的标题和阅读按钮"
+                        if native
+                        else "导航"
+                    ),
                     members=[1],
                 )
             )["conversation"]
@@ -79,6 +81,11 @@ async def run(
                 "first_unread"
             ) is None
 
+            await a.ok("create_conversation_folder", name="阅读")
+            folder = (await a.ok("get_conversations"))["folders"][0]["id"]
+            await a.ok("move_conversation_to_folder", conversation=group, folder=folder)
+            prefix = [await send(b, f"已读历史 {i}") for i in range(65)]
+            await a.ok("mark_read", conversation=group, message=prefix[-1])
             anchor = await send(b, "@a 起点 https://example.test")
             with sqlite3.connect(db) as conn:
                 conn.execute(
@@ -102,7 +109,10 @@ async def run(
             editable = await send(b, "待编辑的普通消息")
             state = await history(capture_unread=True)
             assert state["first_unread"] == anchor and state["has_more"]
-            assert len(state["messages"]) == 50 and state["messages"][0]["id"] > anchor
+            assert (
+                state["has_newer"]
+                and [m["id"] for m in state["messages"]] == prefix[-20:] + ids[:21]
+            )
             assert (await history()).get("first_unread") is None
             assert "error" in await a.ask(
                 "get_messages", conversation=group, around=anchor, capture_unread=True
@@ -173,7 +183,7 @@ async def run(
                         )
 
                 async def open_anchor(expected):
-                    await ui.call("reading", unread=True)
+                    await ui.call("reading", context=expected)
                     return await ui.wait(
                         "searchui", lambda r: r.get("anchor") == expected
                     )
@@ -181,32 +191,49 @@ async def run(
                 await select(group)
                 await ui.call("reading", activate=True)
                 await until(
-                    lambda: read_at_least(editable), "initial latest page marked read"
+                    lambda: read_at_least(anchor),
+                    "visible incoming messages marked read",
                 )
                 initial = await ui.call("reading")
-                assert (
-                    initial["unread"]
-                    and initial["first"] > anchor
-                    and initial["last"] == editable
+                assert initial["boundary"] == anchor and initial["first"] == prefix[-20]
+                assert 0 <= initial["boundaryTop"] < initial["height"] // 2
+                assert initial["last"] == ids[20] and not read_at_least(ids[20])
+                snapshot = await ui.wait(
+                    "reading", lambda r: r["count"] > 0 and r["folderCounts"]["阅读"] == r["count"]
                 )
+                assert snapshot["unread"]
                 assert requested("get_messages")[0]["capture_unread"] is True
-                await ui.call("reading", up=True)
+                at_top = await ui.call("reading", older=True)
+                earlier = await ui.wait(
+                    "reading", lambda r: r["ready"] and r["first"] == prefix[0]
+                )
+                assert (earlier["topId"], earlier["offset"]) == (
+                    at_top["topId"],
+                    at_top["offset"],
+                )
+                assert earlier["boundaryTop"] >= earlier["height"]
+                await ui.call("reading", unread=True)
+                await ui.wait(
+                    "reading", lambda r: 0 <= r["boundaryTop"] < r["height"] // 2
+                )
                 geometry = await ui.call("desktop_environment", conversation=group)
                 x, y, w, h = geometry["viewport"]
                 bx, by, bw, bh = geometry["scrollbar"]
                 assert (bx + bw, by, bh) == (x + w, y, h), geometry
                 await ui.call("reading", bottom=True)
+                await ui.wait(
+                    "reading", lambda r: r["ready"] and r["last"] > initial["last"]
+                )
+                assert not read_at_least(editable)
                 mark_count = len(requested("mark_read"))
                 await open_anchor(anchor)
                 assert len(requested("mark_read")) == mark_count
                 await ui.call("searchui", close=True)
-
-                await ui.call("reading", older=True)
-                await ui.wait(
-                    "reading", lambda r: r["ready"] and r["first"] < initial["first"]
-                )
                 await ui.call("reading", latest=True, activate=True)
                 await ui.wait("reading", lambda r: r["viewingLatest"])
+                await until(
+                    lambda: read_at_least(editable), "explicit End reaches latest"
+                )
                 pending_file = root / "keep-upload.bin"
                 pending_file.write_bytes(b"pending upload")
                 gate.hold.add("confirm_attachment")
@@ -252,7 +279,9 @@ async def run(
                 assert up["latest"] and 0 < up["scroll"] < up["maximum"]
                 newest = await send(b, "阅读时到达的新消息")
                 await ui.wait("reading", lambda r: r["last"] == newest)
-                assert (await ui.call("reading"))["scroll"] == up["scroll"]
+                after_delivery = await ui.call("reading")
+                for field in ("topId", "offset", "scroll"):
+                    assert after_delivery[field] == up[field], (field, up, after_delivery)
                 assert not read_at_least(newest)
                 history_count = len(requested("get_messages"))
                 await ui.call("reading", latest=True, activate=True)
@@ -275,16 +304,19 @@ async def run(
                 read_elsewhere = await send(b, "另一设备推进已读")
                 await a.ok("mark_read", conversation=group, message=read_elsewhere)
                 assert read_at_least(read_elsewhere)
-                assert (await ui.call("reading"))["unread"]
+                synced = await ui.wait(
+                    "reading", lambda r: r["read"] == read_elsewhere and r["count"] == 0
+                )
+                assert synced["folderCounts"]["阅读"] == 0 and synced["unread"]
                 gate.hold.add("get_messages")
                 await gate.down.close()
                 await gate.caught("get_messages")
                 assert requested("get_messages")[-1].get("after") is not None
                 assert not requested("get_messages")[-1].get("capture_unread")
                 later = await send(b, "恢复期间的新消息")
-                await ui.wait("reading", lambda r: r["last"] == later)
+                await ui.wait("state", lambda r: r["conv"] == group)
                 stale = await ui.call("reading", bottom=True)
-                assert stale["scroll"] == stale["maximum"] and stale["latest"]
+                assert stale["scroll"] == stale["maximum"] and not stale["ready"]
                 assert not stale["viewingLatest"] and not read_at_least(later)
                 await ui.call("reading", latest=True)
                 await gate.release("get_messages")
@@ -299,10 +331,10 @@ async def run(
                     "searchui",
                     lambda r: r.get("status") == "消息不可用" and r["count"] == 0,
                 )
-                assert not (await ui.call("reading"))["unread"]
+                assert (await ui.call("reading"))["boundary"] != anchor
                 await ui.call("searchui", close=True)
                 print(
-                    "PASS Qt captured old archived unread after auto-read, paging and reconnect; latest preserves reading position, draft, reply, Outbox and paused upload",
+                    "PASS Qt opens at archived unread, marks viewport, retains divider across pages and reconnect; latest preserves reading position, draft, reply, Outbox and paused upload",
                     flush=True,
                 )
 
@@ -390,6 +422,7 @@ async def run(
                 )
                 assert all(r["id"] != stale_anchor for r in state["rows"])
                 await select(group)
+                assert (await ui.call("reading"))["boundary"] == stale_anchor
                 await open_anchor(stale_anchor)
                 await a.ok("clear_history", conversation=group, through=stale_anchor)
                 await ui.wait(
@@ -412,6 +445,35 @@ async def run(
                     "get_messages", conversation=group, around=lost_anchor
                 )
                 await ui.call("searchui", close=True)
+                await b.ok("invite_group_members", conversation=group, members=[1])
+                await select(other)
+                first = await send(b, "第一条未读")
+                await send(a, "未读区间内的本人消息")
+                await send(b, "另一个会话的消息", other)
+                second = await send(b, "第二条有效来信")
+                gate.hold.add("get_messages")
+                await ui.wait("select", lambda r: r["ok"], conv=group)
+                await gate.caught("get_messages")
+                await b.ok("delete_message", conversation=group, message=first)
+                await gate.release("get_messages")
+                await ui.wait(
+                    "reading", lambda r: r["ready"] and r["boundary"] == second
+                )
+                await select(other)
+                following = [await send(b, f"跨设备在途已读 {i}") for i in range(68)]
+                gate.hold.add("get_messages")
+                await ui.call("select", conv=group)
+                await gate.caught("get_messages")
+                await a.ok("mark_read", conversation=group, message=following[55])
+                await ui.wait("reading", lambda r: r["read"] >= following[55])
+                await gate.release("get_messages")
+                await ui.wait(
+                    "reading", lambda r: r["ready"] and r["boundary"] == following[56]
+                )
+                print(
+                    "PASS withdrawn entry snapshot skips own messages and gaps; remote receipt beyond held entry page reanchors",
+                    flush=True,
+                )
                 print(
                     "PASS real Qt mention filter, live add/remove, 50/51 and next-page cursor, stale filters, permissions and late conversation reply",
                     flush=True,
