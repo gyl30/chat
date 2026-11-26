@@ -1,13 +1,19 @@
 #include "message_list_view.hpp"
 #include "message_delegate.hpp"
 #include "message_model.hpp"
+#include "theme_manager.hpp"
 #include <QApplication>
 #include <QMouseEvent>
+#include <QPaintEvent>
+#include <QPainter>
 #include <algorithm>
 
 message_list_view::message_list_view(QWidget* parent) : QListView(parent), overlay_(Qt::Vertical, this)
 {
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto& themes = theme_manager::instance();
+    connect(&themes, &theme_manager::background_changed, viewport(), qOverload<>(&QWidget::update));
+    connect(&themes, &theme_manager::changed, viewport(), qOverload<>(&QWidget::update));
     overlay_.setObjectName(QStringLiteral("messageScrollOverlay"));
     overlay_.setFocusPolicy(Qt::NoFocus);
     overlay_.hide();
@@ -128,15 +134,35 @@ void message_list_view::dataChanged(const QModelIndex& first, const QModelIndex&
 {
     auto update = [&] { QListView::dataChanged(first, last, roles); };
     if (preserve_layout && (roles.empty() || roles.contains(Qt::SizeHintRole) || roles.contains(message_model::text_role) ||
-                            roles.contains(message_model::reply_text_role) || roles.contains(message_model::image_role) ||
-                            roles.contains(message_model::reactions_role) || roles.contains(message_model::poll_role) ||
-                            roles.contains(message_model::download_status_role) || roles.contains(message_model::read_count_role)))
+                            roles.contains(message_model::reply_text_role) || roles.contains(message_model::sender_name_role) ||
+                            roles.contains(message_model::image_role) || roles.contains(message_model::reactions_role) ||
+                            roles.contains(message_model::poll_role) || roles.contains(message_model::download_status_role)))
     {
         preserve_layout(update);
     }
     else
     {
         update();
+    }
+}
+
+void message_list_view::paintEvent(QPaintEvent* event)
+{
+    {
+        QPainter painter(viewport());
+        painter.setClipRegion(event->region());
+        const auto& themes = theme_manager::instance();
+        paint_chat_background(painter, viewport()->rect(), themes.background(), themes.is_dark());
+    }
+    QListView::paintEvent(event);
+}
+
+void message_list_view::scrollContentsBy(int dx, int dy)
+{
+    QListView::scrollContentsBy(dx, dy);
+    if (theme_manager::instance().background() != chat_background::solid)
+    {
+        viewport()->update();
     }
 }
 

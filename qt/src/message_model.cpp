@@ -196,7 +196,7 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             case send_error_role:
                 return item.error;
             case read_role:
-            case read_count_role:
+            case read_members_role:
             case image_role:
             case image_status_role:
                 return {};
@@ -253,12 +253,7 @@ QVariant message_model::data(QModelIndex const& index, int role) const
                 {
                     parts.push_back(QStringLiteral("提及你"));
                 }
-                auto const count = data(index, read_count_role);
-                if (count.isValid())
-                {
-                    parts.push_back(QStringLiteral("已读 %1 人").arg(count.toInt()));
-                }
-                else if (outgoing && data(index, read_role).toBool())
+                if (outgoing && data(index, read_role).toBool())
                 {
                     parts.push_back(QStringLiteral("已读"));
                 }
@@ -356,6 +351,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return message.deleted ? QString{} : message.forwarded_from;
         case sender_name_role:
             return message.username;
+        case show_sender_role:
+            return group_ && !outgoing && !message.deleted;
         case deleted_role:
             return message.deleted;
         case edited_at_role:
@@ -368,13 +365,14 @@ QVariant message_model::data(QModelIndex const& index, int role) const
                              .arg(message.reply.username, message.reply.deleted ? QStringLiteral("消息已撤回") : message.reply.text)
                        : QString{};
         case read_role:
-            if (!outgoing)
+            if (!outgoing || message.deleted)
             {
                 return {};
             }
             if (group_ && !members_.isEmpty())
             {
-                return !read_members(message.id).isEmpty();
+                return std::ranges::any_of(
+                    members_, [&](const member_data& member) { return member.id != self_user_ && read_positions_.value(member.id) >= message.id; });
             }
             for (auto it = read_positions_.cbegin(); it != read_positions_.cend(); ++it)
             {
@@ -384,13 +382,13 @@ QVariant message_model::data(QModelIndex const& index, int role) const
                 }
             }
             return false;
-        case read_count_role:
+        case read_members_role:
             // Like other IMs, readers are shown only to the sender of a group message.
             if (!group_ || members_.isEmpty() || message.deleted || message.from != self_user_)
             {
                 return {};
             }
-            return static_cast<int>(read_members(message.id).size());
+            return true;
         case Qt::DecorationRole:
             return avatars_ ? QVariant::fromValue(avatars_->image(message.from)) : QVariant{};
         default:
@@ -799,7 +797,7 @@ void message_model::set_read_message(qint64 user, qint64 message)
     read_positions_.insert(user, message);
     if (!messages_.isEmpty())
     {
-        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_count_role, Qt::AccessibleTextRole});
+        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_members_role, Qt::AccessibleTextRole});
     }
 }
 
@@ -814,7 +812,7 @@ void message_model::set_read_positions(read_positions positions)
     read_positions_ = std::move(positions);
     if (!messages_.isEmpty())
     {
-        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_count_role, Qt::AccessibleTextRole});
+        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_members_role, Qt::AccessibleTextRole});
     }
 }
 
@@ -857,7 +855,7 @@ void message_model::set_members(QList<member_data> members)
     members_ = std::move(members);
     if (!messages_.isEmpty())
     {
-        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_count_role, Qt::AccessibleTextRole});
+        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_members_role, Qt::AccessibleTextRole});
     }
 }
 

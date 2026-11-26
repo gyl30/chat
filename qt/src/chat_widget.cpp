@@ -1729,16 +1729,6 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
             [this](QModelIndex const& index)
             { show_user_details(index.data(message_model::from_role).toLongLong(), index.data(message_model::sender_name_role).toString()); });
     connect(messages_delegate,
-            &message_delegate::read_details_clicked,
-            this,
-            [this](QModelIndex const& index)
-            {
-                if (index.data(message_model::read_count_role).isValid())
-                {
-                    show_read_details(active_conversation_, index.data(message_model::id_role).toLongLong());
-                }
-            });
-    connect(messages_delegate,
             &message_delegate::vote_clicked,
             this,
             [this](QModelIndex const& ix, qint64 choice)
@@ -2276,7 +2266,7 @@ void chat_widget::show_message_menu(QPoint position)
     auto const unpin = current && current->pinned_message.id == message_id;
     auto* group_pin = messages_->can_manage_group() ? menu.addAction(unpin ? QStringLiteral("取消置顶消息") : QStringLiteral("置顶消息")) : nullptr;
     auto* multi = menu.addAction(QStringLiteral("选择消息"));
-    auto* readers = index.data(message_model::read_count_role).isValid() ? menu.addAction(QStringLiteral("已读详情")) : nullptr;
+    auto* readers = index.data(message_model::read_members_role).isValid() ? menu.addAction(QStringLiteral("已读成员")) : nullptr;
     auto const key = index.data(message_model::attachment_key_role).toString();
     if (!key.isEmpty() && index.data(message_model::outgoing_role).toBool() && connection_available_)
     {
@@ -4768,14 +4758,12 @@ void chat_widget::show_read_details(qint64 conversation, qint64 message)
 {
     QDialog dialog(this);
     dialog.setObjectName(QStringLiteral("readDetailsDialog"));
-    dialog.setWindowTitle(QStringLiteral("已读详情"));
+    dialog.setWindowTitle(QStringLiteral("已读成员"));
     dialog.resize(chat_theme::dialog_small_width, 360);
     auto* layout = new QVBoxLayout(&dialog);
     frame_dialog(dialog);
     layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
     layout->setSpacing(chat_theme::dialog_spacing);
-    auto* count = new QLabel(&dialog);
-    count->setObjectName(QStringLiteral("readDetailsCount"));
     auto* list = new QListWidget(&dialog);
     list->setObjectName(QStringLiteral("readMembersList"));
     list->setAccessibleName(QStringLiteral("已读成员"));
@@ -4785,32 +4773,20 @@ void chat_widget::show_read_details(qint64 conversation, qint64 message)
     list->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     list->setMouseTracking(true);
-    layout->addWidget(count);
     layout->addWidget(list);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
     buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
     buttons->button(QDialogButtonBox::Close)->setIcon({});
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    auto refresh = [this, &dialog, conversation, message, count, list]
+    auto refresh = [this, &dialog, conversation, message, list]
     {
-        bool visible = false;
-        for (int row = 0; row < messages_->rowCount(); ++row)
-        {
-            auto const item = messages_->index(row, 0);
-            if (item.data(message_model::id_role).toLongLong() == message)
-            {
-                visible = item.data(message_model::read_count_role).isValid();
-                break;
-            }
-        }
-        if (active_conversation_ != conversation || !visible)
+        if (active_conversation_ != conversation || !messages_->message_index(message).data(message_model::read_members_role).toBool())
         {
             dialog.reject();
             return false;
         }
         auto const members = messages_->read_members(message);
-        count->setText(QStringLiteral("已读 %1 人").arg(members.size()));
         auto const selected = list->currentItem() ? list->currentItem()->data(Qt::UserRole).toLongLong() : 0;
         auto const scroll = list->verticalScrollBar()->value();
         list->clear();

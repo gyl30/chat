@@ -161,6 +161,42 @@ static void check_display_roles()
         assert(index.data(Qt::DisplayRole).toString() == m.text && index.data(message_model::text_role).toString() == m.text);
         assert(!index.data(message_model::poll_role).isValid());
     }
+    for (bool group : {false, true})
+    {
+        model.reset(1, group);
+        model.set_members({member_data{.id = 2, .username = "bob", .avatar = {}}, member_data{.id = 3, .username = "carol", .avatar = {}}});
+        message_data outgoing_message;
+        outgoing_message.id = 1;
+        outgoing_message.conversation = 1;
+        outgoing_message.from = 1;
+        outgoing_message.username = QStringLiteral("alice");
+        outgoing_message.timestamp = 1736942400000;
+        outgoing_message.text = QStringLiteral("正文末行较短");
+        assert(model.add_message(outgoing_message));
+        auto incoming_message = outgoing_message;
+        incoming_message.id = 2;
+        incoming_message.from = 2;
+        incoming_message.username = QStringLiteral("bob");
+        incoming_message.text = QStringLiteral("对方的消息");
+        assert(model.add_message(incoming_message));
+        message_delegate delegate;
+        QStyleOptionViewItem option;
+        option.rect = QRect(0, 0, 640, 400);
+        const auto outgoing = model.index(0);
+        const auto incoming = model.index(1);
+        const auto original_size = delegate.sizeHint(option, outgoing);
+        assert(!outgoing.data(message_model::read_role).toBool());
+        assert(!incoming.data(message_model::read_role).isValid());
+        model.set_read_message(2, 1);
+        assert(outgoing.data(message_model::read_role).toBool());
+        assert(delegate.sizeHint(option, outgoing) == original_size);
+        assert(!outgoing.data(Qt::AccessibleTextRole).toString().contains(QStringLiteral("已读 1 人")));
+        assert(outgoing.data(message_model::read_members_role).toBool() == group);
+        if (group)
+        {
+            assert(model.read_members(1).size() == 1 && model.read_members(1).front().id == 2);
+        }
+    }
     m.from = 1;
     m.conversation = 1;
     for (bool group : {false, true})
@@ -174,7 +210,7 @@ static void check_display_roles()
                 model.set_pending({{m, state == message_model::failed, {}, state == message_model::waiting}});
                 auto local = model.index(0);
                 assert(local.data(message_model::send_state_role).toInt() == state);
-                assert(!local.data(message_model::read_role).isValid() && !local.data(message_model::read_count_role).isValid());
+                assert(!local.data(message_model::read_role).isValid() && !local.data(message_model::read_members_role).isValid());
             }
         }
         model.set_pending({});

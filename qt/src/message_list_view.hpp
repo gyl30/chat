@@ -21,6 +21,8 @@ class message_list_view final : public QListView
     void mouseReleaseEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
     void dataChanged(const QModelIndex& first, const QModelIndex& last, const QList<int>& roles) override;
+    void paintEvent(QPaintEvent* event) override;
+    void scrollContentsBy(int dx, int dy) override;
     void resizeEvent(QResizeEvent* event) override;
     void changeEvent(QEvent* event) override;
 

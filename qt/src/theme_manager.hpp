@@ -9,6 +9,7 @@
 #include <QString>
 #include <QTemporaryDir>
 #include <memory>
+#include "chat_background.hpp"
 
 enum class chat_appearance
 {
@@ -25,6 +26,9 @@ class theme_manager final : public QObject
     static theme_manager& instance();
     chat_appearance appearance() const noexcept { return appearance_; }
     void set_appearance(chat_appearance appearance);
+    chat_background background() const noexcept { return background_; }
+    bool is_dark() const noexcept { return dark_; }
+    void set_background(chat_background choice);
     void load_settings();
     bool reload();
     bool valid() const noexcept { return !colors_.isEmpty(); }
@@ -38,6 +42,7 @@ class theme_manager final : public QObject
     QString style_sheet(QString text) const;
    signals:
     void changed();
+    void background_changed();
     void load_failed(QString message);
 
    private:
@@ -45,6 +50,8 @@ class theme_manager final : public QObject
     bool apply(chat_appearance appearance);
     void save_settings() const;
     chat_appearance appearance_ = chat_appearance::system;
+    chat_background background_ = chat_background::solid;
+    bool dark_ = false;
     bool system_dark_ = false;
     QHash<QString, QColor> colors_;
     QList<QColor> avatars_;

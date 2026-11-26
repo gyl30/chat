@@ -3,6 +3,8 @@
 
 #include "icons.hpp"
 #include "theme_manager.hpp"
+#include <QButtonGroup>
+#include <QPainter>
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -206,6 +208,43 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
             &QComboBox::currentIndexChanged,
             this,
             [this](int) { theme_manager::instance().set_appearance(static_cast<chat_appearance>(appearance_->currentData().toInt())); });
+    hint(chat, QStringLiteral("聊天背景"), QStringLiteral("settingsSectionHeading"));
+    auto* backgrounds = new QButtonGroup(this);
+    auto* previews = new QHBoxLayout;
+    const QStringList labels{QStringLiteral("纯色"), QStringLiteral("青绿"), QStringLiteral("晴空"), QStringLiteral("暖沙"), QStringLiteral("夜幕")};
+    for (int id = 0; id < labels.size(); ++id)
+    {
+        const auto choice = static_cast<chat_background>(id);
+        auto* preview = new QToolButton(chat->parentWidget());
+        preview->setObjectName(QStringLiteral("chatBackground%1").arg(id));
+        preview->setProperty("backgroundPreview", true);
+        preview->setText(labels[id]);
+        preview->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+        preview->setIconSize({58, 40});
+        preview->setCheckable(true);
+        backgrounds->addButton(preview, id);
+        previews->addWidget(preview, 1);
+        auto update_preview = [this, preview, choice, &themes]
+        {
+            const auto scale = devicePixelRatioF();
+            const auto size = preview->iconSize();
+            QPixmap icon(size * scale);
+            icon.setDevicePixelRatio(scale);
+            icon.fill(Qt::transparent);
+            {
+                QPainter painter(&icon);
+                paint_chat_background(painter, QRect(QPoint{}, size), choice, themes.is_dark());
+            }
+            preview->setIcon(QIcon(icon));
+            preview->setChecked(choice == themes.background());
+        };
+        connect(&themes, &theme_manager::changed, preview, update_preview);
+        connect(
+            &themes, &theme_manager::background_changed, preview, [preview, choice, &themes] { preview->setChecked(choice == themes.background()); });
+        update_preview();
+    }
+    connect(backgrounds, &QButtonGroup::idClicked, this, [&themes](int id) { themes.set_background(static_cast<chat_background>(id)); });
+    chat->addLayout(previews);
     control_enter_ = checkbox(chat, QStringLiteral("按 Ctrl+Enter 发送消息"), QStringLiteral("settingsControlEnter"));
     hint(chat, QStringLiteral("聊天窗口：Ctrl+Shift+F 打开高级搜索，Ctrl+F 搜索当前会话。"));
     hint(chat, QStringLiteral("默认按 Enter 发送，Shift+Enter 换行。启用后按 Ctrl+Enter 发送，Enter 换行。"));

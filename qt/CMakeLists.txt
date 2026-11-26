@@ -19,6 +19,7 @@ add_executable(client
     src/sidebar_search.cpp
     src/sidebar_search.hpp
     src/reading_navigation.cpp
+    src/chat_background.cpp
     src/chat_widget.cpp
     src/chat_widget.hpp
     src/forward_dialog.cpp
@@ -82,6 +83,12 @@ add_executable(client
     src/friend_list_model.hpp
     src/user_model.cpp
     src/user_model.hpp
+)
+
+qt_add_resources(client chat_patterns
+    PREFIX "/chat-background"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/resources/chat-background"
+    FILES resources/chat-background/linework.svg
 )
 
 qt_add_resources(client chat_icons

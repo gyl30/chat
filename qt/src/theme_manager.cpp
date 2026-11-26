@@ -241,6 +241,18 @@ void theme_manager::set_appearance(chat_appearance appearance)
     }
 }
 
+void theme_manager::set_background(chat_background choice)
+{
+    if (background_ == choice)
+    {
+        return;
+    }
+    background_ = choice;
+    QSettings settings;
+    settings.setValue(QStringLiteral("appearance/chat_background"), static_cast<int>(choice));
+    emit background_changed();
+}
+
 void theme_manager::load_settings()
 {
     if (QCoreApplication::organizationName().isEmpty())
@@ -249,6 +261,11 @@ void theme_manager::load_settings()
         return;
     }
     QSettings settings;
+    const int background = settings.value(QStringLiteral("appearance/chat_background")).toInt();
+    if (background >= 0 && background < static_cast<int>(chat_background::count))
+    {
+        background_ = static_cast<chat_background>(background);
+    }
     auto const mode = settings.value(QStringLiteral("appearance/mode"), QStringLiteral("system")).toString();
     auto const appearance = mode == QStringLiteral("light")  ? chat_appearance::light
                             : mode == QStringLiteral("dark") ? chat_appearance::dark
@@ -306,6 +323,7 @@ bool theme_manager::apply(chat_appearance appearance)
     avatars_ = std::move(data.avatars);
     sheet_ = std::move(data.sheet);
     appearance_ = appearance;
+    dark_ = night;
     if (auto* application = qobject_cast<QApplication*>(QCoreApplication::instance()))
     {
         QPalette palette(original_palette_);

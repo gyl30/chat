@@ -670,6 +670,7 @@ QMainWindow {
         }
         QListView#messageList, QListView#searchContextMessages {
             padding: 0 2px 6px 2px;
+            font-size: 18px;
         }
         QListView#searchContextMessages {
             background: ${canvas};
@@ -1079,4 +1080,21 @@ QPushButton[forwardMode="true"]:checked {
     background: ${selected};
     color: ${text};
     border: 1px solid ${focus};
+}
+
+QToolButton[backgroundPreview="true"] {
+    padding: 4px;
+    border: 2px solid ${border};
+    border-radius: 8px;
+}
+QToolButton[backgroundPreview="true"]:hover {
+    background: ${canvas_hover};
+}
+QToolButton[backgroundPreview="true"]:checked {
+    border-color: ${accent};
+    color: ${link};
+    font-weight: 600;
+}
+QToolButton[backgroundPreview="true"]:focus {
+    background: ${selected};
 }
