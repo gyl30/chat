@@ -990,7 +990,7 @@ void client_bridge::set_typing(qint64 conversation, bool typing)
     client_->set_typing(conversation, typing, [](auto) {});
 }
 
-void client_bridge::create_poll(qint64 room, QString question, QStringList options)
+void client_bridge::create_poll(qint64 room, qint64 request, QString question, QStringList options, chat::poll_settings settings)
 {
     std::vector<std::string> labels;
     for (auto const& label : options)
@@ -1000,21 +1000,18 @@ void client_bridge::create_poll(qint64 room, QString question, QStringList optio
     client_->create_poll(room,
                          to_utf8(question),
                          std::move(labels),
-                         chat::poll_settings{.anonymous = false},
-                         chat::client::new_client_id(),
-                         [this, g = connection_generation_.load()](auto result)
+                         std::move(settings),
+                         request,
+                         [this, request, g = connection_generation_.load()](auto result)
                          {
                              post_result(g,
-                                         [this, result = std::move(result)]
+                                         [this, request, result = std::move(result)]
                                          {
                                              if (result)
                                              {
                                                  emit message_received(to_message_data(*result));
                                              }
-                                             else
-                                             {
-                                                 emit error(display_error(result.error()));
-                                             }
+                                             emit poll_created(request, result ? QString{} : display_error(result.error()));
                                          });
                          });
 }

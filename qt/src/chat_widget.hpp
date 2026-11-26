@@ -202,7 +202,7 @@ class chat_widget final : public QWidget
     void add_file_requested(qint64 conversation, QString key);
     void poll_write_requested(qint64 room, qint64 message, qint64 choice);
     void live_poll_added(qint64 room, qint64 message);
-    void create_poll_requested(qint64 room, QString question, QStringList options);
+    void create_poll_requested(qint64 room);
     void content_requested(qint64 conversation, qint64 message, QString kind);
     void bundle_requested(qint64 target, QList<qint64> messages);
     void forward_to_contact_requested(qint64 peer, QList<qint64> messages, bool bundle);
@@ -379,7 +379,7 @@ class chat_widget final : public QWidget
     QToolButton* screenshot_button_ = nullptr;
     QToolButton* mention_button_ = nullptr;
     QToolButton* mention_all_button_ = nullptr;
-    QToolButton* poll_button_ = nullptr;
+    QAction* create_poll_action_ = nullptr;
     QToolButton* markdown_button_ = nullptr;
     QToolButton* emoji_button_ = nullptr;
     QToolButton* history_button_ = nullptr;

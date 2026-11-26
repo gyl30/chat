@@ -27,6 +27,7 @@ class message_model final : public QAbstractListModel
         content_role,
         poll_role,
         poll_pending_role,
+        poll_draft_role,
         outgoing_role,
         sender_name_role,
         forwarded_from_role,
@@ -85,6 +86,8 @@ class message_model final : public QAbstractListModel
     void merge_messages(QList<message_data> messages);
     bool add_message(message_data message);
     void update_message(message_data const& message);
+    avatar_cache const* poll_avatars() const { return avatars_; }
+    void set_poll_draft(qint64 message, qint64 choices);
     void set_poll_pending(qint64 message, bool pending);
     void clear_poll_requests();
     void set_poll(qint64 message, chat::poll_summary const& summary);
@@ -118,6 +121,7 @@ class message_model final : public QAbstractListModel
     qint64 conversation_ = 0;
     bool group_ = false;
     QSet<qint64> pending_polls_;
+    QHash<qint64, qint64> poll_drafts_;
     read_positions read_positions_;
     QList<member_data> members_;
 };

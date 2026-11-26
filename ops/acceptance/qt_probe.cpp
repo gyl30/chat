@@ -1064,7 +1064,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     {
         if (cmd["create"].toBool())
         {
-            QTimer::singleShot(0, chat->poll_button_, &QToolButton::click);
+            QTimer::singleShot(0, chat->create_poll_action_, &QAction::trigger);
         }
         if (cmd.contains("open"))
         {
@@ -1088,18 +1088,15 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             out["title"] = dialog->windowTitle();
             if (dialog->windowTitle() == QStringLiteral("发起群投票") && cmd.contains("question"))
             {
-                dialog->findChild<QLineEdit*>("pollQuestion")->setText(cmd["question"].toString());
+                dialog->findChild<QPlainTextEdit*>("pollQuestion")->setPlainText(cmd["question"].toString());
                 auto values = cmd["options"].toString().split(u'\n');
+                dialog->findChild<QCheckBox*>("pollAnonymous")->setChecked(cmd["anonymous"].toBool(false));
                 auto fields = dialog->findChildren<QLineEdit*>("pollOption");
-                while (fields.size() < values.size())
+                for (auto* field : fields)
                 {
-                    dialog->findChild<QPushButton*>("addPollOption")->click();
-                    fields = dialog->findChildren<QLineEdit*>("pollOption");
+                    field->clear();
                 }
-                for (int i = 0; i < values.size(); ++i)
-                {
-                    fields[i]->setText(values[i]);
-                }
+                for (int i = 0; i < values.size(); ++i) dialog->findChildren<QLineEdit*>("pollOption").at(i)->setText(values[i]);
                 auto* ok = dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok);
                 out["valid"] = ok->isEnabled();
                 out["feedback"] = dialog->findChild<QLabel*>("pollFeedback")->text();

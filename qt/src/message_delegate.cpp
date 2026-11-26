@@ -683,7 +683,10 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
                              *layout.poll,
                              nullptr,
                              nullptr,
-                             index.data(message_model::poll_pending_role).toBool());
+                             index.data(message_model::poll_pending_role).toBool(),
+                             index.data(message_model::poll_draft_role).toLongLong(),
+                             nullptr,
+                             static_cast<const message_model*>(index.model())->poll_avatars());
         }
         else
         {
@@ -793,6 +796,17 @@ bool message_delegate::helpEvent(QHelpEvent* event, QAbstractItemView* view, QSt
     if (event->type() == QEvent::ToolTip && view->selectionMode() != QAbstractItemView::ExtendedSelection)
     {
         auto const layout = calculate_layout(option, index);
+        if (layout.poll)
+        {
+            auto pt = event->pos() - layout.text_origin(option.rect);
+            QString tip;
+            layout_poll_card(nullptr, option.font, layout.text_width, layout.text, *layout.poll, &pt, nullptr, false, 0, &tip);
+            if (!tip.isEmpty())
+            {
+                QToolTip::showText(event->globalPos(), tip, view);
+                return true;
+            }
+        }
         if (layout.avatar_rect(option.rect).contains(event->pos()))
         {
             QToolTip::showText(event->globalPos(), layout.sender.toHtmlEscaped(), view);
@@ -839,8 +853,15 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QSt
                          *layout.poll,
                          &point,
                          &action,
-                         index.data(message_model::poll_pending_role).toBool());
-        if (action > 0)
+                         index.data(message_model::poll_pending_role).toBool(),
+                         index.data(message_model::poll_draft_role).toLongLong(),
+                         nullptr,
+                         static_cast<const message_model*>(index.model())->poll_avatars());
+        if (context_anchor_)
+        {
+            return false;
+        }
+        if (action > 0 || action == poll_submit || action == poll_solution)
         {
             emit vote_clicked(index, action);
         }

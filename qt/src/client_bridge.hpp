@@ -98,7 +98,7 @@ class client_bridge final : public QObject
     void set_user_profile(QString nickname, QString signature);
     void get_presence();
     void get_messages(qint64 conversation, history_page page, qint64 cursor = 0);
-    void create_poll(qint64 room, QString question, QStringList options);
+    void create_poll(qint64 room, qint64 request, QString question, QStringList options, chat::poll_settings settings);
     void refresh_live_poll(qint64 room, qint64 message);
     quint64 get_poll(qint64 room, qint64 message);
     quint64 vote_poll(qint64 room, qint64 message, qint64 choice);
@@ -230,6 +230,7 @@ class client_bridge final : public QObject
     void group_file_finished(qint64 id, QString error, bool unavailable);
     void files_changed(qint64 conversation, QString error);
     void files_received(qint64 conversation, chat::conversation_file_page page, bool older, QString error);
+    void poll_created(qint64 request, QString error);
     void poll_changed(chat::poll_update update);
     void poll_write_finished(qint64 room, qint64 message, QString error);
     void poll_received(quint64 request, qint64 room, qint64 message, chat::poll_state state, QString error);

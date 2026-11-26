@@ -3,7 +3,7 @@
 #include "sidebar_search.hpp"
 #include "friend_list_model.hpp"
 #include "download_tasks.hpp"
-#include "poll_dialog.hpp"
+#include "message_card.hpp"
 #include "theme_manager.hpp"
 #include <chat/invite.hpp>
 #include <chat/text.hpp>
@@ -1880,8 +1880,46 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
                 if (connection_available_ && !ix.data(message_model::poll_pending_role).toBool())
                 {
                     auto id = ix.data(message_model::id_role).toLongLong();
+                    auto poll = ix.data(message_model::poll_role).value<chat::poll_summary>();
+                    if (choice == poll_solution)
+                    {
+                        if (!poll.explanation.empty())
+                        {
+                            QDialog answer(this);
+                            answer.setWindowTitle(QStringLiteral("答案解析"));
+                            auto* layout = new QVBoxLayout(&answer);
+                            frame_dialog(answer);
+                            auto* text = new QLabel(QString::fromStdString(poll.explanation));
+                            text->setTextFormat(Qt::PlainText);
+                            text->setWordWrap(true);
+                            layout->addWidget(text);
+                            auto* done = new QPushButton(QStringLiteral("关闭"));
+                            layout->addWidget(done);
+                            connect(done, &QPushButton::clicked, &answer, &QDialog::accept);
+                            answer.exec();
+                        }
+                        return;
+                    }
+                    if (poll.closed || poll.selection || poll.options.empty())
+                    {
+                        return;
+                    }
+                    auto mask = ix.data(message_model::poll_draft_role).toLongLong();
+                    if (choice > 0 && choice <= std::ssize(poll.options))
+                    {
+                        mask = poll.multiple ? mask ^ chat::poll_bit(choice) : chat::poll_bit(choice);
+                        messages_->set_poll_draft(id, mask);
+                        if (poll.multiple)
+                        {
+                            return;
+                        }
+                    }
+                    else if (choice != poll_submit || !poll.multiple || !mask)
+                    {
+                        return;
+                    }
                     messages_->set_poll_pending(id, true);
-                    emit poll_write_requested(active_conversation_, id, chat::poll_bit(choice));
+                    emit poll_write_requested(active_conversation_, id, mask);
                 }
             });
     connect(messages_delegate,
@@ -2113,25 +2151,19 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     mention_all_button_->hide();
     connect(mention_all_button_, &QToolButton::toggled, mention_all_button_, &QWidget::setVisible);
     connect(mention_all_button_, &QToolButton::toggled, this, &chat_widget::draft_edited);
-    poll_button_ = new QToolButton(input_bar);
-    poll_button_->setProperty("composeText", true);
-    poll_button_->setText(QStringLiteral("投票"));
-    poll_button_->setToolTip(QStringLiteral("发起群投票"));
-    poll_button_->setObjectName(QStringLiteral("createPoll"));
-    input_layout->addWidget(poll_button_, 0, Qt::AlignVCenter);
-    connect(poll_button_,
-            &QToolButton::clicked,
-            this,
-            [this]
-            {
-                auto room = active_conversation_;
-                auto visit = conversation_visit_;
-                auto poll = compose_poll(this);
-                if (poll && active_conversation_ == room && conversation_visit_ == visit && can_send())
-                {
-                    emit create_poll_requested(room, poll->first, poll->second);
-                }
-            });
+    auto* attachments = new QMenu(attachment_button_);
+    attachments->addAction(QStringLiteral("发送文件"), this, [this] { choose_attachment(active_conversation_, false, this); });
+    create_poll_action_ = attachments->addAction(QStringLiteral("发起投票"),
+                                                 this,
+                                                 [this]
+                                                 {
+                                                     if (active_group_ && can_send())
+                                                     {
+                                                         emit create_poll_requested(active_conversation_);
+                                                     }
+                                                 });
+    attachment_button_->setMenu(attachments);
+    attachment_button_->setPopupMode(QToolButton::MenuButtonPopup);
     markdown_button_ = new QToolButton(input_bar);
     markdown_button_->setProperty("composeText", true);
     markdown_button_->setObjectName(QStringLiteral("markdownButton"));
@@ -2367,15 +2399,16 @@ void chat_widget::show_message_menu(QPoint position)
     auto* retract_vote = poll.isValid() ? menu.addAction(QStringLiteral("撤回投票")) : nullptr;
     auto* close_poll = poll.isValid() ? menu.addAction(QStringLiteral("结束投票")) : nullptr;
     auto* details =
-        ordinary || (poll.isValid() && !voted() && !poll.value<chat::poll_summary>().closed)
-            ? nullptr
-            : menu.addAction(index.data(message_model::content_role).toString() == QStringLiteral("poll") ? QStringLiteral("查看结果")
-                                                                                                          : QStringLiteral("查看聊天记录"));
+        ordinary ? nullptr
+                 : menu.addAction(index.data(message_model::content_role).toString() == QStringLiteral("poll") ? QStringLiteral("查看结果")
+                                                                                                               : QStringLiteral("查看聊天记录"));
     if (poll.isValid())
     {
         auto refresh = [&]
         {
-            retract_vote->setVisible(can_write_poll() && voted());
+            auto current = target_index.data(message_model::poll_role).value<chat::poll_summary>();
+            details->setVisible(has_poll_results(current));
+            retract_vote->setVisible(can_write_poll() && voted() && !current.quiz);
             close_poll->setVisible(can_write_poll() && can_close_poll());
         };
         refresh();
@@ -2498,14 +2531,16 @@ void chat_widget::show_message_menu(QPoint position)
         {
             return;
         }
-        if (can_write_poll() && (selected == close_poll ? can_close_poll() : voted()))
+        if (can_write_poll() &&
+            (selected == close_poll ? can_close_poll() : voted() && !target_index.data(message_model::poll_role).value<chat::poll_summary>().quiz))
         {
             messages_->set_poll_pending(message_id, true);
             emit poll_write_requested(conversation, message_id, selected == close_poll ? -1 : 0);
         }
         return;
     }
-    if (details && selected == details)
+    if (details && selected == details &&
+        (!poll.isValid() || has_poll_results(target_index.data(message_model::poll_role).value<chat::poll_summary>())))
     {
         emit content_requested(conversation, message_id, target_index.data(message_model::content_role).toString());
         return;
@@ -3090,7 +3125,7 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
             auto index = messages_view_->currentIndex();
             auto kind = index.data(message_model::content_role).toString();
             auto poll = index.data(message_model::poll_role).value<chat::poll_summary>();
-            if (kind == QStringLiteral("bundle") || (kind == QStringLiteral("poll") && (poll.closed || poll.selection)))
+            if (kind == QStringLiteral("bundle") || (kind == QStringLiteral("poll") && has_poll_results(poll)))
             {
                 emit content_requested(active_conversation_, index.data(message_model::id_role).toLongLong(), kind);
                 return true;
@@ -3836,6 +3871,10 @@ void chat_widget::reset_read_positions(qint64 conversation)
 void chat_widget::finish_poll_write(qint64 room, qint64 message, QString error)
 {
     messages_->set_poll_pending(message, false);
+    if (!messages_->message_index(message).data(message_model::poll_role).value<chat::poll_summary>().multiple)
+    {
+        messages_->set_poll_draft(message, 0);
+    }
     if (active_conversation_ == room && !error.isEmpty())
     {
         set_error(error);
@@ -3851,8 +3890,9 @@ void chat_widget::update_poll(chat::poll_update const& update)
     const auto index = messages_->message_index(update.message);
     const auto before = index.data(message_model::poll_role).value<chat::poll_summary>();
     const auto& after = update.summary;
-    const bool resize =
-        index.isValid() && after.revision > before.revision && bool(before.closed || before.selection) != bool(after.closed || after.selection);
+    const bool resize = index.isValid() && after.revision > before.revision &&
+                        (bool(before.closed || before.selection) != bool(after.closed || after.selection) ||
+                         before.explanation.empty() != after.explanation.empty() || has_poll_results(before) != has_poll_results(after));
     const auto top = messages_view_->indexAt(QPoint(1, 0));
     const int offset = messages_view_->visualRect(top).top();
     auto* scroll = messages_view_->verticalScrollBar();
@@ -4562,8 +4602,7 @@ void chat_widget::update_compose_state()
     send_button_->setEnabled(item && !blocked && !saving_text_ && !message_edit_->toPlainText().isEmpty() && (!reply_to_ || !reply_bar_->isHidden()));
     attachment_button_->setEnabled(allowed);
     screenshot_button_->setEnabled(allowed);
-    poll_button_->setVisible(active_group_);
-    poll_button_->setEnabled(allowed);
+    create_poll_action_->setVisible(active_group_ && allowed);
     mention_button_->setVisible(active_group_);
     mention_button_->setEnabled(allowed);
     emoji_button_->setEnabled(allowed);

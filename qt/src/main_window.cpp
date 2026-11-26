@@ -1479,7 +1479,7 @@ void main_window::connect_messages()
                     client_->vote_poll(room, message, choice);
                 }
             });
-    connect(chat_page_, &chat_widget::create_poll_requested, client_.get(), &client_bridge::create_poll);
+    connect(chat_page_, &chat_widget::create_poll_requested, this, [this](qint64 room) { compose_poll(*client_, *chat_page_, room); });
     connect(chat_page_, &chat_widget::live_poll_added, client_.get(), &client_bridge::refresh_live_poll);
     connect(client_.get(), &client_bridge::poll_changed, this, [this](chat::poll_update update) { chat_page_->update_poll(update); });
     connect(chat_page_, &chat_widget::bundle_requested, client_.get(), &client_bridge::forward_bundle);

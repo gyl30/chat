@@ -68,7 +68,8 @@ message_model::message_model(QObject* parent, avatar_cache* avatars, message_ima
                     for (int row = 0; row < messages_.size(); ++row)
                     {
                         auto const& item = messages_[row];
-                        if (item.from == user)
+                        if (item.from == user ||
+                            (item.poll && std::ranges::find(item.poll->recent, user, &chat::poll_voter::id) != item.poll->recent.end()))
                         {
                             emit dataChanged(index(row, 0), index(row, 0), {Qt::DecorationRole});
                         }
@@ -209,6 +210,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             }
             return parts.join(QStringLiteral("；"));
         }
+        case poll_draft_role:
+            return poll_drafts_.value(message.id);
         case poll_pending_role:
             return pending_polls_.contains(index.data(id_role).toLongLong());
         case poll_role:
@@ -323,6 +326,8 @@ void message_model::reset(qint64 conversation, bool group)
 {
     beginResetModel();
     end_page();
+    pending_polls_.clear();
+    poll_drafts_.clear();
     unread_boundary_ = 0;
     conversation_ = conversation;
     group_ = group;
@@ -413,6 +418,7 @@ void message_model::discard_through(qint64 floor)
     {
         page_changes_->removeIf([floor](auto it) { return it.key() <= floor; });
     }
+    poll_drafts_.removeIf([floor](auto it) { return it.key() <= floor; });
     auto end = std::ranges::upper_bound(messages_, floor, {}, &message_data::id);
     if (end != messages_.begin())
     {
@@ -454,6 +460,7 @@ void message_model::reconcile_page_row(message_data& message) const
 
 void message_model::discard_stored_rows()
 {
+    poll_drafts_.clear();
     if (!messages_.isEmpty())
     {
         beginRemoveRows({}, 0, messages_.size() - 1);
@@ -523,6 +530,13 @@ bool message_model::add_message(message_data message)
     if (avatars_)
     {
         avatars_->observe(message.from, message.avatar);
+        if (message.poll)
+        {
+            for (const auto& voter : message.poll->recent)
+            {
+                avatars_->observe(voter.id, voter.avatar);
+            }
+        }
     }
     reconcile_page_row(message);
     auto found = std::find_if(messages_.cbegin(), messages_.cend(), [id = message.id](message_data const& value) { return value.id == id; });
@@ -543,6 +557,10 @@ bool message_model::add_message(message_data message)
 
 void message_model::update_message(message_data const& message)
 {
+    if (message.deleted || (message.poll && (message.poll->selection || message.poll->closed)))
+    {
+        poll_drafts_.remove(message.id);
+    }
     if (message.deleted && images_)
     {
         images_->remove(message.conversation, message.id);
@@ -558,6 +576,13 @@ void message_model::update_message(message_data const& message)
     if (avatars_)
     {
         avatars_->observe(message.from, message.avatar);
+        if (message.poll)
+        {
+            for (const auto& voter : message.poll->recent)
+            {
+                avatars_->observe(voter.id, voter.avatar);
+            }
+        }
     }
     for (int row = 0; row < messages_.size(); ++row)
     {
@@ -611,6 +636,23 @@ void message_model::update_message(message_data const& message)
     }
 }
 
+void message_model::set_poll_draft(qint64 id, qint64 choices)
+{
+    if (choices)
+    {
+        poll_drafts_.insert(id, choices);
+    }
+    else
+    {
+        poll_drafts_.remove(id);
+    }
+    auto ix = message_index(id);
+    if (ix.isValid())
+    {
+        emit dataChanged(ix, ix, {poll_draft_role});
+    }
+}
+
 void message_model::set_poll_pending(qint64 message, bool pending)
 {
     if (pending)
@@ -648,6 +690,17 @@ void message_model::set_poll(qint64 message, chat::poll_summary const& summary)
     }
     if (merge_poll(*it, summary))
     {
+        if (summary.closed || summary.selection)
+        {
+            poll_drafts_.remove(message);
+        }
+        if (avatars_)
+        {
+            for (const auto& voter : summary.recent)
+            {
+                avatars_->observe(voter.id, voter.avatar);
+            }
+        }
         auto row = index(static_cast<int>(it - messages_.begin()), 0);
         emit dataChanged(row, row, {poll_role, Qt::AccessibleTextRole});
     }
