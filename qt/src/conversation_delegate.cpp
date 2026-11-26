@@ -64,7 +64,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     if (index.data(conversation_model::folder_header_role).toBool())
     {
         painter->save();
-        auto const row = option.rect.adjusted(6, 2, -6, -2);
+        auto const row = option.rect;
         if (option.state & (QStyle::State_MouseOver | QStyle::State_HasFocus))
         {
             painter->setRenderHint(QPainter::Antialiasing);
@@ -221,7 +221,7 @@ QSize conversation_delegate::sizeHint(QStyleOptionViewItem const& option, QModel
     (void)option;
     if (index.data(conversation_model::folder_header_role).toBool())
     {
-        return {314, 30};
+        return {314, 42};
     }
     return {314, chat_theme::dialog_row_height};
 }
