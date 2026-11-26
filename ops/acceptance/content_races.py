@@ -231,6 +231,31 @@ async def scenario(probe, mode):
                         start = await ui.call("reading", inspect=mid, atY=-2)
                         expected = (start["topId"], start["offset"])
                         assert expected == (mid, -2)
+                        before = await count("edit")
+                        await b.ok(
+                            "edit_message",
+                            conversation=g,
+                            message=mid - 1,
+                            text="内容缩短",
+                        )
+                        await seen("edit", before)
+                        after_edit = await ui.call("reading")
+                        assert (
+                            after_edit["topId"],
+                            after_edit["offset"],
+                        ) == expected, (
+                            "edit",
+                            after_edit["topId"],
+                            after_edit["offset"],
+                        )
+                        await ui.call("poll_ui", width=980)
+                        await ui.call("poll_ui", width=1280)
+                        resized = await ui.call("reading")
+                        assert (resized["topId"], resized["offset"]) == expected, (
+                            "resize",
+                            resized["topId"],
+                            resized["offset"],
+                        )
                         await ui.call("poll_ui", open=mid)
                         await ui.wait("poll_ui", lambda r: r.get("members") == ["a"])
                         state = await ui.call("reading")

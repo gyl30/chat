@@ -141,6 +141,7 @@ class message_list_view final : public QListView
     }
 
     std::function<void()> selection_finished;
+    std::function<void(std::function<void()>)> preserve_layout;
     bool selecting_range() const { return drag_start_.isValid(); }
 
    protected:
@@ -229,9 +230,32 @@ class message_list_view final : public QListView
         }
     }
 
+    void dataChanged(const QModelIndex& first, const QModelIndex& last, const QList<int>& roles) override
+    {
+        auto update = [&] { QListView::dataChanged(first, last, roles); };
+        if (preserve_layout && (roles.empty() || roles.contains(Qt::SizeHintRole) || roles.contains(message_model::text_role) ||
+                                roles.contains(message_model::reply_text_role) || roles.contains(message_model::image_role) ||
+                                roles.contains(message_model::reactions_role) || roles.contains(message_model::poll_role) ||
+                                roles.contains(message_model::download_status_role)))
+        {
+            preserve_layout(update);
+        }
+        else
+        {
+            update();
+        }
+    }
+
     void resizeEvent(QResizeEvent* event) override
     {
-        QListView::resizeEvent(event);
+        if (preserve_layout)
+        {
+            preserve_layout([&] { QListView::resizeEvent(event); });
+        }
+        else
+        {
+            QListView::resizeEvent(event);
+        }
         constexpr int width = 8;
         auto const area = viewport()->geometry();
         overlay_.setGeometry(area.right() + 1 - width, area.top(), width, area.height());
@@ -1742,6 +1766,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     auto* chat_panel = chat_layout->parentWidget();
     messages_ = new message_model(this, &avatars_, &images_);
     messages_view_ = new message_list_view(chat_panel);
+    static_cast<message_list_view*>(messages_view_)->preserve_layout = [this](auto update) { preserve_reading(update); };
     history_down_ = new QPushButton(messages_view_->viewport());
     history_down_->setObjectName(QStringLiteral("historyDownButton"));
     history_down_->setAutoDefault(false);
@@ -2196,13 +2221,16 @@ QModelIndexList chat_widget::selected_messages() const
 }
 void chat_widget::set_message_selection(bool enabled)
 {
-    messages_view_->setSelectionMode(enabled ? QAbstractItemView::ExtendedSelection : QAbstractItemView::NoSelection);
-    if (!enabled)
-    {
-        messages_view_->clearSelection();
-    }
-    chat_headers_->setCurrentIndex(enabled ? 1 : 0);
-    messages_view_->doItemsLayout();
+    preserve_reading(
+        [&]
+        {
+            messages_view_->setSelectionMode(enabled ? QAbstractItemView::ExtendedSelection : QAbstractItemView::NoSelection);
+            if (!enabled)
+            {
+                messages_view_->clearSelection();
+            }
+            chat_headers_->setCurrentIndex(enabled ? 1 : 0);
+        });
     messages_view_->viewport()->update();
 }
 void chat_widget::update_message_selection()
@@ -2766,6 +2794,10 @@ void chat_widget::connect_chat_controls()
             this,
             [this](int value)
             {
+                if (changing_layout_)
+                {
+                    return;
+                }
                 load_visible_images();
                 update_reading_navigation();
                 mark_visible_messages();
@@ -3167,24 +3199,7 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
     }
     if (object == messages_view_->viewport() && (event->type() == QEvent::Resize || event->type() == QEvent::Show))
     {
-        auto* scroll = messages_view_->verticalScrollBar();
         update_reading_navigation();
-        if (event->type() == QEvent::Resize && tail_loaded_ && scroll->value() == scroll->maximum())
-        {
-            auto const position = scroll->value();
-            auto const visit = conversation_visit_;
-            QTimer::singleShot(
-                0,
-                messages_view_,
-                [this, position, visit]
-                {
-                    if (visit == conversation_visit_ && tail_loaded_ && messages_ready() && messages_view_->verticalScrollBar()->value() == position)
-                    {
-                        messages_view_->scrollToBottom();
-                        mark_visible_messages();
-                    }
-                });
-        }
         QTimer::singleShot(0,
                            messages_view_,
                            [this]
@@ -3734,9 +3749,7 @@ void chat_widget::set_messages(qint64 user,
         return;
     }
     bool const position_page = page == history_page::latest || page == history_page::unread;
-    auto* scroll = messages_view_->verticalScrollBar();
-    QPersistentModelIndex const top = messages_view_->indexAt(QPoint(1, 0));
-    auto const offset = messages_view_->visualRect(top).top();
+    auto const previous = capture_reading_position();
     auto const previous_tail = messages_->last_message_id();
     auto const page_end = messages.isEmpty() ? 0 : messages.back().id;
     for (auto const& message : messages)
@@ -3795,9 +3808,9 @@ void chat_widget::set_messages(qint64 user,
     {
         messages_view_->scrollToBottom();
     }
-    else if (top.isValid())
+    else
     {
-        scroll->setValue(scroll->value() + messages_view_->visualRect(top).top() - offset);
+        restore_reading_position(previous);
     }
     messages_loaded_ = true;
     set_message_status(messages_->rowCount() == 0 ? QStringLiteral("暂无消息") : QString{});
@@ -3875,29 +3888,7 @@ void chat_widget::update_poll(chat::poll_update const& update)
     {
         return;
     }
-    const auto index = messages_->message_index(update.message);
-    const auto before = index.data(message_model::poll_role).value<chat::poll_summary>();
-    const auto& after = update.summary;
-    const bool resize = index.isValid() && after.revision > before.revision &&
-                        (bool(before.closed || before.selection) != bool(after.closed || after.selection) ||
-                         before.explanation.empty() != after.explanation.empty() || has_poll_results(before) != has_poll_results(after));
-    const auto top = messages_view_->indexAt(QPoint(1, 0));
-    const int offset = messages_view_->visualRect(top).top();
-    auto* scroll = messages_view_->verticalScrollBar();
-    const bool bottom = viewing_latest();
-    messages_->set_poll(update.message, after);
-    if (resize)
-    {
-        messages_view_->doItemsLayout();
-        if (bottom)
-        {
-            messages_view_->scrollToBottom();
-        }
-        else if (top.isValid())
-        {
-            scroll->setValue(scroll->value() + messages_view_->visualRect(top).top() - offset);
-        }
-    }
+    messages_->set_poll(update.message, update.summary);
 }
 
 void chat_widget::add_message(qint64 user, message_data message)
@@ -3914,37 +3905,29 @@ void chat_widget::add_message(qint64 user, message_data message)
         return;
     }
 
-    auto* scroll = messages_view_->verticalScrollBar();
-    auto const at_bottom = scroll->value() == scroll->maximum();
     // A fresh unread run gets a fresh marker, even during the same visit.
     auto const read = effective_read_position();
     bool const new_run = !messages_->unread_boundary() || !messages_->next_incoming(read).isValid();
     auto const boundary = new_run && !viewing_latest() && message.from != self_user_ && !message.deleted && message.id > read ? message.id : 0;
-    QPersistentModelIndex const top = at_bottom ? QModelIndex{} : messages_view_->indexAt(QPoint(1, 0));
-    auto const offset = messages_view_->visualRect(top).top();
     auto const poll = message.poll ? message.id : 0;
-    if (messages_->add_message(std::move(message)))
-    {
-        if (boundary)
+    preserve_reading(
+        [&]
         {
-            messages_->set_unread_boundary(boundary);
-        }
-        if (poll)
-        {
-            emit live_poll_added(user, poll);
-        }
-        set_message_status({});
-        messages_view_->doItemsLayout();
-        if (at_bottom)
-        {
-            messages_view_->scrollToBottom();
-            mark_visible_messages();
-        }
-        else if (top.isValid())
-        {
-            scroll->setValue(scroll->value() + messages_view_->visualRect(top).top() - offset);
-        }
-    }
+            if (!messages_->add_message(std::move(message)))
+            {
+                return;
+            }
+            if (boundary)
+            {
+                messages_->set_unread_boundary(boundary);
+            }
+            if (poll)
+            {
+                emit live_poll_added(user, poll);
+            }
+            set_message_status({});
+        });
+    mark_visible_messages();
 }
 
 void chat_widget::update_message(message_data message)
@@ -4920,181 +4903,6 @@ void chat_widget::show_read_details(qint64 conversation, qint64 message)
     dialog.exec();
 }
 
-bool chat_widget::messages_ready() const { return messages_loaded_ && !messages_loading_; }
-
-bool chat_widget::viewing_latest() const
-{
-    auto const* scroll = messages_view_->verticalScrollBar();
-    return reading_enabled() && tail_loaded_ && scroll->value() == scroll->maximum();
-}
-
-bool chat_widget::reading_enabled() const
-{
-    return connection_available_ && messages_ready() && messages_view_->isVisible() && window()->isActiveWindow() && !window()->isMinimized() &&
-           !QApplication::activeModalWidget() && !QApplication::activePopupWidget();
-}
-
-void chat_widget::set_messages_loading(bool loading)
-{
-    messages_loading_ = loading;
-    if (loading)
-    {
-        messages_->begin_page();
-    }
-    else
-    {
-        messages_->end_page();
-    }
-}
-
-void chat_widget::begin_history_refresh()
-{
-    set_messages_loading(true);
-    update_reading_navigation();
-    emit history_requested(active_conversation_,
-                           messages_loaded_ ? history_page::refresh : history_page::unread,
-                           std::max<qint64>(0, messages_->first_message_id() - 1));
-}
-
-void chat_widget::update_reading_navigation()
-{
-    if (!history_down_)
-    {
-        return;
-    }
-    auto* viewport = messages_view_->viewport();
-    auto const* scroll = messages_view_->verticalScrollBar();
-    bool const away = !tail_loaded_ || scroll->value() < scroll->maximum();
-    auto const unread = conversation_unread();
-    history_down_->setText(unread ? QStringLiteral("↓  %1").arg(unread) : QStringLiteral("↓"));
-    history_down_->setToolTip(unread ? QStringLiteral("前往未读消息") : QStringLiteral("返回最新消息"));
-    history_down_->setAccessibleName(history_down_->toolTip());
-    history_down_->adjustSize();
-    history_down_->move(viewport->width() - history_down_->width() - 14, viewport->height() - history_down_->height() - 12);
-    history_down_->setVisible(active_conversation_ > 0 && messages_loaded_ && away);
-    history_down_->setEnabled(connection_available_ && !messages_loading_);
-}
-
-quint64 chat_widget::conversation_unread() const
-{
-    auto const& rooms = conversations_->items();
-    auto room = std::ranges::find(rooms, active_conversation_, &conversation_data::id);
-    return room != rooms.end() ? room->unread : 0;
-}
-
-qint64 chat_widget::effective_read_position() const { return std::max(requested_read_, messages_->read_position(self_user_)); }
-
-void chat_widget::scroll_to_unread(QModelIndex const& index)
-{
-    auto* scroll = messages_view_->verticalScrollBar();
-    // Measure against the bottom-aligned timeline before reserving space for a divider.
-    if (tail_loaded_ && messages_view_->visualRect(index).top() >= scroll->maximum() - scroll->value())
-    {
-        return_to_latest();
-        return;
-    }
-    messages_->set_unread_boundary(index.data(message_model::id_role).toLongLong());
-    messages_view_->doItemsLayout();
-    scroll->setValue(scroll->value() + messages_view_->visualRect(index).top() - std::min(64, messages_view_->viewport()->height() / 5));
-}
-
-void chat_widget::navigate_down()
-{
-    auto const read = effective_read_position();
-    auto const next = messages_->next_incoming(read);
-    if (next.isValid() && messages_view_->visualRect(next).top() < messages_view_->viewport()->height())
-    {
-        return_to_latest();
-    }
-    else if ((!history_exhausted_ && read < messages_->first_message_id()) || (!next.isValid() && !tail_loaded_))
-    {
-        // The read frontier lies outside the known interval. Ask for an anchored page.
-        set_messages_loading(true);
-        messages_->set_unread_boundary(0);
-        emit history_requested(active_conversation_, history_page::unread);
-    }
-    else if (next.isValid())
-    {
-        scroll_to_unread(next);
-        mark_visible_messages();
-    }
-    else
-    {
-        return_to_latest();
-    }
-}
-
-void chat_widget::request_newer_messages()
-{
-    if (connection_available_ && messages_ready() && !tail_loaded_)
-    {
-        set_messages_loading(true);
-        emit history_requested(
-            active_conversation_, history_page::newer, std::max(messages_->last_message_id(), history_floor(active_conversation_)));
-    }
-}
-
-void chat_widget::return_to_latest()
-{
-    messages_->set_unread_boundary(0);
-    if (tail_loaded_)
-    {
-        messages_view_->doItemsLayout();
-        messages_view_->scrollToBottom();
-        mark_visible_messages();
-    }
-    else
-    {
-        set_messages_loading(true);
-        emit history_requested(active_conversation_, history_page::latest);
-    }
-}
-
-void chat_widget::resume_reading_after_menu(QMenu& menu)
-{
-    connect(&menu, &QMenu::aboutToHide, this, [this] { QTimer::singleShot(0, this, &chat_widget::mark_visible_messages); });
-}
-
-void chat_widget::mark_visible_messages()
-{
-    if (!reading_enabled())
-    {
-        return;
-    }
-    auto const height = messages_view_->viewport()->height();
-    auto bottom = messages_view_->indexAt(QPoint(1, height - 1));
-    auto const floor = effective_read_position();
-    for (int row = bottom.isValid() ? bottom.row() : messages_->rowCount() - 1; row >= 0; --row)
-    {
-        auto index = messages_->index(row, 0);
-        auto rect = messages_view_->visualRect(index);
-        if (rect.bottom() < 0)
-        {
-            break;
-        }
-        auto const id = index.data(message_model::id_role).toLongLong();
-        if (id > 0 && id <= floor)
-        {
-            break;
-        }
-        if (id > floor && rect.bottom() < height && !index.data(message_model::outgoing_role).toBool() &&
-            !index.data(message_model::deleted_role).toBool())
-        {
-            requested_read_ = id;
-            emit read_requested(active_conversation_, id);
-            break;
-        }
-    }
-}
-
-void chat_widget::read_failed(qint64 conversation)
-{
-    if (conversation == active_conversation_)
-    {
-        requested_read_ = 0;
-    }
-}
-
 std::optional<conversation_data> chat_widget::conversation(qint64 id) const
 {
     if (auto const* item = conversations_->conversation_at(conversations_->index_for_conversation(id)))
@@ -5373,14 +5181,7 @@ void chat_widget::update_pending_text(qint64 conversation,
     item->error = std::move(rejection);
     if (conversation == active_conversation_)
     {
-        auto const* scroll = messages_view_->verticalScrollBar();
-        bool const follow = added && tail_loaded_ && scroll->value() == scroll->maximum();
         show_outgoing();
-        if (follow)
-        {
-            messages_view_->doItemsLayout();
-            messages_view_->scrollToBottom();
-        }
     }
 }
 
@@ -5558,16 +5359,8 @@ void chat_widget::queue_outgoing(outgoing item)
         return;
     }
     stop_typing();
-    // Like a new message: followed at the bottom, while someone reading history keeps their place.
-    auto* scroll = messages_view_->verticalScrollBar();
-    auto const at_bottom = tail_loaded_ && scroll->value() == scroll->maximum();
     show_outgoing();
     update_compose_state();
-    if (at_bottom)
-    {
-        messages_view_->doItemsLayout();
-        messages_view_->scrollToBottom();
-    }
     submit(outgoing_.back());
 }
 
@@ -5607,7 +5400,7 @@ void chat_widget::show_outgoing()
             .waiting = item.waiting,
         });
     }
-    messages_->set_pending(std::move(pending));
+    preserve_reading([&] { messages_->set_pending(std::move(pending)); });
 }
 
 void chat_widget::settle(message_data const& message)

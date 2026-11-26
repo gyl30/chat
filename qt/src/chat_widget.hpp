@@ -475,6 +475,15 @@ class chat_widget final : public QWidget
     bool tail_loaded_ = false;
 
     bool messages_loaded_ = false;
+    struct reading_position
+    {
+        qint64 message = 0;
+        int offset = 0;
+    };
+    reading_position capture_reading_position() const;
+    void restore_reading_position(reading_position position);
+    void preserve_reading(const std::function<void()>& change);
+    bool changing_layout_ = false;
     bool messages_loading_ = false;
     bool history_exhausted_ = false;
     bool control_enter_send_ = false;

@@ -18,6 +18,7 @@ add_executable(client
     src/chat_history_dialog.hpp
     src/sidebar_search.cpp
     src/sidebar_search.hpp
+    src/reading_navigation.cpp
     src/chat_widget.cpp
     src/chat_widget.hpp
     src/forward_dialog.cpp
