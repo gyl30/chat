@@ -22,7 +22,6 @@ class sidebar_search final : public QWidget
     void contact_requested(qint64 user, QString username);
     void room_requested(qint64 conversation);
     void message_requested(qint64 conversation, qint64 message);
-    void advanced_requested();
 
    private:
     void refresh_directory();

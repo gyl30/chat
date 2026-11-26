@@ -1369,8 +1369,8 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     {
         if (cmd["open"].toBool())
         {
-            auto* advanced = window.findChild<QPushButton*>("sidebarAdvancedSearch");
-            QTimer::singleShot(0, advanced, &QPushButton::click);
+            auto* advanced = window.findChild<QAction*>("globalSearchAction");
+            QTimer::singleShot(0, advanced, &QAction::trigger);
         }
         auto* d = qobject_cast<QDialog*>(QApplication::activeModalWidget());
         if (d)

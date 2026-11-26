@@ -333,7 +333,11 @@ int main(int argc, char** argv)
     app.processEvents();
     check_editor_reflow(chat);
     int global = 0, local = 0;
-    QObject::connect(&chat, &chat_widget::global_search_requested, [&] { ++global; });
+    chat.findChild<QLineEdit*>("conversationSearchEdit")->setText("needle");
+    QObject::connect(&chat, &chat_widget::global_search_requested, [&](QString const& query) {
+        assert(query == "needle");
+        ++global;
+    });
     QObject::connect(&chat, &chat_widget::message_search_requested, [&] { ++local; });
     auto* editor = chat.findChild<QPlainTextEdit*>("messageEdit");
     for (auto modifiers : {Qt::KeyboardModifiers(Qt::ControlModifier), Qt::ControlModifier | Qt::ShiftModifier})
@@ -341,8 +345,8 @@ int main(int argc, char** argv)
         QKeyEvent key(QEvent::KeyPress, Qt::Key_F, modifiers);
         QApplication::sendEvent(editor, &key);
     }
-    assert(local == 1 && global == 0);
-    assert(chat.findChild<QLineEdit*>("conversationSearchEdit")->hasFocus());
+    assert(local == 1 && global == 1);
+    chat.findChild<QLineEdit*>("conversationSearchEdit")->clear();
     chat.set_control_enter_send(true);
     assert(editor->toolTip().contains("Ctrl+Enter") && editor->toolTip() == editor->accessibleDescription());
     chat.set_control_enter_send(false);

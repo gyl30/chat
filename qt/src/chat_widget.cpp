@@ -346,14 +346,7 @@ QWidget* chat_widget::create_sidebar()
     auto* search_messages = new QAction(QStringLiteral("全局消息搜索"), this);
     search_messages->setObjectName(QStringLiteral("globalSearchAction"));
     search_messages->setEnabled(connection_available_);
-    connect(search_messages,
-            &QAction::triggered,
-            this,
-            [this]
-            {
-                conversation_search_->setFocus();
-                conversation_search_->selectAll();
-            });
+    connect(search_messages, &QAction::triggered, this, [this] { emit global_search_requested(conversation_search_->text()); });
     search_messages->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F));
     search_messages->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     addAction(search_messages);
@@ -603,11 +596,9 @@ void chat_widget::setup_unified_search(client_bridge& client)
     {
         auto const empty = conversation_search_->text().isEmpty();
         rooms->setVisible(empty);
-        auto* focused = QApplication::focusWidget();
-        panel->setVisible(!empty || conversation_search_->hasFocus() || (focused && panel->isAncestorOf(focused)));
+        panel->setVisible(!empty);
     };
     connect(conversation_search_, &QLineEdit::textChanged, panel, update);
-    connect(qApp, &QApplication::focusChanged, panel, update);
     update();
     connect(panel,
             &sidebar_search::contact_requested,
@@ -629,7 +620,6 @@ void chat_widget::setup_unified_search(client_bridge& client)
                 }
             });
     connect(panel, &sidebar_search::message_requested, this, &chat_widget::message_context_requested);
-    connect(panel, &sidebar_search::advanced_requested, this, [this] { emit global_search_requested(conversation_search_->text()); });
 }
 
 void chat_widget::add_local_content(QMenu& menu)
