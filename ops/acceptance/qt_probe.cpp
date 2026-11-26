@@ -1061,7 +1061,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 QJsonArray rows, names;
                 for (int i = 0; i < lists[0]->count(); ++i)
                 {
-                    rows.append(lists[0]->item(i)->text());
+                    rows.append(lists[0]->item(i)->data(Qt::AccessibleTextRole).toString());
                 }
                 for (int i = 0; i < lists[1]->count(); ++i)
                 {

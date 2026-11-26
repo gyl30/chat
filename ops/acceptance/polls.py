@@ -120,7 +120,7 @@ async def run(root, probe):
             await ui.call("poll_ui", view=2, action="提交投票")
             await ui.wait(
                 "poll_ui",
-                lambda r: r.get("rows", ["", ""])[1].startswith("●")
+                lambda r: "我的投票" in r.get("rows", ["", ""])[1]
                 and r["members"] == ["a"],
             )
             await a.ok("set_group_member_mute", conversation=g, user=2, seconds=-1)
@@ -151,7 +151,7 @@ async def run(root, probe):
             await ui.call("poll_ui", choose=1, view=1)
             await ui.wait(
                 "poll_ui",
-                lambda r: r.get("rows", [""])[0].startswith("●")
+                lambda r: "我的投票" in r.get("rows", [""])[0]
                 and set(r["members"]) == {"a", "b"},
             )
             await ui.call("poll_ui", action="取消我的投票")

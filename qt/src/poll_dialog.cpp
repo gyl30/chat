@@ -14,6 +14,95 @@
 #include <QSet>
 #include <QMessageBox>
 #include <QStyle>
+#include <QStyledItemDelegate>
+#include <QPainter>
+#include <QTextLayout>
+#include <QScreen>
+#include "theme_manager.hpp"
+
+namespace
+{
+enum option_role
+{
+    count_role = Qt::UserRole + 1,
+    fraction_role,
+    mine_role
+};
+
+class option_delegate final : public QStyledItemDelegate
+{
+   public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    QSize sizeHint(QStyleOptionViewItem const& option, QModelIndex const& index) const override
+    {
+        auto const* list = static_cast<QListWidget const*>(parent());
+        int width = list->viewport()->width();
+        return {width, render_label(index, option.font, width - 40, nullptr, {}) + 38};
+    }
+
+    void paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const override
+    {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        auto row = option.rect.adjusted(2, 2, -2, -2);
+        bool selected = option.state & QStyle::State_Selected;
+        painter->setBrush(themed(option.state & QStyle::State_MouseOver ? "canvas_hover" : "canvas"));
+        painter->setPen(themed(selected ? "focus" : "border"));
+        painter->drawRoundedRect(row, 6, 6);
+        QPoint center(row.left() + 13, row.top() + 8 + option.fontMetrics.height() / 2);
+        painter->drawEllipse(center, 6, 6);
+        if (selected)
+        {
+            painter->setBrush(themed("focus"));
+            painter->drawEllipse(center, 3, 3);
+        }
+        int left = row.left() + 26;
+        painter->setPen(themed("text"));
+        render_label(index, option.font, option.rect.width() - 40, painter, {left, row.top() + 5});
+        double fraction = index.data(fraction_role).toDouble();
+        QString stats = QStringLiteral("%1 票 · %2%").arg(index.data(count_role).toLongLong()).arg(fraction * 100, 0, 'f', fraction == 0 ? 0 : 1);
+        auto detail = row.adjusted(26, 0, -10, -7);
+        painter->setPen(themed("text_secondary"));
+        painter->drawText(detail, Qt::AlignRight | Qt::AlignBottom, stats);
+        if (index.data(mine_role).toBool())
+        {
+            painter->setPen(themed("accent"));
+            painter->drawText(detail, Qt::AlignLeft | Qt::AlignBottom, QStringLiteral("我的投票"));
+        }
+        QRectF track(left, row.bottom() - 4, detail.width(), 3);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(themed("border"));
+        painter->drawRoundedRect(track, 1.5, 1.5);
+        painter->setBrush(themed("accent"));
+        track.setWidth(track.width() * fraction);
+        painter->drawRoundedRect(track, 1.5, 1.5);
+        painter->restore();
+    }
+
+   private:
+    static int render_label(QModelIndex const& index, QFont const& font, int width, QPainter* painter, QPoint origin)
+    {
+        QTextLayout layout(index.data().toString(), font);
+        QTextOption wrap;
+        wrap.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+        layout.setTextOption(wrap);
+        layout.beginLayout();
+        qreal height = 0;
+        for (auto line = layout.createLine(); line.isValid(); line = layout.createLine())
+        {
+            line.setLineWidth(std::max(1, width));
+            line.setPosition({0, height});
+            height += line.height();
+        }
+        layout.endLayout();
+        if (painter)
+        {
+            layout.draw(painter, origin);
+        }
+        return qCeil(height);
+    }
+};
+}    // namespace
 
 std::optional<std::pair<QString, QStringList>> compose_poll(QWidget* parent)
 {
@@ -131,7 +220,13 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
     auto* close = new QPushButton(QStringLiteral("结束投票"), &dialog);
     auto* people = new QListWidget(&dialog);
     auto* more = new QPushButton(QStringLiteral("更多投票成员"), &dialog);
-    dialog.resize(450, 340);
+    dialog.resize(500, 430);
+    layout->setSpacing(9);
+    options->setItemDelegate(new option_delegate(options));
+    options->setMouseTracking(true);
+    options->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    people->setSelectionMode(QAbstractItemView::NoSelection);
+    people->setFocusPolicy(Qt::NoFocus);
     question->setObjectName(QStringLiteral("dialogTitle"));
     status->setObjectName(QStringLiteral("pollSummary"));
     submit->setObjectName(QStringLiteral("pollSubmit"));
@@ -141,7 +236,7 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
     auto* voter_option = new QComboBox;
     voter_option->setMinimumContentsLength(8);
     voter_option->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-    people->setMinimumHeight(76);
+    people->setMinimumHeight(48);
     auto* viewer = new QHBoxLayout;
     auto* viewer_label = new QLabel(QStringLiteral("查看投票成员"));
     viewer_label->setBuddy(voter_option);
@@ -170,8 +265,10 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
         cancel->setVisible(state.selection && !state.summary.closed);
         cancel->setEnabled(writable);
         close->setEnabled(writable);
-        close->setVisible(state.can_close && !state.summary.closed);
+        auto room_state = chat.conversation(room);
+        close->setVisible(state.can_close && room_state && room_state->speech_role != chat::member_role::member && !state.summary.closed);
     };
+    QObject::connect(&client, &client_bridge::conversations_received, &dialog, controls);
     auto reload = [&]
     {
         voters_query = 0;
@@ -249,11 +346,17 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
                              for (auto const& option : state.summary.options)
                              {
                                  voter_option->addItem(QString::fromStdString(option.label));
-                                 options->addItem(QStringLiteral("%1 %2　%3 票（%4%）")
-                                                      .arg(option.position == state.selection ? QStringLiteral("● 我的投票 ·") : QStringLiteral("○"),
-                                                           QString::fromStdString(option.label))
-                                                      .arg(option.votes)
-                                                      .arg(total ? 100. * option.votes / total : 0., 0, 'f', 1));
+                                 auto* item = new QListWidgetItem(QString::fromStdString(option.label), options);
+                                 auto fraction = total ? static_cast<double>(option.votes) / total : 0.;
+                                 bool mine = state.selection == option.position;
+                                 item->setData(count_role, qlonglong(option.votes));
+                                 item->setData(fraction_role, fraction);
+                                 item->setData(mine_role, mine);
+                                 item->setData(Qt::AccessibleTextRole,
+                                               QStringLiteral("%1 · %2 票%3")
+                                                   .arg(item->text())
+                                                   .arg(option.votes)
+                                                   .arg(mine ? QStringLiteral(" · 我的投票") : QString{}));
                              }
                              options->setCurrentRow(prev >= 0 ? prev : state.selection ? int(state.selection) - 1 : 0);
                              voter_option->setCurrentIndex(viewed >= 0 ? viewed : options->currentRow());
@@ -262,10 +365,11 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
                              {
                                  height += options->sizeHintForRow(i);
                              }
-                             options->setFixedHeight(qBound(54, height, 200));
+                             options->setFixedHeight(
+                                 qBound(64, height, std::min(370, std::max(150, dialog.screen()->availableGeometry().height() - 290))));
                              if (prev < 0)
                              {
-                                 dialog.resize(dialog.width(), options->height() + 268);
+                                 dialog.resize(dialog.width(), options->height() + 255);
                              }
                              options->setSelectionMode(state.summary.closed ? QAbstractItemView::NoSelection : QAbstractItemView::SingleSelection);
                          }
