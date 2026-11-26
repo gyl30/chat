@@ -156,7 +156,7 @@ class results_page final : public QWidget
         connect(&client, &client_bridge::disconnected, this, [this] { back_(this); });
         render(initial);
         query_ = client_.get_poll(room_, message_);
-        previous->setFocus();
+        setFocusProxy(previous);
     }
 
    private:
@@ -420,6 +420,7 @@ void chat_widget::open_poll_results(client_bridge& client, qint64 room, qint64 m
         return;
     }
     close_poll_results();
+    poll_return_focus_ = focusWidget();
     auto* page = new results_page(client,
                                   *this,
                                   room,
@@ -437,6 +438,7 @@ void chat_widget::open_poll_results(client_bridge& client, qint64 room, qint64 m
     static_cast<QHBoxLayout*>(layout())->addWidget(page);
     layout_poll_results();
     page->show();
+    page->setFocus();
 }
 
 void chat_widget::layout_poll_results()
@@ -460,9 +462,16 @@ void chat_widget::close_poll_results()
     }
     // The back callback is scoped to its own page, including while deletion is deferred.
     auto* old = std::exchange(poll_page_, nullptr);
+    const bool restore_focus = old->hasFocus() || old->isAncestorOf(focusWidget());
     old->hide();
     layout()->removeWidget(old);
     old->deleteLater();
     timeline_->show();
-    messages_view_->setFocus();
+    if (restore_focus)
+    {
+        auto* target = poll_return_focus_.data();
+        (target && target->isVisible() ? target : messages_view_)->setFocus();
+    }
+    poll_return_focus_.clear();
+    mark_visible_messages();
 }

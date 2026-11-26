@@ -53,11 +53,14 @@ void chat_widget::preserve_reading(const std::function<void()>& change)
         change();
         return;
     }
-    QScopedValueRollback guard(changing_layout_, true);
-    const auto position = capture_reading_position();
-    change();
-    messages_view_->doItemsLayout();
-    restore_reading_position(position);
+    {
+        QScopedValueRollback guard(changing_layout_, true);
+        const auto position = capture_reading_position();
+        change();
+        messages_view_->doItemsLayout();
+        restore_reading_position(position);
+    }
+    mark_visible_messages();
     update_reading_navigation();
 }
 
@@ -71,7 +74,7 @@ bool chat_widget::viewing_latest() const
 
 bool chat_widget::reading_enabled() const
 {
-    return connection_available_ && messages_ready() && messages_view_->isVisible() && window()->isActiveWindow() && !window()->isMinimized() &&
+    return !poll_page_ && connection_available_ && messages_ready() && messages_view_->isVisible() && window()->isActiveWindow() && !window()->isMinimized() &&
            !QApplication::activeModalWidget() && !QApplication::activePopupWidget();
 }
 
@@ -170,7 +173,8 @@ void chat_widget::scroll_to_unread(QModelIndex const& index)
     // Measure against the bottom-aligned timeline before reserving space for a divider.
     if (tail_loaded_ && messages_view_->visualRect(index).top() >= scroll->maximum() - scroll->value())
     {
-        return_to_latest();
+        messages_->set_unread_boundary(0);
+        messages_view_->scrollToBottom();
         return;
     }
     messages_->set_unread_boundary(index.data(message_model::id_role).toLongLong());

@@ -4028,7 +4028,7 @@ void chat_widget::update_message(message_data message)
 
 bool chat_widget::set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions)
 {
-    return conversation != active_conversation_ || messages_->set_reactions(message, revision, std::move(reactions));
+    return conversation != active_conversation_ || message <= history_floor(conversation) || messages_->set_reactions(message, revision, std::move(reactions)) || !tail_loaded_;
 }
 
 void chat_widget::finish_send(qint64 conversation, qint64 client_id, message_data message, QString error, send_status status)
@@ -5547,13 +5547,8 @@ quoted_message_data chat_widget::quote(qint64 message) const
     {
         return {};
     }
-    for (int row = 0; row < messages_->rowCount(); ++row)
+    if (auto index = messages_->message_index(message); index.isValid())
     {
-        auto const index = messages_->index(row, 0);
-        if (index.data(message_model::id_role).toLongLong() != message)
-        {
-            continue;
-        }
         auto const revision = index.data(message_model::edited_at_role).toLongLong();
         auto const deleted = index.data(message_model::deleted_role).toBool();
         if (!deleted && reply_snapshot_.id == message && reply_snapshot_.edited_at >= revision)
@@ -5562,7 +5557,7 @@ quoted_message_data chat_widget::quote(qint64 message) const
         }
         return {message,
                 index.data(message_model::sender_name_role).toString(),
-                grapheme_prefix(index.data(message_model::text_role).toString(), 160),
+                grapheme_prefix(index.data(message_model::attachment_name_role).toString().isEmpty() ? index.data(message_model::text_role).toString() : index.data(message_model::attachment_name_role).toString(), 160),
                 revision,
                 deleted,
                 index.data(message_model::from_role).toLongLong()};

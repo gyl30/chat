@@ -1189,6 +1189,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                     continue;
                 }
                 out["more"] = button->isVisible();
+                out["moreText"] = button->text();
                 if (cmd["more"].toBool() && button->isVisible())
                 {
                     button->click();
@@ -1787,6 +1788,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     }
     else if (op == "draft")
     {
+        if (cmd["focus"].toBool())
+        {
+            edit->setFocus();
+        }
         if (cmd.contains("markdown"))
         {
             button("markdownButton")->setChecked(cmd["markdown"].toBool());
@@ -2014,6 +2019,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 row["poll"] = counts;
                 row["pollClosed"] = poll.isValid() && poll.value<chat::poll_summary>().closed;
             }
+            if (cmd["reactions"].toBool())
+            {
+                row["reactionGroups"] = idx.data(message_model::reactions_role).value<QList<reaction_data>>().size();
+            }
             if (cmd["authors"].toBool())
             {
                 row["author"] = idx.data(message_model::sender_name_role).toString();
@@ -2060,6 +2069,7 @@ int main(int argc, char** argv)
     observe(&client_bridge::bundle_image_received, "image");
     observe(&client_bridge::notifications_changed, "preference");
     observe(&client_bridge::message_updated, "edit");
+    observe(&client_bridge::reaction_changed, "reaction");
     observe(&client_bridge::messages_received, "history");
     observe(&client_bridge::message_received, "new");
     auto* downloads = &bridge->downloads();

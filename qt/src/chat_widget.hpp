@@ -3,6 +3,7 @@
 
 #include <QHash>
 #include <QPoint>
+#include <QPointer>
 #include <QDeadlineTimer>
 #include <QElapsedTimer>
 #include <QList>
@@ -245,6 +246,7 @@ class chat_widget final : public QWidget
     void layout_poll_results();
     QWidget* timeline_;
     QWidget* poll_page_ = nullptr;
+    QPointer<QWidget> poll_return_focus_;
     void setup_profile_friendship(
         QDialog& dialog, QVBoxLayout* info_layout, QLabel* relationship, QToolButton* message_button, qint64 user, QString const& username);
     void setup_profile_avatar(QDialog& dialog, QVBoxLayout* info_layout, qint64 user);

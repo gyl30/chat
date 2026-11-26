@@ -24,17 +24,62 @@ bool merge_poll(message_data& message, chat::poll_summary const& summary)
     return true;
 }
 
-void merge_reply(quoted_message_data& reply, QList<message_data> const& messages)
+bool update_quote(quoted_message_data& reply, message_data const& target)
 {
-    if (reply.id <= 0 || reply.deleted)
+    if (reply.id != target.id || !reply.id || reply.deleted || (!target.deleted && target.edited_at <= reply.edited_at))
     {
-        return;
+        return false;
     }
-    auto const target = std::ranges::lower_bound(messages, reply.id, {}, &message_data::id);
-    if (target != messages.cend() && target->id == reply.id && (target->deleted || target->edited_at > reply.edited_at))
+    reply = {target.id, target.username, grapheme_prefix(target.text, 160), target.edited_at, target.deleted, target.from};
+    return true;
+}
+
+void merge_reply(quoted_message_data& reply, const QList<message_data>& messages)
+{
+    if (reply.id)
     {
-        reply = {target->id, target->username, grapheme_prefix(target->text, 160), target->edited_at, target->deleted, target->from};
+        const auto source = std::ranges::lower_bound(messages, reply.id, {}, &message_data::id);
+        if (source != messages.end())
+        {
+            update_quote(reply, *source);
+        }
     }
+}
+
+bool merge_update(message_data& current, const message_data& update)
+{
+    if (current.deleted)
+    {
+        return false;
+    }
+    if (update.deleted)
+    {
+        current = update;
+        return true;
+    }
+    bool changed = false;
+    if (update.edited_at > current.edited_at)
+    {
+        // Editing changes the body, independently of reactions, poll votes and the quoted source.
+        current.text = update.text;
+        current.edited_at = update.edited_at;
+        current.mentions = update.mentions;
+        current.markdown = update.markdown;
+        changed = true;
+    }
+    if (update.reaction_revision > current.reaction_revision)
+    {
+        current.reaction_revision = update.reaction_revision;
+        current.reactions = update.reactions;
+        changed = true;
+    }
+    if (update.reply.id == current.reply.id && !current.reply.deleted &&
+        (update.reply.deleted || update.reply.edited_at > current.reply.edited_at))
+    {
+        current.reply = update.reply;
+        changed = true;
+    }
+    return (update.poll && merge_poll(current, *update.poll)) || changed;
 }
 
 }    // namespace
@@ -443,18 +488,13 @@ void message_model::reconcile_page_row(message_data& message) const
     {
         return;
     }
-    auto it = page_changes_->constFind(message.id);
-    if (it == page_changes_->cend())
+    if (auto it = page_changes_->constFind(message.id); it != page_changes_->cend())
     {
-        return;
+        merge_update(message, *it);
     }
-    if (it->deleted)
+    if (auto source = page_changes_->constFind(message.reply.id); source != page_changes_->cend())
     {
-        message = *it;
-    }
-    else if (it->poll)
-    {
-        merge_poll(message, *it->poll);
+        update_quote(message.reply, *source);
     }
 }
 
@@ -569,9 +609,16 @@ void message_model::update_message(message_data const& message)
     {
         return;
     }
-    if (page_changes_ && message.deleted)
+    if (page_changes_ && (message.deleted || message.edited_at))
     {
-        page_changes_->insert(message.id, message);
+        auto& change = (*page_changes_)[message.id];
+        if (!change.id)
+        {
+            change.id = message.id;
+            change.from = message.from;
+            change.username = message.username;
+        }
+        merge_update(change, message);
     }
     if (avatars_)
     {
@@ -587,52 +634,12 @@ void message_model::update_message(message_data const& message)
     for (int row = 0; row < messages_.size(); ++row)
     {
         auto& current = messages_[row];
-        bool changed = false;
-        if (current.id == message.id)
+        bool changed = current.id == message.id && merge_update(current, message);
+        if (changed && current.poll && (current.poll->closed || current.poll->selection))
         {
-            if (!current.deleted && (message.deleted || message.edited_at > current.edited_at))
-            {
-                auto reply = current.reply;
-                auto revision = current.reaction_revision;
-                auto reactions = current.reactions;
-                current = message;
-                if (!current.deleted && revision > current.reaction_revision)
-                {
-                    current.reaction_revision = revision;
-                    current.reactions = std::move(reactions);
-                }
-                if ((reply.deleted && !current.reply.deleted) || reply.edited_at > current.reply.edited_at)
-                {
-                    current.reply = std::move(reply);
-                }
-                changed = true;
-            }
-            if (message.poll && merge_poll(current, *message.poll))
-            {
-                if (message.poll->closed || message.poll->selection)
-                {
-                    poll_drafts_.remove(message.id);
-                }
-                changed = true;
-            }
-            if (!current.deleted && message.reaction_revision > current.reaction_revision)
-            {
-                current.reaction_revision = message.reaction_revision;
-                current.reactions = message.reactions;
-                changed = true;
-            }
-            if (message.reply.id == current.reply.id && !current.reply.deleted &&
-                (message.reply.deleted || message.reply.edited_at > current.reply.edited_at))
-            {
-                current.reply = message.reply;
-                changed = true;
-            }
+            poll_drafts_.remove(current.id);
         }
-        if (current.reply.id == message.id && !current.reply.deleted && (message.deleted || message.edited_at > current.reply.edited_at))
-        {
-            current.reply = {message.id, message.username, grapheme_prefix(message.text, 160), message.edited_at, message.deleted, message.from};
-            changed = true;
-        }
+        changed = update_quote(current.reply, message) || changed;
         if (changed)
         {
             emit dataChanged(index(row, 0), index(row, 0));
@@ -725,6 +732,16 @@ bool message_model::set_reactions(qint64 message, qint64 revision, QList<reactio
             }
             return true;
         }
+    }
+    if (page_changes_)
+    {
+        auto& change = (*page_changes_)[message];
+        if (!change.deleted && revision > change.reaction_revision)
+        {
+            change.reaction_revision = revision;
+            change.reactions = std::move(reactions);
+        }
+        return true;
     }
     return false;
 }

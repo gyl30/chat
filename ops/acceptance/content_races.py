@@ -53,6 +53,9 @@ async def scenario(probe, mode):
                         client_id=900 + i,
                         text="更新消息 " * 50,
                     )
+            if mode in ("unloaded_edit", "unloaded_reaction"):
+                for n in range(12):
+                    await b.ok("send_message", conversation=g, text="在途历史记录 " * 60, client_id=730+n)
             if mode == "timeline":
                 for n in range(120):
                     tail = (await b.ok("send_message", conversation=g, text=f"{n}: " + "历史行 " * 60, client_id=300+n))["id"]
@@ -120,7 +123,7 @@ async def scenario(probe, mode):
                 try:
                     await ui.wait("select", lambda r: r["ok"], conv=direct)
                     await ui.wait("reading", lambda r: r["ready"])
-                    history = mode in ("first", "withdraw", "clear", "switch", "leave")
+                    history = mode in ("first", "unloaded_edit", "unloaded_reaction", "withdraw", "clear", "switch", "leave")
                     if history:
                         gate.hold.add("get_messages")
                     await ui.wait("select", lambda r: r["ok"], conv=g)
@@ -230,6 +233,21 @@ async def scenario(probe, mode):
                         await seen("preference", n)
                         state = await ui.call("state")
                         assert not any(x["id"] == mid for x in state["rows"])
+                    elif mode in ("unloaded_edit", "unloaded_reaction"):
+                        requests = sum(p["method"] == "get_messages" for p in gate.messages)
+                        edits = await count("edit")
+                        await b.ok("edit_message", conversation=g, message=other, text="请求途中更新的正文")
+                        await seen("edit", edits)
+                        if mode == "unloaded_reaction":
+                            changes = await count("reaction")
+                            await a.ok("set_message_reaction", conversation=g, message=other, emoji="👍")
+                            await seen("reaction", changes)
+                        await gate.release("get_messages")
+                        await ui.wait("reading", lambda r: r["ready"])
+                        row = next(r for r in (await ui.call("state", reactions=True))["rows"] if r["id"] == other)
+                        assert row["text"] == "请求途中更新的正文", row
+                        assert row["reactionGroups"] == int(mode == "unloaded_reaction"), row
+                        assert sum(p["method"] == "get_messages" for p in gate.messages) == requests, "unexpected replacement history request"
                     elif mode == "timeline":
                         await ui.call("reading", latest=True, activate=True)
                         gate.hold_requests.add("send_message")
@@ -286,6 +304,7 @@ async def scenario(probe, mode):
                             resized["topId"],
                             resized["offset"],
                         )
+                        await ui.call("draft", text="焦点保留", focus=True)
                         await ui.call("poll_ui", open=mid)
                         await ui.wait("poll_ui", lambda r: r.get("members") == ["a"])
                         state = await ui.call("reading")
@@ -297,6 +316,8 @@ async def scenario(probe, mode):
                         await ui.call("poll_ui", close=True)
                         state = await ui.call("reading")
                         assert (state["topId"], state["offset"]) == expected
+                        assert (await ui.call("desktop_environment"))["focus"] == "messageEdit", "poll back lost editor focus"
+                        assert (await ui.call("state"))["draft"] == "焦点保留"
                         await ui.call("select", conv=direct)
                         await ui.wait("reading", lambda r: r["ready"])
                         await ui.call("select", conv=g)
@@ -428,6 +449,21 @@ async def scenario(probe, mode):
                         gate.hold.add("get_poll_voters")
                         await ui.call("poll_ui", more=True)
                         await gate.caught("get_poll_voters")
+                        await gate.release("get_poll_voters", error=True)
+                        await ui.wait("poll_ui", lambda r: r.get("moreText") == "重试加载成员")
+                        # A new revision retries automatically. The next click must expand, even
+                        # if the user collapsed the section while its replacement page was pending.
+                        gate.hold.add("get_poll_voters")
+                        await b.ok("vote_poll", choices=0, **args)
+                        await gate.caught("get_poll_voters")
+                        await ui.call("poll_ui", collapse=True)
+                        await gate.release("get_poll_voters")
+                        await ui.wait("poll_ui", lambda r: len(r.get("members", [])) == 10 and "再显示" in r.get("moreText", ""))
+                        await b.ok("vote_poll", choices=1, **args)
+                        await ui.wait("poll_ui", lambda r: r.get("moreText") == "再显示 41 位成员")
+                        gate.hold.add("get_poll_voters")
+                        await ui.call("poll_ui", more=True)
+                        await gate.caught("get_poll_voters")
                         gate.hold.clear()
                         await b.ok("vote_poll", choices=0, **args)
                         state = await ui.wait(
@@ -498,6 +534,8 @@ async def scenario(probe, mode):
 async def run():
     for mode in sys.argv[2:] or (
         "first",
+        "unloaded_edit",
+        "unloaded_reaction",
         "older",
         "loaded",
         "new",
