@@ -47,15 +47,9 @@ class message_search_dialog final : public QDialog
         qint64 selected = 0;
         int row = -1;
     };
-    struct pending_reaction
-    {
-        qint64 revision = 0;
-        QList<reaction_data> reactions;
-    };
     void request_search(bool older);
     selection_state selection() const;
     void restore_selection(selection_state const& previous);
-    void consume_reaction(qint64 message);
     void refresh_count();
 
     qint64 conversation_;
@@ -63,7 +57,6 @@ class message_search_dialog final : public QDialog
     QString query_;
     qint64 before_ = 0;
     qint64 next_before_ = 0;
-    QHash<qint64, pending_reaction> pending_reactions_;
     QLineEdit* input_;
     QPushButton* more_button_;
     QLabel* status_;

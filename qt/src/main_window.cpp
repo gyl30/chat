@@ -1178,9 +1178,9 @@ void main_window::show_message_search(qint64 conversation, qint64 self_user, boo
                 located = message;
                 dialog.accept();
             });
-    if (dialog.exec() == QDialog::Accepted && located > 0)
+    if (dialog.exec() == QDialog::Accepted && located > 0 && chat_page_->active_conversation() == conversation)
     {
-        chat_page_->locate_message(conversation, located);
+        chat_page_->jump_to_message(located);
     }
 }
 

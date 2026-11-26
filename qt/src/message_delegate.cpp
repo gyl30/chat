@@ -198,7 +198,8 @@ struct message_layout
         const auto bubble = bubble_rect(row);
         return {bubble.left() + chat_theme::message_padding_horizontal,
                 bubble.top() + chat_theme::message_padding_vertical + forward_height,
-                bubble.width() - 2 * chat_theme::message_padding_horizontal, reply_height};
+                bubble.width() - 2 * chat_theme::message_padding_horizontal,
+                reply_height};
     }
 
     QPoint text_origin(QRect const& row) const

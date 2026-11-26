@@ -74,8 +74,8 @@ bool chat_widget::viewing_latest() const
 
 bool chat_widget::reading_enabled() const
 {
-    return !poll_page_ && connection_available_ && messages_ready() && messages_view_->isVisible() && window()->isActiveWindow() && !window()->isMinimized() &&
-           !QApplication::activeModalWidget() && !QApplication::activePopupWidget();
+    return !poll_page_ && connection_available_ && messages_ready() && messages_view_->isVisible() && window()->isActiveWindow() &&
+           !window()->isMinimized() && !QApplication::activeModalWidget() && !QApplication::activePopupWidget();
 }
 
 void chat_widget::set_messages_loading(bool loading)
@@ -112,6 +112,11 @@ void chat_widget::request_entry_history()
 
 void chat_widget::begin_history_refresh()
 {
+    if (!messages_loaded_ && !target_position_)
+    {
+        request_entry_history();
+        return;
+    }
     set_messages_loading(true);
     update_reading_navigation();
     if (target_position_)
@@ -132,9 +137,7 @@ void chat_widget::begin_history_refresh()
         emit history_requested(active_conversation_, history_page::latest);
         return;
     }
-    emit history_requested(active_conversation_,
-                           messages_loaded_ ? history_page::refresh : history_page::unread,
-                           std::max<qint64>(0, messages_->first_message_id() - 1));
+    emit history_requested(active_conversation_, history_page::refresh, std::max<qint64>(0, messages_->first_message_id() - 1));
 }
 
 void chat_widget::update_reading_navigation()
@@ -150,7 +153,9 @@ void chat_widget::update_reading_navigation()
     const auto gap = scroll->maximum() - scroll->value();
     const bool away = returning || !tail_loaded_ || gap > (unread ? 0 : viewport->height() / 2);
     history_down_->setText(!returning && unread ? QStringLiteral("↓  %1").arg(unread) : QStringLiteral("↓"));
-    history_down_->setToolTip(returning ? QStringLiteral("返回引用前的位置") : unread ? QStringLiteral("前往未读消息") : QStringLiteral("返回最新消息"));
+    history_down_->setToolTip(returning ? QStringLiteral("返回上次阅读位置")
+                              : unread  ? QStringLiteral("前往未读消息")
+                                        : QStringLiteral("返回最新消息"));
     history_down_->setAccessibleName(history_down_->toolTip());
     history_down_->adjustSize();
     history_down_->move(viewport->width() - history_down_->width() - 14, viewport->height() - history_down_->height() - 12);
@@ -182,7 +187,7 @@ void chat_widget::scroll_to_unread(QModelIndex const& index)
     scroll->setValue(scroll->value() + messages_view_->visualRect(index).top() - std::min(64, messages_view_->viewport()->height() / 5));
 }
 
-void chat_widget::jump_to_reply(qint64 id)
+void chat_widget::jump_to_message(qint64 id)
 {
     if (id <= history_floor(active_conversation_))
     {

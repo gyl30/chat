@@ -76,6 +76,7 @@ class chat_widget final : public QWidget
     void close_conversation(qint64 conversation);
     void invalidate_draft_replies(QList<qint64> const& conversations);
     void locate_message(qint64 conversation, qint64 message);
+    void jump_to_message(qint64 id);
     void refresh_theme();
     void set_members(qint64 conversation, QList<member_data> members, QString const& error);
     void set_loading();
@@ -316,7 +317,6 @@ class chat_widget final : public QWidget
     void request_older_messages();
     void update_reading_navigation();
     void resume_reading_after_menu(QMenu& menu);
-    void jump_to_reply(qint64 id);
     void request_newer_messages();
     void navigate_down();
     quint64 conversation_unread() const;

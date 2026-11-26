@@ -80,6 +80,7 @@
 #include "emoji_text.hpp"
 #include "icons.hpp"
 #include "message_delegate.hpp"
+#include "message_list_view.hpp"
 #include "message_model.hpp"
 #include "presence.hpp"
 #include "theme.hpp"
@@ -101,182 +102,6 @@ QString local_file_path(QUrl url)
     }
     return url.host().isEmpty() ? url.toLocalFile() : QString{};
 }
-
-// The scroll area's own bar drives paging and read positions. This overlay never consumes layout width.
-class message_list_view final : public QListView
-{
-   public:
-    explicit message_list_view(QWidget* parent) : QListView(parent), overlay_(Qt::Vertical, this)
-    {
-        setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        overlay_.setObjectName(QStringLiteral("messageScrollOverlay"));
-        overlay_.setFocusPolicy(Qt::NoFocus);
-        overlay_.hide();
-        timer_.setSingleShot(true);
-        timer_.setInterval(900);
-        connect(&timer_,
-                &QTimer::timeout,
-                this,
-                [this]
-                {
-                    if (!overlay_.isSliderDown())
-                    {
-                        overlay_.hide();
-                    }
-                });
-        auto* scroll = verticalScrollBar();
-        connect(scroll, &QScrollBar::rangeChanged, &overlay_, &QScrollBar::setRange);
-        connect(scroll,
-                &QScrollBar::valueChanged,
-                this,
-                [this, scroll](int value)
-                {
-                    overlay_.setPageStep(scroll->pageStep());
-                    overlay_.setValue(value);
-                    overlay_.setVisible(scroll->maximum() > scroll->minimum());
-                    timer_.start();
-                });
-        connect(&overlay_, &QScrollBar::valueChanged, scroll, &QScrollBar::setValue);
-        connect(&overlay_, &QScrollBar::sliderReleased, &timer_, qOverload<>(&QTimer::start));
-    }
-
-    std::function<void()> selection_finished;
-    std::function<void(std::function<void()>)> preserve_layout;
-    bool selecting_range() const { return drag_start_.isValid(); }
-
-   protected:
-    void mousePressEvent(QMouseEvent* event) override
-    {
-        if (selectionMode() != ExtendedSelection)
-        {
-            QListView::mousePressEvent(event);
-            return;
-        }
-        if (event->button() != Qt::LeftButton)
-        {
-            return;
-        }
-        auto hit = indexAt(event->position().toPoint());
-        if (!(hit.flags() & Qt::ItemIsSelectable))
-        {
-            return;
-        }
-        setFocus(Qt::MouseFocusReason);
-        selectionModel()->select(QItemSelection{}, QItemSelectionModel::Select);
-        const bool range = event->modifiers().testFlag(Qt::ShiftModifier) && currentIndex().isValid();
-        drag_start_ = range ? currentIndex() : hit;
-        drag_select_ = range || !selectionModel()->isSelected(hit);
-        if (!range)
-        {
-            selectionModel()->setCurrentIndex(hit, QItemSelectionModel::NoUpdate);
-        }
-        select_range(hit);
-    }
-
-    void mouseMoveEvent(QMouseEvent* event) override
-    {
-        if (selectionMode() != ExtendedSelection)
-        {
-            QListView::mouseMoveEvent(event);
-            return;
-        }
-        if (!drag_start_.isValid() || !(event->buttons() & Qt::LeftButton))
-        {
-            return;
-        }
-        auto pos = event->position().toPoint();
-        if (pos.y() < 0 || pos.y() >= viewport()->height())
-        {
-            verticalScrollBar()->triggerAction(pos.y() < 0 ? QAbstractSlider::SliderSingleStepSub : QAbstractSlider::SliderSingleStepAdd);
-            pos.setY(std::clamp(pos.y(), 0, viewport()->height() - 1));
-        }
-        auto hit = indexAt(pos);
-        if (hit.isValid())
-        {
-            QStyleOptionViewItem option;
-            initViewItemOption(&option);
-            option.rect = visualRect(hit);
-            if (!message_delegate::on_separator(option, hit, pos))
-            {
-                select_range(hit);
-            }
-        }
-    }
-
-    void mouseReleaseEvent(QMouseEvent* event) override
-    {
-        if (selectionMode() != ExtendedSelection)
-        {
-            QListView::mouseReleaseEvent(event);
-            return;
-        }
-        if (event->button() == Qt::LeftButton)
-        {
-            selectionModel()->select(QItemSelection{}, QItemSelectionModel::Select);
-            drag_start_ = QModelIndex{};
-            selection_finished();
-        }
-    }
-
-    void mouseDoubleClickEvent(QMouseEvent* event) override
-    {
-        if (selectionMode() == ExtendedSelection)
-        {
-            mousePressEvent(event);
-        }
-        else
-        {
-            QListView::mouseDoubleClickEvent(event);
-        }
-    }
-
-    void dataChanged(const QModelIndex& first, const QModelIndex& last, const QList<int>& roles) override
-    {
-        auto update = [&] { QListView::dataChanged(first, last, roles); };
-        if (preserve_layout && (roles.empty() || roles.contains(Qt::SizeHintRole) || roles.contains(message_model::text_role) ||
-                                roles.contains(message_model::reply_text_role) || roles.contains(message_model::image_role) ||
-                                roles.contains(message_model::reactions_role) || roles.contains(message_model::poll_role) ||
-                                roles.contains(message_model::download_status_role)))
-        {
-            preserve_layout(update);
-        }
-        else
-        {
-            update();
-        }
-    }
-
-    void resizeEvent(QResizeEvent* event) override
-    {
-        if (preserve_layout)
-        {
-            preserve_layout([&] { QListView::resizeEvent(event); });
-        }
-        else
-        {
-            QListView::resizeEvent(event);
-        }
-        constexpr int width = 8;
-        auto const area = viewport()->geometry();
-        overlay_.setGeometry(area.right() + 1 - width, area.top(), width, area.height());
-    }
-
-   private:
-    void select_range(QModelIndex end)
-    {
-        auto first = QModelIndex(drag_start_);
-        if (end.row() < first.row())
-        {
-            std::swap(first, end);
-        }
-        selectionModel()->select(QItemSelection(first, end),
-                                 (drag_select_ ? QItemSelectionModel::Select : QItemSelectionModel::Deselect) | QItemSelectionModel::Current);
-    }
-    QPersistentModelIndex drag_start_;
-    bool drag_select_ = false;
-    QScrollBar overlay_;
-    QTimer timer_;
-};
 
 class conversation_list_view final : public QListView
 {
@@ -1707,7 +1532,7 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
                 auto const item = conversation(active_conversation_);
                 if (item && item->pinned_message.id > 0)
                 {
-                    locate_message(active_conversation_, item->pinned_message.id);
+                    jump_to_message(item->pinned_message.id);
                 }
             });
     connect(unpin_message_button_,
@@ -1765,8 +1590,9 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
 {
     auto* chat_panel = chat_layout->parentWidget();
     messages_ = new message_model(this, &avatars_, &images_);
-    messages_view_ = new message_list_view(chat_panel);
-    static_cast<message_list_view*>(messages_view_)->preserve_layout = [this](auto update) { preserve_reading(update); };
+    auto* list = new message_list_view(chat_panel);
+    messages_view_ = list;
+    list->preserve_layout = [this](const auto& update) { preserve_reading(update); };
     history_down_ = new QPushButton(messages_view_->viewport());
     history_down_->setObjectName(QStringLiteral("historyDownButton"));
     history_down_->setAutoDefault(false);
@@ -1829,7 +1655,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     selection_forward_ = action_button(QStringLiteral("forwardSelection"), QStringLiteral("转发所选消息"), QStringLiteral("send"));
     selection_retract_ = action_button(QStringLiteral("retractSelection"), QStringLiteral("撤回所选消息"), QStringLiteral("close"), true);
     connect(selection_retract_, &QToolButton::clicked, this, &chat_widget::retract_selected_messages);
-    static_cast<message_list_view*>(messages_view_)->selection_finished = [this] { update_message_selection(); };
+    list->selection_finished = [this] { update_message_selection(); };
     connect(messages_view_->selectionModel(), &QItemSelectionModel::selectionChanged, this, &chat_widget::update_message_selection);
     connect(messages_, &QAbstractItemModel::modelReset, this, &chat_widget::update_message_selection);
     connect(messages_,
@@ -1895,7 +1721,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
                 message_edit_->setFocus();
             });
     connect(messages_view_, &QListView::customContextMenuRequested, this, &chat_widget::show_message_menu);
-    connect(messages_delegate, &message_delegate::reply_clicked, this, &chat_widget::jump_to_reply);
+    connect(messages_delegate, &message_delegate::reply_clicked, this, &chat_widget::jump_to_message);
     connect(messages_delegate,
             &message_delegate::avatar_clicked,
             this,
@@ -2501,7 +2327,7 @@ void chat_widget::show_message_menu(QPoint position)
         auto id = target_index.data(message_model::reply_target_role).toLongLong();
         if (connection_available_ && id > history_floor(conversation))
         {
-            jump_to_reply(id);
+            jump_to_message(id);
         }
         return;
     }
@@ -3895,15 +3721,10 @@ void chat_widget::locate_message(qint64 conversation, qint64 message)
     }
     if (conversation == active_conversation_ && message > history_floor(conversation))
     {
-        for (int row = 0; row < messages_->rowCount(); ++row)
+        if (messages_->message_index(message).isValid())
         {
-            auto const index = messages_->index(row, 0);
-            if (index.data(message_model::id_role).toLongLong() == message && !index.data(message_model::deleted_role).toBool())
-            {
-                messages_view_->setCurrentIndex(index);
-                messages_view_->scrollTo(index, QAbstractItemView::PositionAtCenter);
-                return;
-            }
+            jump_to_message(message);
+            return;
         }
     }
     emit message_context_requested(conversation, message);
@@ -3965,7 +3786,9 @@ void chat_widget::add_message(qint64 user, message_data message)
     // A fresh unread run gets a fresh marker, even during the same visit.
     auto const read = effective_read_position();
     bool const new_run = !messages_->unread_boundary() || !messages_->next_incoming(read).isValid();
-    auto const boundary = new_run && !viewing_latest() && message.from != self_user_ && !message.deleted && message.id > read ? message.id : 0;
+    const bool at_end = viewing_latest();
+    const bool clear_boundary = new_run && at_end && message.id > read;
+    auto const boundary = new_run && !at_end && message.from != self_user_ && !message.deleted && message.id > read ? message.id : 0;
     auto const poll = message.poll ? message.id : 0;
     preserve_reading(
         [&]
@@ -3974,7 +3797,7 @@ void chat_widget::add_message(qint64 user, message_data message)
             {
                 return;
             }
-            if (new_run && !boundary && message.id > read && viewing_latest())
+            if (clear_boundary)
             {
                 messages_->set_unread_boundary(0);
             }
@@ -4028,7 +3851,8 @@ void chat_widget::update_message(message_data message)
 
 bool chat_widget::set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions)
 {
-    return conversation != active_conversation_ || message <= history_floor(conversation) || messages_->set_reactions(message, revision, std::move(reactions)) || !tail_loaded_;
+    return conversation != active_conversation_ || message <= history_floor(conversation) ||
+           messages_->set_reactions(message, revision, std::move(reactions)) || !tail_loaded_;
 }
 
 void chat_widget::finish_send(qint64 conversation, qint64 client_id, message_data message, QString error, send_status status)
@@ -5557,7 +5381,10 @@ quoted_message_data chat_widget::quote(qint64 message) const
         }
         return {message,
                 index.data(message_model::sender_name_role).toString(),
-                grapheme_prefix(index.data(message_model::attachment_name_role).toString().isEmpty() ? index.data(message_model::text_role).toString() : index.data(message_model::attachment_name_role).toString(), 160),
+                grapheme_prefix(index.data(message_model::attachment_name_role).toString().isEmpty()
+                                    ? index.data(message_model::text_role).toString()
+                                    : index.data(message_model::attachment_name_role).toString(),
+                                160),
                 revision,
                 deleted,
                 index.data(message_model::from_role).toLongLong()};

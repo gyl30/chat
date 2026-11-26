@@ -54,6 +54,8 @@ add_executable(client
     src/message_card.cpp
     src/message_delegate.cpp
     src/message_delegate.hpp
+    src/message_list_view.cpp
+    src/message_list_view.hpp
     src/message_model.cpp
     src/message_model.hpp
     src/message_images.cpp

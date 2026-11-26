@@ -73,8 +73,7 @@ bool merge_update(message_data& current, const message_data& update)
         current.reactions = update.reactions;
         changed = true;
     }
-    if (update.reply.id == current.reply.id && !current.reply.deleted &&
-        (update.reply.deleted || update.reply.edited_at > current.reply.edited_at))
+    if (update.reply.id == current.reply.id && !current.reply.deleted && (update.reply.deleted || update.reply.edited_at > current.reply.edited_at))
     {
         current.reply = update.reply;
         changed = true;

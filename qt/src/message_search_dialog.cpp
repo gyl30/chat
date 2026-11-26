@@ -13,6 +13,7 @@
 #include <QPushButton>
 #include <QItemSelectionModel>
 #include <QSet>
+#include <QShortcut>
 #include <QSortFilterProxyModel>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -74,7 +75,7 @@ message_search_dialog::message_search_dialog(
     search_row->addWidget(input_, 1);
     search_row->addWidget(search_button);
     layout->addLayout(search_row);
-    auto* help = new QLabel(QStringLiteral("不区分大小写。双击或按 Enter 跳转到聊天中的位置；消息被编辑后可重新搜索。"), this);
+    auto* help = new QLabel(QStringLiteral("不区分大小写。F3 / Shift+F3 浏览结果，Enter 跳转到聊天中的位置；消息被编辑后可重新搜索。"), this);
     help->setObjectName(QStringLiteral("messageSearchHelp"));
     help->setWordWrap(true);
     layout->addWidget(help);
@@ -118,6 +119,27 @@ message_search_dialog::message_search_dialog(
             emit message_activated(id);
         }
     };
+    for (const auto direction : {-1, 1})
+    {
+        const auto sequence = direction > 0 ? QKeySequence(Qt::Key_F3) : QKeySequence(Qt::SHIFT | Qt::Key_F3);
+        auto* shortcut = new QShortcut(sequence, this);
+        connect(shortcut,
+                &QShortcut::activated,
+                this,
+                [this, direction]
+                {
+                    const int count = visible_messages_->rowCount();
+                    if (count && query_ == input_->text().trimmed())
+                    {
+                        const int current = results_->currentIndex().row();
+                        const auto next =
+                            visible_messages_->index(current < 0 ? (direction > 0 ? 0 : count - 1) : (current + direction + count) % count, 0);
+                        results_->setCurrentIndex(next);
+                        results_->scrollTo(next);
+                        results_->setFocus();
+                    }
+                });
+    }
     connect(results_, &QListView::activated, this, activate);
     connect(results_, &QListView::doubleClicked, this, activate);
     connect(more_button_, &QPushButton::clicked, this, [this] { request_search(true); });
@@ -162,7 +184,6 @@ void message_search_dialog::request_search(bool older)
         }
         before_ = 0;
         next_before_ = 0;
-        pending_reactions_.clear();
         messages_->reset(conversation_, group_);
         visible_messages_->clear_hits();
     }
@@ -190,14 +211,7 @@ void message_search_dialog::set_reactions(qint64 conversation, qint64 message, q
 {
     if (conversation == conversation_ && message > 0 && error.isEmpty())
     {
-        if (!messages_->set_reactions(message, revision, reactions))
-        {
-            auto const found = pending_reactions_.constFind(message);
-            if (found == pending_reactions_.cend() || revision > found->revision)
-            {
-                pending_reactions_.insert(message, {revision, std::move(reactions)});
-            }
-        }
+        messages_->set_reactions(message, revision, std::move(reactions));
     }
 }
 
@@ -210,7 +224,6 @@ void message_search_dialog::update_message(qint64 conversation, message_data mes
     auto const previous = selection();
     messages_->add_message(message);
     messages_->update_message(message);
-    consume_reaction(message.id);
     restore_selection(previous);
     refresh_count();
 }
@@ -251,10 +264,6 @@ void message_search_dialog::set_results(qint64 conversation,
     }
     visible_messages_->include_hits(hits);
     messages_->merge_messages(std::move(messages));
-    for (auto id : hits)
-    {
-        consume_reaction(id);
-    }
     messages_->set_read_positions(std::move(positions));
     next_before_ = has_more ? page_boundary : 0;
     more_button_->setEnabled(next_before_ > 0 && input_->text().trimmed() == query_);
@@ -322,15 +331,6 @@ void message_search_dialog::restore_selection(selection_state const& previous)
             selected = current;
         }
         selection->select(selected, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
-    }
-}
-
-void message_search_dialog::consume_reaction(qint64 message)
-{
-    auto const found = pending_reactions_.constFind(message);
-    if (found != pending_reactions_.cend() && messages_->set_reactions(message, found->revision, found->reactions))
-    {
-        pending_reactions_.remove(message);
     }
 }
 

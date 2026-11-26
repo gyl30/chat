@@ -1922,7 +1922,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         }
         if (auto id = cmd["jumpReply"].toInteger())
         {
-            chat->jump_to_reply(id);
+            chat->jump_to_message(id);
         }
         auto inspect = chat->messages_->message_index(cmd["inspect"].toInteger());
         if (inspect.isValid() && cmd.contains("atY"))
