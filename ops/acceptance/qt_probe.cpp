@@ -1204,17 +1204,29 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             dialog && dialog->isVisible() && dialog->windowTitle() == QStringLiteral("选择转发目标"))
         {
             out["open"] = true;
-            if (cmd.contains("target"))
+            auto* list = dialog->findChild<QListWidget*>("forwardTargets");
+            if (cmd.contains("search"))
             {
-                auto* list = dialog->findChild<QListWidget*>();
+                dialog->findChild<QLineEdit*>("forwardSearch")->setText(cmd["search"].toString());
+            }
+            QJsonArray names;
+            for (int i = 0; i < list->count(); ++i)
+            {
+                names.append(list->item(i)->text());
+            }
+            out["names"] = names;
+            out["methods"] = dialog->findChild<QPushButton*>("bundleMode") != nullptr;
+            if (cmd.contains("target") || cmd.contains("peer"))
+            {
                 for (int i = 0; i < list->count(); ++i)
                 {
-                    if (list->item(i)->data(Qt::UserRole).toLongLong() == cmd["target"].toInteger())
+                    if (cmd.contains("peer") ? list->item(i)->data(Qt::UserRole + 1).toLongLong() == cmd["peer"].toInteger()
+                                             : list->item(i)->data(Qt::UserRole).toLongLong() == cmd["target"].toInteger())
                     {
                         list->setCurrentRow(i);
                         if (cmd["bundle"].toBool())
                         {
-                            dialog->findChild<QComboBox*>()->setCurrentIndex(1);
+                            dialog->findChild<QPushButton*>("bundleMode")->click();
                         }
                         auto* confirm = dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok);
                         out["confirmed"] = confirm->isEnabled();

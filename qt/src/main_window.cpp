@@ -1501,6 +1501,7 @@ void main_window::connect_messages()
                     show_bundle(*client_, *chat_page_, room, message, this);
                 }
             });
+    connect(chat_page_, &chat_widget::forward_to_contact_requested, client_.get(), &client_bridge::forward_to_contact);
     connect(chat_page_, &chat_widget::forward_requested, client_.get(), &client_bridge::forward_messages);
     connect(chat_page_, &chat_widget::attachment_send_requested, client_.get(), &client_bridge::send_attachment);
     connect(chat_page_, &chat_widget::attachment_interrupt_requested, client_.get(), &client_bridge::interrupt_attachment);

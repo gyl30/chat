@@ -106,6 +106,7 @@ class client_bridge final : public QObject
     quint64 get_poll_voters(qint64 room, qint64 message, qint64 choice, qint64 after);
     quint64 get_bundle(qint64 conversation, qint64 message, qint64 after);
     void forward_bundle(qint64 target, QList<qint64> messages);
+    void forward_to_contact(qint64 peer, QList<qint64> messages, bool bundle);
     void forward_messages(qint64 target, QList<qint64> messages);
     void send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision, chat::text_options options);
     void save_draft(qint64 user, qint64 conversation, qint64 revision, qint64 reply, QString text, chat::text_options options);

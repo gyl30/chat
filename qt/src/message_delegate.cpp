@@ -140,6 +140,8 @@ struct message_layout
 {
     QString text;
     QString sender;
+    QString forward_header;
+    int forward_height = 0;
     QString time;
     bool outgoing = false;
     bool read = false;
@@ -191,7 +193,8 @@ struct message_layout
 
     QPoint text_origin(QRect const& row) const
     {
-        return bubble_rect(row).topLeft() + QPoint(chat_theme::message_padding_horizontal, chat_theme::message_padding_vertical + image_height);
+        return bubble_rect(row).topLeft() +
+               QPoint(chat_theme::message_padding_horizontal, chat_theme::message_padding_vertical + forward_height + image_height);
     }
 
     QUrl link_at(QRect const& row, QPoint point, QModelIndex const& index) const
@@ -258,7 +261,11 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     auto const origin = index.data(message_model::forwarded_from_role).toString();
     if (!origin.isEmpty())
     {
-        result.text = QStringLiteral("转发自 %1\n").arg(origin) + result.text;
+        auto font = time_font(option);
+        font.setBold(true);
+        QFontMetrics metrics(font);
+        result.forward_header = metrics.elidedText(QStringLiteral("转发自 %1").arg(origin), Qt::ElideRight, inner_max - 10);
+        result.forward_height = metrics.height() + 6;
     }
     result.sender = index.data(message_model::sender_name_role).toString();
     result.time = time_text(index);
@@ -436,6 +443,13 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         content_width = std::max(content_width, chip_x + width);
         chip_x += width + 4;
         result.reactions_height = chip_y + chip_height;
+    }
+    if (result.forward_height)
+    {
+        auto font = time_font(option);
+        font.setBold(true);
+        content_width = std::max(content_width, 10 + QFontMetrics(font).horizontalAdvance(result.forward_header));
+        content_height += result.forward_height;
     }
     content_height += result.reactions_height;
 
@@ -618,6 +632,18 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     auto const content_left = bubble.left() + chat_theme::message_padding_horizontal;
     auto const content_right = bubble.right() - chat_theme::message_padding_horizontal + 1;
 
+    if (layout.forward_height)
+    {
+        auto font = time_font(option);
+        font.setBold(true);
+        painter->setFont(font);
+        painter->setPen(themed("link"));
+        painter->drawText(QRect(content_left + 9, content_top, content_right - content_left - 9, layout.forward_height - 5),
+                          Qt::AlignLeft | Qt::AlignVCenter,
+                          layout.forward_header);
+        painter->fillRect(QRect(content_left, content_top + 1, 3, layout.forward_height - 7), themed("link"));
+        content_top += layout.forward_height;
+    }
     painter->setFont(option.font);
     if (layout.image_height > 0)
     {
@@ -854,7 +880,7 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QSt
     auto const bubble_x = bubble.left();
     auto const content_right = bubble_x + layout.bubble_width - chat_theme::message_padding_horizontal;
     auto const metadata_width = layout.time_width + layout.receipt_width + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0);
-    auto const content_top = y + chat_theme::message_padding_vertical + layout.image_height;
+    auto const content_top = y + chat_theme::message_padding_vertical + layout.forward_height + layout.image_height;
     if (layout.image_height > 0 &&
         QRect(bubble_x + chat_theme::message_padding_horizontal, content_top - layout.image_height, layout.image_width, layout.image_height - 8)
             .contains(mouse->position().toPoint()))

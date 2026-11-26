@@ -205,6 +205,7 @@ class chat_widget final : public QWidget
     void create_poll_requested(qint64 room, QString question, QStringList options);
     void content_requested(qint64 conversation, qint64 message, QString kind);
     void bundle_requested(qint64 target, QList<qint64> messages);
+    void forward_to_contact_requested(qint64 peer, QList<qint64> messages, bool bundle);
     void forward_requested(qint64 target, QList<qint64> messages);
     void attachment_send_requested(qint64 conversation, QString path, qint64 reply_to, qint64 client_id, bool group_only);
     void attachment_interrupt_requested(qint64 id, bool cancel, QString path);

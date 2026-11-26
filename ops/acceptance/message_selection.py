@@ -414,7 +414,9 @@ async def forwarding_cases(
             await ui.call("forward_picker", cancel=True)
         elif (await ui.call("forward_picker")).get("open"):
             confirmed = await ui.call("forward_picker", target=destination)
-            assert confirmed.get("confirmed"), confirmed
+            if not confirmed.get("confirmed"):
+                assert not expected, confirmed
+                await ui.call("forward_picker",cancel=True)
         await ui.wait("forward_picker", lambda r: not r.get("open"))
         if expected:
             await until(
@@ -468,6 +470,10 @@ async def forwarding_cases(
     assert (await ui.call("multi", cursor=4))["reply"] == anchor
 
     await open_picker([file, mixed, image])
+    filtered = await ui.call("forward_picker", search="no-such-target")
+    assert not filtered["names"] and filtered["methods"]
+    filtered = await ui.call("forward_picker", search="b")
+    assert filtered["names"] == ["b"]
     await finish("normal batch (text/image/file)", target, [mixed, image, file])
     assert not (await ui.call("multi"))["mode"]
 

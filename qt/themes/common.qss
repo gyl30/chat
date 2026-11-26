@@ -161,18 +161,18 @@ QMainWindow {
             background: ${selected};
             color: ${text_secondary};
         }
-        QListWidget#groupContactPicker, QListWidget#groupSelectedContacts {
+        QListWidget#groupContactPicker, QListWidget#groupSelectedContacts, QListWidget#forwardTargets {
             background: transparent;
             border: 0;
             outline: 0;
         }
-        QListWidget#groupContactPicker::item {
+        QListWidget#groupContactPicker::item, QListWidget#forwardTargets::item {
             padding: 0 8px;
             border-radius: 8px;
         }
-        QListWidget#groupContactPicker::item:hover { background: ${subtle}; }
+        QListWidget#groupContactPicker::item:hover, QListWidget#forwardTargets::item:hover { background: ${subtle}; }
         QListWidget#groupContactPicker:focus { border: 1px solid ${focus}; border-radius: 8px; }
-        QListWidget#groupContactPicker::item:selected { background: ${selected}; color: ${text}; }
+        QListWidget#groupContactPicker::item:selected, QListWidget#forwardTargets::item:selected { background: ${selected}; color: ${text}; }
         QListWidget#groupContactPicker::indicator, QDialog#groupInviteDialog QListWidget::indicator {
             width: 16px;
             height: 16px;
@@ -1037,3 +1037,9 @@ QToolButton#popupCloseButton {
 }
 QToolButton#popupCloseButton:hover { background: ${subtle}; }
 QToolButton#popupCloseButton:focus { border-color: ${focus}; }
+
+QPushButton[forwardMode="true"]:checked {
+    background: ${selected};
+    color: ${text};
+    border: 1px solid ${focus};
+}

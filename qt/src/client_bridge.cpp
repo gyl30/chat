@@ -1145,6 +1145,30 @@ void client_bridge::forward_bundle(qint64 target, QList<qint64> messages)
                                             });
                             });
 }
+void client_bridge::forward_to_contact(qint64 peer, QList<qint64> messages, bool bundle)
+{
+    client_->open_direct_conversation(peer,
+                                      [this, generation = connection_generation_.load(), messages = std::move(messages), bundle](auto result) mutable
+                                      {
+                                          post_result(generation,
+                                                      [this, result = std::move(result), messages = std::move(messages), bundle]() mutable
+                                                      {
+                                                          if (!result)
+                                                          {
+                                                              emit error(display_error(result.error()));
+                                                          }
+                                                          else if (bundle)
+                                                          {
+                                                              forward_bundle(*result, std::move(messages));
+                                                          }
+                                                          else
+                                                          {
+                                                              forward_messages(*result, std::move(messages));
+                                                          }
+                                                      });
+                                      });
+}
+
 void client_bridge::forward_messages(qint64 target, QList<qint64> messages)
 {
     if (messages.isEmpty())

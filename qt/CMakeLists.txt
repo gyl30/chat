@@ -20,6 +20,7 @@ add_executable(client
     src/sidebar_search.hpp
     src/chat_widget.cpp
     src/chat_widget.hpp
+    src/forward_dialog.cpp
     src/create_group_dialog.cpp
     src/create_group_dialog.hpp
     src/clipboard_image.cpp
