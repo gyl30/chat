@@ -43,6 +43,7 @@ class message_model final : public QAbstractListModel
         attachment_type_role,
         reactions_role,
         own_reaction_role,
+        reaction_names_role,
         mentions_role,
         mentioned_role,
         mention_all_role,
@@ -110,6 +111,7 @@ class message_model final : public QAbstractListModel
    private:
     download_tasks* downloads_ = nullptr;
     std::optional<QHash<qint64, message_data>> page_changes_;
+    QString participant_name(qint64 id) const;
     void reconcile_page_row(message_data& message) const;
     avatar_cache* avatars_;
     message_images* images_;

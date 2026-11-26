@@ -120,6 +120,9 @@ static void check_display_roles()
         return body.toString();
     };
     assert(check("普通文本") == "普通文本");
+    model.set_members({member_data{.id = 2, .username = "bob", .avatar = {}, .nickname = "小波"}});
+    assert(model.set_reactions(m.id, 1, {reaction_data{QStringLiteral("👍"), {1, 2, 99}}}));
+    assert(model.message_index(m.id).data(message_model::reaction_names_role).toStringList() == QStringList{QStringLiteral("我、小波、用户 99")});
     m.markdown = true;
     assert(check("**源文**") == "**源文**");
     m.markdown = false;

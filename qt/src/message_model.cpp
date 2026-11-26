@@ -140,6 +140,21 @@ void message_model::set_downloads(download_tasks& downloads)
             });
 }
 
+QString message_model::participant_name(qint64 id) const
+{
+    if (id == self_user_)
+    {
+        return QStringLiteral("我");
+    }
+    const auto member = std::ranges::find(members_, id, &member_data::id);
+    if (member != members_.end())
+    {
+        return member->display_name();
+    }
+    const auto sender = std::ranges::find(messages_, id, &message_data::from);
+    return sender != messages_.end() ? sender->username : QStringLiteral("用户 %1").arg(id);
+}
+
 bool message_model::can_manage_group() const
 {
     return group_ &&
@@ -299,6 +314,23 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return images_ && !message.deleted ? QVariant(images_->status(message.id)) : QVariant{};
         case reactions_role:
             return QVariant::fromValue(message.deleted ? QList<reaction_data>{} : message.reactions);
+        case reaction_names_role:
+        {
+            QStringList groups;
+            if (!message.deleted)
+            {
+                for (const auto& reaction : message.reactions)
+                {
+                    QStringList names;
+                    for (auto id : reaction.users)
+                    {
+                        names.append(participant_name(id));
+                    }
+                    groups.append(names.join(QStringLiteral("、")));
+                }
+            }
+            return groups;
+        }
         case own_reaction_role:
             if (!message.deleted)
             {

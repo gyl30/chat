@@ -193,6 +193,13 @@ struct message_layout
         return {x, bubble_rect(row).bottom() - size + 1, size, size};
     }
 
+    QRect reaction_rect(QRect const& row, int i) const
+    {
+        const auto bubble = bubble_rect(row);
+        return reaction_rects[i].translated(bubble.left() + chat_theme::message_padding_horizontal,
+                                            bubble.bottom() + 1 - chat_theme::message_padding_vertical - reactions_height);
+    }
+
     QRect reply_rect(QRect const& row) const
     {
         const auto bubble = bubble_rect(row);
@@ -898,8 +905,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     for (int i = 0; i < layout.reactions.size(); ++i)
     {
         auto const& reaction = layout.reactions[i];
-        auto const rect =
-            layout.reaction_rects[i].translated(content_left, bubble.bottom() + 1 - chat_theme::message_padding_vertical - layout.reactions_height);
+        auto const rect = layout.reaction_rect(option.rect, i);
         auto const mine = reaction.emoji == own_reaction;
         painter->setPen(Qt::NoPen);
         painter->setBrush(themed(mine ? "reaction_own" : "selected"));
@@ -958,6 +964,18 @@ bool message_delegate::helpEvent(QHelpEvent* event, QAbstractItemView* view, QSt
     if (event->type() == QEvent::ToolTip && view->selectionMode() != QAbstractItemView::ExtendedSelection)
     {
         auto const layout = calculate_layout(option, index);
+        for (int i = 0; i < layout.reactions.size(); ++i)
+        {
+            if (layout.reaction_rect(option.rect, i).contains(event->pos()))
+            {
+                auto names = index.data(message_model::reaction_names_role).toStringList().value(i);
+                QToolTip::showText(event->globalPos(),
+                                   QStringLiteral("<p>%1</p>").arg(names.toHtmlEscaped()),
+                                   view->viewport(),
+                                   layout.reaction_rect(option.rect, i));
+                return true;
+            }
+        }
         if (layout.poll)
         {
             auto pt = event->pos() - layout.text_origin(option.rect);
@@ -1083,9 +1101,7 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QSt
     }
     for (int i = 0; i < layout.reactions.size(); ++i)
     {
-        auto const rect =
-            layout.reaction_rects[i].translated(bubble_x + chat_theme::message_padding_horizontal,
-                                                y + layout.bubble_height - chat_theme::message_padding_vertical - layout.reactions_height);
+        auto const rect = layout.reaction_rect(option.rect, i);
         if (rect.contains(mouse->position().toPoint()))
         {
             emit reaction_clicked(index, layout.reactions[i].emoji);
