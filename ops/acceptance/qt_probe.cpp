@@ -402,6 +402,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         }
         out["names"] = contacts;
         out["groups"] = groups;
+        out["requestsEntry"] = !chat->contacts_requests_button_->isHidden();
         out["requests"] = chat->incoming_friends_->count();
         if (cmd["close"].toBool())
         {

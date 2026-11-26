@@ -504,6 +504,7 @@ async def notifications(ui, gate, a, b, group, root):
 async def contacts_cases(ui, stack, url, a):
     await ui.call("contacts", open=True)
     await ui.wait("contacts", lambda r: r["names"] == ["b"])
+    assert not (await ui.call("contacts"))["requestsEntry"], "empty requests entry"
     await a.ok("create_friend_group", name="同事")
     await a.ok("move_friend", user=2, group="同事")
     await a.ok("set_friend_remark", user=2, remark="小北")
@@ -528,11 +529,12 @@ async def contacts_cases(ui, stack, url, a):
 
     c = await login(stack, url, "c", "c", True)
     await c.ok("send_friend_request", user=1)
-    await ui.wait("contacts", lambda r: r["requests"] == 1)
+    await ui.wait("contacts", lambda r: r["requests"] == 1 and r["requestsEntry"])
     await ui.call("contacts", requests=True, reject=True)
-    await ui.wait("contacts", lambda r: r["requests"] == 0)
+    await ui.wait("contacts", lambda r: r["requests"] == 0 and not r["requestsEntry"])
     assert (await ui.call("contacts"))["names"] == ["小北"]
     await a.ok("send_friend_request", user=3)
+    await ui.wait("contacts", lambda r: not r["requests"] and r["requestsEntry"])
     await c.ok("respond_friend_request", user=1, accept=True)
     await ui.wait("contacts", lambda r: "c" in r["names"])
     await c.ok("remove_contact", user=1)

@@ -3729,6 +3729,7 @@ void chat_widget::set_friend_requests(QList<user_data> incoming, QList<user_data
     auto const incoming_count = incoming_requests_.size();
     auto const outgoing_count = outgoing_requests_.size();
     auto const has_requests = incoming_count > 0 || outgoing_count > 0;
+    contacts_requests_button_->setVisible(has_requests);
     friend_requests_status_->setText(has_requests ? QString{} : QStringLiteral("暂无好友申请"));
     friend_requests_status_->setAlignment(Qt::AlignCenter);
     friend_requests_status_->setVisible(!has_requests);
