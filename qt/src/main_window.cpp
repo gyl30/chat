@@ -1426,7 +1426,6 @@ void main_window::connect_messages()
             this,
             [this](qint64 user, bool group)
             {
-                client_->get_messages(user, history_page::unread);
                 if (group)
                 {
                     client_->get_members(user);

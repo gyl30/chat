@@ -478,8 +478,12 @@ class chat_widget final : public QWidget
     struct reading_position
     {
         qint64 message = 0;
-        int offset = 0;
+        std::optional<int> offset = 0;
     };
+    QHash<qint64, reading_position> reading_positions_;
+    std::optional<reading_position> target_position_;
+    void request_entry_history();
+    void request_position(reading_position position);
     reading_position capture_reading_position() const;
     void restore_reading_position(reading_position position);
     void preserve_reading(const std::function<void()>& change);

@@ -34,7 +34,15 @@ void chat_widget::restore_reading_position(reading_position position)
     if (top.isValid())
     {
         auto* scroll = messages_view_->verticalScrollBar();
-        scroll->setValue(scroll->value() + messages_view_->visualRect(top).top() - position.offset);
+        if (position.offset)
+        {
+            scroll->setValue(scroll->value() + messages_view_->visualRect(top).top() - *position.offset);
+        }
+        else
+        {
+            messages_view_->setCurrentIndex(top);
+            messages_view_->scrollTo(top, QAbstractItemView::PositionAtCenter);
+        }
     }
 }
 
@@ -80,10 +88,42 @@ void chat_widget::set_messages_loading(bool loading)
     }
 }
 
+void chat_widget::request_position(reading_position position)
+{
+    target_position_ = position;
+    set_messages_loading(true);
+    emit history_requested(active_conversation_, history_page::around, position.message);
+}
+
+void chat_widget::request_entry_history()
+{
+    auto position = reading_positions_.take(active_conversation_);
+    if (position.message > history_floor(active_conversation_))
+    {
+        request_position(position);
+        return;
+    }
+    set_messages_loading(true);
+    emit history_requested(active_conversation_, history_page::unread);
+}
+
 void chat_widget::begin_history_refresh()
 {
     set_messages_loading(true);
     update_reading_navigation();
+    if (target_position_)
+    {
+        request_position(*target_position_);
+        return;
+    }
+    const bool at_end = messages_loaded_ && !capture_reading_position().message;
+    // Until the server answers, a live delivery may be separated from these rows by a gap.
+    tail_loaded_ = false;
+    if (at_end)
+    {
+        emit history_requested(active_conversation_, history_page::latest);
+        return;
+    }
     emit history_requested(active_conversation_,
                            messages_loaded_ ? history_page::refresh : history_page::unread,
                            std::max<qint64>(0, messages_->first_message_id() - 1));
@@ -170,7 +210,8 @@ void chat_widget::request_newer_messages()
 void chat_widget::return_to_latest()
 {
     messages_->set_unread_boundary(0);
-    if (tail_loaded_)
+    target_position_.reset();
+    if (tail_loaded_ && !messages_loading_)
     {
         messages_view_->doItemsLayout();
         messages_view_->scrollToBottom();

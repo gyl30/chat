@@ -951,38 +951,43 @@ void client_bridge::get_messages(qint64 conversation, history_page page, qint64 
     auto const after = (page == history_page::newer || page == history_page::refresh) ? std::optional(cursor) : std::nullopt;
     auto const generation = ++messages_generation_;
     auto const connection = connection_generation_.load();
-    client_->get_messages(
-        conversation,
-        before,
-        [this, conversation, page, generation, connection](auto result)
-        {
-            post_result(
-                connection,
-                [this, conversation, page, generation, result = std::move(result)]() mutable
+    auto receive = [this, conversation, page, generation, connection](auto result)
+    {
+        post_result(
+            connection,
+            [this, conversation, page, generation, result = std::move(result)]() mutable
+            {
+                if (generation != messages_generation_)
                 {
-                    if (generation != messages_generation_)
+                    return;
+                }
+                if (!result)
+                {
+                    if (result.error().kind == chat::error_kind::rpc && page != history_page::around &&
+                        result.error().code == chat::conversation_unavailable)
                     {
+                        emit conversation_changed(conversation, true);
                         return;
                     }
-                    if (!result)
-                    {
-                        if (result.error().kind == chat::error_kind::rpc && result.error().code == chat::conversation_unavailable)
-                        {
-                            emit conversation_changed(conversation, true);
-                            return;
-                        }
-                        emit messages_received(conversation, {}, {}, page, false, false, {}, display_error(result.error()));
-                        return;
-                    }
-                    auto messages = to_messages(result->messages);
-                    auto positions = to_read_positions(result->read_positions);
-                    emit history_boundary(conversation, result->visible_after, page == history_page::refresh && result->hidden);
-                    emit messages_received(
-                        conversation, std::move(messages), std::move(positions), page, result->has_more, result->has_newer, result->first_unread, {});
-                });
-        },
-        after,
-        page == history_page::unread);
+                    emit messages_received(conversation, {}, {}, page, false, false, {}, display_error(result.error()));
+                    return;
+                }
+                auto messages = to_messages(result->messages);
+                auto positions = to_read_positions(result->read_positions);
+                emit history_boundary(
+                    conversation, result->visible_after, (page == history_page::refresh || page == history_page::latest) && result->hidden);
+                emit messages_received(
+                    conversation, std::move(messages), std::move(positions), page, result->has_more, result->has_newer, result->first_unread, {});
+            });
+    };
+    if (page == history_page::around)
+    {
+        client_->get_messages_around(conversation, cursor, std::move(receive));
+    }
+    else
+    {
+        client_->get_messages(conversation, before, std::move(receive), after, page == history_page::unread);
+    }
 }
 
 void client_bridge::set_typing(qint64 conversation, bool typing)

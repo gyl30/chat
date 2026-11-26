@@ -267,6 +267,11 @@ async def scenario(probe, mode):
                         await ui.call("poll_ui", close=True)
                         state = await ui.call("reading")
                         assert (state["topId"], state["offset"]) == expected
+                        await ui.call("select", conv=direct)
+                        await ui.wait("reading", lambda r: r["ready"])
+                        await ui.call("select", conv=g)
+                        reopened = await ui.wait("reading", lambda r: r["ready"])
+                        assert (reopened["topId"], reopened["offset"]) == expected
                     elif mode.startswith("detail_"):
                         gate.hold.add("get_poll_voters")
                         await ui.call("poll_ui", open=mid)

@@ -2792,8 +2792,9 @@ void chat_widget::connect_chat_controls()
     connect(messages_view_->verticalScrollBar(),
             &QScrollBar::valueChanged,
             this,
-            [this](int value)
+            [this, last = 0](int value) mutable
             {
+                const int previous = std::exchange(last, value);
                 if (changing_layout_)
                 {
                     return;
@@ -2801,11 +2802,12 @@ void chat_widget::connect_chat_controls()
                 load_visible_images();
                 update_reading_navigation();
                 mark_visible_messages();
-                if (value == messages_view_->verticalScrollBar()->minimum())
+                const int threshold = messages_view_->viewport()->height();
+                if (value <= threshold && value < previous)
                 {
                     request_older_messages();
                 }
-                else if (value == messages_view_->verticalScrollBar()->maximum())
+                else if (messages_view_->verticalScrollBar()->maximum() - value <= threshold && value > previous)
                 {
                     request_newer_messages();
                 }
@@ -2847,6 +2849,8 @@ void chat_widget::set_user(QString const& username, qint64 user, QString const& 
     self_profile_action_->setIcon(avatar_icon(username, 24));
     self_profile_action_->setEnabled(user > 0);
     history_floors_.clear();
+    reading_positions_.clear();
+    target_position_.reset();
     draft_timer_->stop();
     drafts_.clear();
     outgoing_.clear();
@@ -2855,6 +2859,7 @@ void chat_widget::set_user(QString const& username, qint64 user, QString const& 
     active_group_ = false;
     reset_reply();
     active_conversation_ = 0;
+    target_position_.reset();
     ++conversation_visit_;
     observed_tail_ = requested_read_ = 0;
     tail_loaded_ = false;
@@ -3338,7 +3343,6 @@ void chat_widget::set_connection_available(bool available)
     if (!available)
     {
         requested_read_ = 0;
-        tail_loaded_ = false;
     }
     update_reading_navigation();
     update_compose_state();
@@ -3748,7 +3752,7 @@ void chat_widget::set_messages(qint64 user,
         return_to_latest();
         return;
     }
-    bool const position_page = page == history_page::latest || page == history_page::unread;
+    bool const position_page = page == history_page::latest || page == history_page::unread || page == history_page::around;
     auto const previous = capture_reading_position();
     auto const previous_tail = messages_->last_message_id();
     auto const page_end = messages.isEmpty() ? 0 : messages.back().id;
@@ -3778,6 +3782,7 @@ void chat_widget::set_messages(qint64 user,
     {
         tail_loaded_ = !has_newer && observed_tail_ <= messages_->last_message_id();
     }
+    show_outgoing();
     if (position_page || page == history_page::older)
     {
         history_exhausted_ = !has_more;
@@ -3803,6 +3808,20 @@ void chat_widget::set_messages(qint64 user,
     if (anchor.isValid())
     {
         scroll_to_unread(anchor);
+    }
+    else if (page == history_page::around && target_position_)
+    {
+        auto target = *std::exchange(target_position_, std::nullopt);
+        auto index = messages_->message_index(target.message);
+        if (index.isValid() && !index.data(message_model::deleted_role).toBool())
+        {
+            restore_reading_position(target);
+        }
+        else
+        {
+            request_entry_history();
+            return;
+        }
     }
     else if (position_page)
     {
@@ -4068,6 +4087,10 @@ void chat_widget::set_history_error(qint64 conversation, QString message)
     {
         set_messages_loading(false);
         update_reading_navigation();
+        if (std::exchange(target_position_, std::nullopt) && !messages_loaded_)
+        {
+            request_entry_history();
+        }
         set_message_status(std::move(message));
     }
 }
@@ -4635,6 +4658,7 @@ void chat_widget::open_conversation(conversation_data conversation)
             show_loading_status();
             if (connection_available_)
             {
+                request_entry_history();
                 emit conversation_selected(active_conversation_, active_group_);
             }
         }
@@ -4647,6 +4671,19 @@ void chat_widget::open_conversation(conversation_data conversation)
     typing_users_.clear();
     update_typing_label();
     images_.discard_queued();
+    if (active_conversation_ && messages_loaded_)
+    {
+        auto position = capture_reading_position();
+        if (position.message)
+        {
+            reading_positions_.insert(active_conversation_, position);
+        }
+        else
+        {
+            reading_positions_.remove(active_conversation_);
+        }
+    }
+    target_position_.reset();
     active_conversation_ = user;
     ++conversation_visit_;
     observed_tail_ = requested_read_ = 0;
@@ -4668,6 +4705,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     update_compose_state();
     if (connection_available_)
     {
+        request_entry_history();
         emit conversation_selected(active_conversation_, active_group_);
     }
 }
@@ -4689,6 +4727,10 @@ void chat_widget::discard_history(qint64 conversation, qint64 floor)
         return;
     }
     history_floors_.insert(conversation, floor);
+    if (reading_positions_.value(conversation).message <= floor)
+    {
+        reading_positions_.remove(conversation);
+    }
     emit history_discarded(conversation, floor);
     conversations_->discard_through(conversation, floor);
     images_.remove(conversation, 1, floor);
@@ -4739,6 +4781,7 @@ void chat_widget::close_conversation(qint64 conversation)
 
 void chat_widget::leave_conversation(qint64 conversation)
 {
+    reading_positions_.remove(conversation);
     conversations_->remove_conversation(conversation);
     if (conversations_->rowCount() == 0)
     {
@@ -4757,6 +4800,7 @@ void chat_widget::leave_conversation(qint64 conversation)
     typing_users_.clear();
     update_typing_label();
     active_conversation_ = 0;
+    target_position_.reset();
     ++conversation_visit_;
     observed_tail_ = requested_read_ = 0;
     tail_loaded_ = false;
@@ -5372,6 +5416,11 @@ void chat_widget::submit(outgoing const& item)
 void chat_widget::show_outgoing()
 {
     emit uploads_changed();
+    if (!tail_loaded_)
+    {
+        messages_->set_pending({});
+        return;
+    }
     QList<message_model::pending_message> pending;
     for (auto const& item : outgoing_)
     {

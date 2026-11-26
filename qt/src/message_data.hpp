@@ -14,6 +14,7 @@ enum class history_page
 {
     unread,
     refresh,
+    around,
     latest,
     older,
     newer,
