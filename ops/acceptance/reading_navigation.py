@@ -339,6 +339,70 @@ async def run(
                     flush=True,
                 )
 
+                # Resume the real multipart task at the tail, then finish it over Silo
+                # after jumping into a disjoint historical page.
+                await ui.call("reading", latest=True, activate=True)
+                await ui.wait("reading", lambda r: r["viewingLatest"])
+                await select(other)
+                await select(group)
+                await ui.wait("reading", lambda r: r["first"] > prefix[24])
+                gate.hold_requests.add("finish_attachment")
+                transfer = await ui.wait(
+                    "transfers",
+                    lambda r: any(
+                        pending_file.name in label for label in r["resumable"]
+                    ),
+                )
+                label = next(
+                    label
+                    for label in transfer["resumable"]
+                    if pending_file.name in label
+                )
+                assert (await ui.call("transfers", label=label, action="继续上传"))[
+                    "triggered"
+                ]
+                await until(
+                    lambda: any(
+                        m["method"] == "finish_attachment"
+                        for _, m in gate.held_requests
+                    ),
+                    "resumed upload at finalization",
+                )
+                await ui.call("reading", jumpReply=prefix[24])
+                before = await ui.wait(
+                    "reading", lambda r: r["ready"] and r["last"] < editable
+                )
+                await gate.release_requests("finish_attachment")
+                await until(lambda: pending()[0] is None, "original upload completed")
+                burst = [await send(b, f"阅读历史期间的来信 {i}") for i in range(55)]
+                await ui.wait("reading", lambda r: r["count"] >= len(burst))
+                after = await ui.call("reading")
+                assert (after["topId"], after["offset"], after["last"]) == (
+                    before["topId"],
+                    before["offset"],
+                    before["last"],
+                )
+                assert not read_at_least(burst[0])
+                assert not any(
+                    not row["id"] for row in (await ui.call("state"))["rows"]
+                )
+                with sqlite3.connect(db) as conn:
+                    assert conn.execute(
+                        "SELECT count(*) FROM messages WHERE sender_id=1 AND client_id=?",
+                        (upload_id,),
+                    ).fetchone() == (1,)
+                await ui.call("reading", latest=True)
+                await ui.wait(
+                    "reading",
+                    lambda r: r["ready"]
+                    and r["viewingLatest"]
+                    and r["last"] == burst[-1],
+                )
+                print(
+                    "PASS resumed Silo upload and 55 incoming messages preserve the historical row, offset, interval and read frontier",
+                    flush=True,
+                )
+
                 await ui.call("searchui", open=True)
                 await ui.wait("searchui", lambda state: state.get("open"))
                 await ui.call("searchui", filters=True, mentions=True, submit=True)
@@ -515,6 +579,15 @@ async def divider_lifecycle(ui, reader, peer, db, send, select, gate, other):
         before = await ui.wait("reading", lambda r: r["count"] == 18 - read)
         assert before["boundary"] == marker
         assert before["buttonText"].endswith(str(18 - read))
+        if read == 3:
+            assert (await ui.call("multi", start=ids[read - 1]))["valid"] == [ids[read - 1]]
+            assert not (await ui.call("multi", key="esc"))["mode"]
+            restored = await ui.call("reading")
+            for field in ("topId", "offset", "boundary", "count"):
+                assert restored[field] == before[field], (field, before[field], restored[field])
+            assert watermark() == ids[read - 1]
+            await ui.call("reading", activate=True)
+            await ui.wait("reading", lambda r: r["active"] and not r["popup"])
         state = await reader.ok("get_messages", conversation=room, capture_unread=True)
         assert state["first_unread"] == ids[read]
         await ui.call("reading", older=True)
