@@ -123,11 +123,17 @@ QFont date_font(QStyleOptionViewItem const& option)
     return font;
 }
 
+int choice_gutter(QStyleOptionViewItem const& option)
+{
+    const auto* view = qobject_cast<QAbstractItemView const*>(option.widget);
+    return view && view->selectionMode() == QAbstractItemView::ExtendedSelection ? 30 : 0;
+}
+
 int maximum_bubble_width(QStyleOptionViewItem const& option)
 {
     auto const width = std::max(320, option.rect.width());
     auto const reserved = chat_theme::message_side_margin * 2 + chat_theme::message_avatar_skip;
-    return std::max(180, std::min(chat_theme::message_max_width, width - reserved));
+    return std::max(180, std::min(chat_theme::message_max_width, width - reserved - choice_gutter(option)));
 }
 
 struct message_layout
@@ -148,6 +154,7 @@ struct message_layout
     int receipt_width = 0;
     int bubble_width = 0;
     int bubble_height = 0;
+    int gutter = 0;
     int day_height = 0;
     int unread_height = 0;
     int top_margin = 0;
@@ -167,7 +174,7 @@ struct message_layout
     QRect bubble_rect(QRect const& row) const
     {
         int const margin = chat_theme::message_side_margin + chat_theme::message_avatar_skip;
-        int const x = outgoing ? row.right() - margin - bubble_width + 1 : row.left() + margin;
+        int const x = outgoing ? row.right() - margin - bubble_width + 1 : row.left() + margin + gutter;
         return {x, row.top() + day_height + unread_height + top_margin, bubble_width, bubble_height};
     }
 
@@ -178,7 +185,7 @@ struct message_layout
             return {};
         }
         constexpr int size = chat_theme::message_avatar_size;
-        auto const x = outgoing ? row.right() - chat_theme::message_side_margin - size + 1 : row.left() + chat_theme::message_side_margin;
+        auto const x = outgoing ? row.right() - chat_theme::message_side_margin - size + 1 : row.left() + chat_theme::message_side_margin + gutter;
         return {x, bubble_rect(row).bottom() - size + 1, size, size};
     }
 
@@ -228,6 +235,7 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         result.poll = poll.value<chat::poll_summary>();
     }
     result.outgoing = outgoing_at(index);
+    result.gutter = choice_gutter(option);
     auto const bubble_max = maximum_bubble_width(option);
     auto const inner_max = std::max(80, bubble_max - chat_theme::message_padding_horizontal * 2);
 
@@ -573,6 +581,25 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         painter->drawText(band, Qt::AlignCenter, label);
     }
     auto const bubble = layout.bubble_rect(option.rect);
+    if (layout.gutter && index.flags().testFlag(Qt::ItemIsSelectable))
+    {
+        const bool selected = option.state.testFlag(QStyle::State_Selected);
+        auto area = option.rect.adjusted(0, layout.day_height + layout.unread_height, 0, 0);
+        if (selected)
+        {
+            painter->fillRect(area, themed("selected"));
+        }
+        QPoint center(option.rect.left() + chat_theme::message_side_margin + 9, std::min(bubble.center().y(), bubble.top() + 21));
+        painter->setPen(QPen(themed(selected ? "accent" : "border_strong"), 1.5));
+        painter->setBrush(selected ? QBrush(themed("accent")) : Qt::NoBrush);
+        painter->drawEllipse(center, 9, 9);
+        if (selected)
+        {
+            painter->setPen(QPen(themed("on_accent"), 2, Qt::SolidLine, Qt::RoundCap));
+            painter->drawLine(center + QPoint(-4, 0), center + QPoint(-1, 3));
+            painter->drawLine(center + QPoint(-1, 3), center + QPoint(5, -4));
+        }
+    }
     if (auto rect = layout.avatar_rect(option.rect); !rect.isEmpty())
     {
         paint_avatar(*painter, rect, layout.sender, 13, index.data(Qt::DecorationRole).value<QPixmap>());
@@ -581,7 +608,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     painter->setPen(Qt::NoPen);
     painter->setBrush(layout.outgoing ? themed("bubble_out") : themed("bubble_in"));
     auto const path = bubble_path(bubble, layout.outgoing, layout.group_start, layout.group_end);
-    if (!context_anchor_ && (layout.bundle || layout.poll) && (option.state & (QStyle::State_MouseOver | QStyle::State_HasFocus)))
+    if (!layout.gutter && !context_anchor_ && (layout.bundle || layout.poll) && (option.state & (QStyle::State_MouseOver | QStyle::State_HasFocus)))
     {
         painter->setPen(themed("focus"));
     }
@@ -690,11 +717,9 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         painter->drawText(rect, Qt::AlignCenter, reaction.emoji + QStringLiteral(" %1").arg(reaction.users.size()));
     }
 
-    auto const* view = qobject_cast<QAbstractItemView const*>(option.widget);
     bool const focused =
         context_anchor_ ? index.data(message_model::id_role).toLongLong() == *context_anchor_ : option.state.testFlag(QStyle::State_HasFocus);
-    if (focused ||
-        (!context_anchor_ && (!view || view->selectionMode() != QAbstractItemView::NoSelection) && (option.state & QStyle::State_Selected)))
+    if (!layout.gutter && focused)
     {
         painter->setPen(QPen(themed("message_focus"), focused ? 1.5 : 1.0));
         painter->setBrush(Qt::NoBrush);
@@ -715,11 +740,11 @@ QSize message_delegate::sizeHint(QStyleOptionViewItem const& option, QModelIndex
     };
 }
 
-bool message_delegate::on_unread_divider(QStyleOptionViewItem const& option, QModelIndex const& index, QPoint position)
+bool message_delegate::on_separator(QStyleOptionViewItem const& option, QModelIndex const& index, QPoint position)
 {
     auto const layout = calculate_layout(option, index);
-    auto const y = position.y() - option.rect.top() - layout.day_height;
-    return y >= 0 && y < layout.unread_height;
+    auto const y = position.y() - option.rect.top();
+    return y >= 0 && y < layout.day_height + layout.unread_height;
 }
 
 QUrl message_delegate::link_at(QStyleOptionViewItem const& option, QModelIndex const& index, QPoint position)

@@ -766,25 +766,24 @@ QMainWindow {
         QToolButton#chatHistoryButton:hover:enabled {
             background: ${canvas_hover};
         }
-        QFrame QToolButton[composeText="true"], QWidget#messageSelectionBar QPushButton {
+        QFrame QToolButton[composeText="true"] {
             background: ${surface};
             color: ${text};
             border: 1px solid transparent;
             border-radius: 6px;
             padding: 2px 1px;
         }
-        QFrame QToolButton[composeText="true"]:hover:enabled, QWidget#messageSelectionBar QPushButton:hover:enabled {
+        QFrame QToolButton[composeText="true"]:hover:enabled {
             background: ${subtle};
         }
-        QFrame QToolButton[composeText="true"]:checked, QFrame QToolButton[composeText="true"]:pressed:enabled,
-        QWidget#messageSelectionBar QPushButton:pressed:enabled {
+        QFrame QToolButton[composeText="true"]:checked, QFrame QToolButton[composeText="true"]:pressed:enabled {
             background: ${selected};
             border-color: ${accent};
         }
-        QFrame#inputBar QToolButton:focus, QWidget#messageSelectionBar QPushButton:focus {
+        QFrame#inputBar QToolButton:focus {
             border: 1px dashed ${focus};
         }
-        QFrame QToolButton[composeText="true"]:disabled, QWidget#messageSelectionBar QPushButton:disabled {
+        QFrame QToolButton[composeText="true"]:disabled {
             color: ${text_muted};
         }
         QToolButton#mentionMemberButton::menu-indicator { image: none; }

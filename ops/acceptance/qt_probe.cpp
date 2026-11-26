@@ -1,3 +1,4 @@
+#include <QStackedWidget>
 #include "message_delegate.hpp"
 #include <iostream>
 #include <QListWidget>
@@ -947,19 +948,8 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     else if (op == "multi")
     {
         auto* bar = chat->selection_bar_;
-        auto action_button = [bar](QString const& label) -> QPushButton*
-        {
-            for (auto* action : bar->findChildren<QPushButton*>())
-            {
-                if (action->text() == label)
-                {
-                    return action;
-                }
-            }
-            return nullptr;
-        };
-        auto* copy = action_button(QStringLiteral("复制"));
-        auto* forward = action_button(QStringLiteral("转发"));
+        auto* copy = chat->selection_copy_;
+        auto* forward = chat->selection_forward_;
         if (cmd.contains("seed"))
         {
             QApplication::clipboard()->setText(cmd["seed"].toString());
@@ -994,7 +984,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         {
             auto const ix = find(cmd["start"]);
             view->scrollTo(ix);
-            choose_menu_action(view, view->visualRect(ix).center(), QStringLiteral("多选"));
+            choose_menu_action(view, view->visualRect(ix).center(), QStringLiteral("选择消息"));
         }
         if (cmd.contains("click"))
         {
@@ -1008,6 +998,13 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                                                                         : Qt::NoModifier;
                 QMouseEvent press(QEvent::MouseButtonPress, pos, view->viewport()->mapToGlobal(pos.toPoint()), Qt::LeftButton, Qt::LeftButton, mod);
                 QApplication::sendEvent(view->viewport(), &press);
+                if (cmd.contains("dragTo"))
+                {
+                    auto dest = find(cmd["dragTo"]);
+                    pos = view->visualRect(dest).center();
+                    QMouseEvent move(QEvent::MouseMove, pos, view->viewport()->mapToGlobal(pos.toPoint()), Qt::NoButton, Qt::LeftButton, mod);
+                    QApplication::sendEvent(view->viewport(), &move);
+                }
                 QMouseEvent release(QEvent::MouseButtonRelease, pos, view->viewport()->mapToGlobal(pos.toPoint()), Qt::LeftButton, Qt::NoButton, mod);
                 QApplication::sendEvent(view->viewport(), &release);
             }
@@ -1041,6 +1038,9 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         out["selected"] = selected;
         out["valid"] = valid;
         out["count"] = bar->findChild<QLabel*>("selectedMessageCount")->text();
+        out["listHeight"] = view->height();
+        out["headerHeight"] = chat->chat_headers_->height();
+        out["editorHeight"] = edit->height();
         out["connected"] = chat->connection_available_;
         out["mode"] = view->selectionMode() == QAbstractItemView::ExtendedSelection;
         out["copy"] = copy->isEnabled();
@@ -1198,7 +1198,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         out["open"] = false;
         if (cmd["open"].toBool())
         {
-            QTimer::singleShot(0, chat->selection_forward_, &QPushButton::click);
+            QTimer::singleShot(0, chat->selection_forward_, &QToolButton::click);
         }
         if (auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
             dialog && dialog->isVisible() && dialog->windowTitle() == QStringLiteral("选择转发目标"))

@@ -109,7 +109,7 @@ async def cases(ui, gate, peer, db, group, target, seeded, mixed, image, file, t
         await multi(key="esc")
         assert (await multi(start=ids[0]))["mode"]
         for mid in ids[1:]:
-            await multi(click=mid, modifier="ctrl")
+            await multi(click=mid)
 
     await ui.wait("select", lambda result: result["ok"], conv=group)
     await ui.wait("state", lambda s: file in [row["id"] for row in s["rows"]])
@@ -136,6 +136,26 @@ async def cases(ui, gate, peer, db, group, target, seeded, mixed, image, file, t
     initial = await multi(cursor=3)
     assert initial["reply"] == seeded[-1] and initial["cursor"] == 3
 
+    # Take the layout baseline after the multiline draft has requested its new height.
+    await ui.call("multi", key="esc")
+    initial_layout = await multi()
+    await select(file)
+    layout = await multi()
+    assert layout["headerHeight"] == initial_layout["headerHeight"] and layout["listHeight"] == initial_layout["listHeight"], (initial_layout,layout)
+    toggled = await multi(click=file)
+    assert not toggled["mode"] and not toggled["valid"]
+    await select(file)
+    dragged = await multi(click=mixed, dragTo=image)
+    assert dragged["valid"] == [mixed, image, file], dragged
+    await ui.call("message_menu", open=file)
+    selected_menu = await ui.wait("message_menu", lambda r: r.get("open"))
+    assert [s for s in selected_menu["actions"] if s] == [
+        "复制所选消息",
+        "转发所选消息",
+        "取消选择",
+    ]
+    await ui.call("message_menu", action="取消选择")
+    await ui.wait("multi", lambda r: not r["mode"])
     await select(file)
     contiguous = await multi(click=mixed, modifier="shift")
     assert contiguous["valid"] == [mixed, image, file], contiguous
@@ -147,9 +167,9 @@ async def cases(ui, gate, peer, db, group, target, seeded, mixed, image, file, t
     button_result = await multi(button=True)
     assert button_result["buttonFocused"], button_result
     expected = text + "\n图片：示例.png\n0.1 KiB\n文件：example.bin\n0.0 KiB"
-    assert key_result["clipboard"] == button_result["clipboard"] == expected, (
-        button_result
-    )
+    assert (
+        key_result["clipboard"] == button_result["clipboard"] == expected
+    ), button_result
     assert all(
         button_result[field] == initial[field] for field in ("draft", "cursor", "reply")
     ), button_result
@@ -312,9 +332,9 @@ async def cases(ui, gate, peer, db, group, target, seeded, mixed, image, file, t
             ui, gate, peer, a2, db, group, target, mixed, image, file, select
         )
 
-    assert after_first["count"] == "已选 1 条" and not after_first["marked"], (
-        after_first
-    )
+    assert (
+        after_first["count"] == "已选 1 条" and not after_first["marked"]
+    ), after_first
     assert (
         after_all["count"] == "已选 0 条"
         and not after_all["copy"]

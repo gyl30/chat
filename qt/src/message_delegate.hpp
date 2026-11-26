@@ -15,7 +15,7 @@ class message_delegate final : public QStyledItemDelegate
     QSize sizeHint(QStyleOptionViewItem const& option, QModelIndex const& index) const override;
     bool editorEvent(QEvent* event, QAbstractItemModel* model, QStyleOptionViewItem const& option, QModelIndex const& index) override;
 
-    static bool on_unread_divider(QStyleOptionViewItem const& option, QModelIndex const& index, QPoint position);
+    static bool on_separator(QStyleOptionViewItem const& option, QModelIndex const& index, QPoint position);
     static QString code_at(QStyleOptionViewItem const& option, QModelIndex const& index, QPoint point);
     static QUrl link_at(QStyleOptionViewItem const& option, QModelIndex const& index, QPoint position);
     bool helpEvent(QHelpEvent* event, QAbstractItemView* view, QStyleOptionViewItem const& option, QModelIndex const& index) override;

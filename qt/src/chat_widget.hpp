@@ -247,6 +247,7 @@ class chat_widget final : public QWidget
     QModelIndexList selected_messages() const;
     void choose_forward_target(QList<QPersistentModelIndex> const& rows);
     void copy_selected_messages();
+    void retract_selected_messages();
     void show_message_menu(QPoint position);
     void connect_chat_controls();
 
@@ -410,10 +411,12 @@ class chat_widget final : public QWidget
     QHash<qint64, peer_typing> typing_users_;
     QToolButton* connection_status_ = nullptr;
     QLabel* message_status_ = nullptr;
+    QStackedWidget* chat_headers_ = nullptr;
     QWidget* selection_bar_ = nullptr;
     QLabel* selection_count_ = nullptr;
-    QPushButton* selection_copy_ = nullptr;
-    QPushButton* selection_forward_ = nullptr;
+    QToolButton* selection_retract_ = nullptr;
+    QToolButton* selection_copy_ = nullptr;
+    QToolButton* selection_forward_ = nullptr;
     QListView* messages_view_ = nullptr;
     QWidget* input_bar_ = nullptr;
     QLabel* speech_notice_ = nullptr;

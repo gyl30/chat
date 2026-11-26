@@ -140,7 +140,95 @@ class message_list_view final : public QListView
         connect(&overlay_, &QScrollBar::sliderReleased, &timer_, qOverload<>(&QTimer::start));
     }
 
+    std::function<void()> selection_finished;
+    bool selecting_range() const { return drag_start_.isValid(); }
+
    protected:
+    void mousePressEvent(QMouseEvent* event) override
+    {
+        if (selectionMode() != ExtendedSelection)
+        {
+            QListView::mousePressEvent(event);
+            return;
+        }
+        if (event->button() != Qt::LeftButton)
+        {
+            return;
+        }
+        auto hit = indexAt(event->position().toPoint());
+        if (!(hit.flags() & Qt::ItemIsSelectable))
+        {
+            return;
+        }
+        setFocus(Qt::MouseFocusReason);
+        selectionModel()->select(QItemSelection{}, QItemSelectionModel::Select);
+        const bool range = event->modifiers().testFlag(Qt::ShiftModifier) && currentIndex().isValid();
+        drag_start_ = range ? currentIndex() : hit;
+        drag_select_ = range || !selectionModel()->isSelected(hit);
+        if (!range)
+        {
+            selectionModel()->setCurrentIndex(hit, QItemSelectionModel::NoUpdate);
+        }
+        select_range(hit);
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override
+    {
+        if (selectionMode() != ExtendedSelection)
+        {
+            QListView::mouseMoveEvent(event);
+            return;
+        }
+        if (!drag_start_.isValid() || !(event->buttons() & Qt::LeftButton))
+        {
+            return;
+        }
+        auto pos = event->position().toPoint();
+        if (pos.y() < 0 || pos.y() >= viewport()->height())
+        {
+            verticalScrollBar()->triggerAction(pos.y() < 0 ? QAbstractSlider::SliderSingleStepSub : QAbstractSlider::SliderSingleStepAdd);
+            pos.setY(std::clamp(pos.y(), 0, viewport()->height() - 1));
+        }
+        auto hit = indexAt(pos);
+        if (hit.isValid())
+        {
+            QStyleOptionViewItem option;
+            initViewItemOption(&option);
+            option.rect = visualRect(hit);
+            if (!message_delegate::on_separator(option, hit, pos))
+            {
+                select_range(hit);
+            }
+        }
+    }
+
+    void mouseReleaseEvent(QMouseEvent* event) override
+    {
+        if (selectionMode() != ExtendedSelection)
+        {
+            QListView::mouseReleaseEvent(event);
+            return;
+        }
+        if (event->button() == Qt::LeftButton)
+        {
+            selectionModel()->select(QItemSelection{}, QItemSelectionModel::Select);
+            drag_start_ = QModelIndex{};
+            selection_finished();
+        }
+    }
+
+    void mouseDoubleClickEvent(QMouseEvent* event) override
+    {
+        if (selectionMode() == ExtendedSelection)
+        {
+            mousePressEvent(event);
+        }
+        else
+        {
+            QListView::mouseDoubleClickEvent(event);
+        }
+    }
+
     void resizeEvent(QResizeEvent* event) override
     {
         QListView::resizeEvent(event);
@@ -150,6 +238,18 @@ class message_list_view final : public QListView
     }
 
    private:
+    void select_range(QModelIndex end)
+    {
+        auto first = QModelIndex(drag_start_);
+        if (end.row() < first.row())
+        {
+            std::swap(first, end);
+        }
+        selectionModel()->select(QItemSelection(first, end),
+                                 (drag_select_ ? QItemSelectionModel::Select : QItemSelectionModel::Deselect) | QItemSelectionModel::Current);
+    }
+    QPersistentModelIndex drag_start_;
+    bool drag_select_ = false;
     QScrollBar overlay_;
     QTimer timer_;
 };
@@ -1541,7 +1641,10 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
             &QAction::triggered,
             this,
             [this] { emit message_search_requested(active_conversation_, self_user_, active_group_, active_username_, {}); });
-    chat_layout->addWidget(header);
+    chat_headers_ = new QStackedWidget(chat_panel);
+    chat_headers_->addWidget(header);
+    chat_headers_->setFixedHeight(header_layout->sizeHint().height());
+    chat_layout->addWidget(chat_headers_);
 
     connection_status_ = new QToolButton(chat_panel);
     connection_status_->setObjectName(QStringLiteral("connectionStatusButton"));
@@ -1667,20 +1770,35 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     chat_layout->addWidget(messages_view_, 1);
     connect(messages_view_->verticalScrollBar(), &QScrollBar::rangeChanged, this, &chat_widget::update_reading_navigation);
 
-    selection_bar_ = new QWidget(chat_panel);
+    selection_bar_ = new QWidget(chat_headers_);
     selection_bar_->setObjectName(QStringLiteral("messageSelectionBar"));
     auto* selection = new QHBoxLayout(selection_bar_);
+    selection->setContentsMargins(16, 5, 12, 5);
+    auto action_button = [&](QString name, QString text, QString icon, bool danger = false)
+    {
+        auto* button = new QToolButton(selection_bar_);
+        button->setObjectName(name);
+        button->setText(text);
+        button->setToolTip(text);
+        button->setAccessibleName(text);
+        button->setProperty("navigationTool", true);
+        button->setFixedSize(38, 38);
+        auto refresh = [button, icon, danger] { button->setIcon(svg_icon(icon, themed(danger ? "danger" : "text"))); };
+        refresh();
+        connect(&theme_manager::instance(), &theme_manager::changed, button, refresh);
+        button->installEventFilter(this);
+        selection->addWidget(button);
+        return button;
+    };
+    auto* cancel = action_button(QStringLiteral("cancelSelection"), QStringLiteral("取消选择"), QStringLiteral("back"));
     selection_count_ = new QLabel(selection_bar_);
     selection_count_->setObjectName(QStringLiteral("selectedMessageCount"));
     selection->addWidget(selection_count_, 1);
-    selection_copy_ = new QPushButton(QStringLiteral("复制"), selection_bar_);
-    selection_forward_ = new QPushButton(QStringLiteral("转发"), selection_bar_);
-    auto* cancel = new QPushButton(QStringLiteral("退出多选"), selection_bar_);
-    for (auto* button : {selection_copy_, selection_forward_, cancel})
-    {
-        button->installEventFilter(this);
-        selection->addWidget(button);
-    }
+    selection_copy_ = action_button(QStringLiteral("copySelection"), QStringLiteral("复制所选消息"), QStringLiteral("copy"));
+    selection_forward_ = action_button(QStringLiteral("forwardSelection"), QStringLiteral("转发所选消息"), QStringLiteral("send"));
+    selection_retract_ = action_button(QStringLiteral("retractSelection"), QStringLiteral("撤回所选消息"), QStringLiteral("close"), true);
+    connect(selection_retract_, &QToolButton::clicked, this, &chat_widget::retract_selected_messages);
+    static_cast<message_list_view*>(messages_view_)->selection_finished = [this] { update_message_selection(); };
     connect(messages_view_->selectionModel(), &QItemSelectionModel::selectionChanged, this, &chat_widget::update_message_selection);
     connect(messages_, &QAbstractItemModel::modelReset, this, &chat_widget::update_message_selection);
     connect(messages_,
@@ -1696,9 +1814,9 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
             });
     selection_copy_->setToolTip(QStringLiteral("复制选中消息（Ctrl+C）"));
     cancel->setToolTip(QStringLiteral("退出多选（Esc）"));
-    connect(selection_copy_, &QPushButton::clicked, this, &chat_widget::copy_selected_messages);
+    connect(selection_copy_, &QToolButton::clicked, this, &chat_widget::copy_selected_messages);
     connect(selection_forward_,
-            &QPushButton::clicked,
+            &QToolButton::clicked,
             this,
             [this]
             {
@@ -1709,10 +1827,9 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
                 }
                 choose_forward_target(rows);
             });
-    connect(cancel, &QPushButton::clicked, this, [this] { set_message_selection(false); });
+    connect(cancel, &QToolButton::clicked, this, [this] { set_message_selection(false); });
     update_message_selection();
-    selection_bar_->hide();
-    chat_layout->addWidget(selection_bar_);
+    chat_headers_->addWidget(selection_bar_);
     reply_bar_ = new QWidget(chat_panel);
     auto* reply_layout = new QHBoxLayout(reply_bar_);
     reply_preview_ = new emoji_label(reply_bar_);
@@ -2060,20 +2177,64 @@ QModelIndexList chat_widget::selected_messages() const
 }
 void chat_widget::set_message_selection(bool enabled)
 {
-    messages_view_->clearSelection();
     messages_view_->setSelectionMode(enabled ? QAbstractItemView::ExtendedSelection : QAbstractItemView::NoSelection);
-    selection_bar_->setVisible(enabled);
+    if (!enabled)
+    {
+        messages_view_->clearSelection();
+    }
+    chat_headers_->setCurrentIndex(enabled ? 1 : 0);
+    messages_view_->doItemsLayout();
+    messages_view_->viewport()->update();
 }
 void chat_widget::update_message_selection()
 {
-    auto const count = messages_view_->selectionModel()->selectedIndexes().size();
-    selection_count_->setText(QStringLiteral("已选 %1 条").arg(count));
-    selection_copy_->setEnabled(count != 0);
-    auto const selected = messages_view_->selectionModel()->selectedIndexes();
+    auto selected = selected_messages();
+    selection_count_->setText(QStringLiteral("已选 %1 条").arg(selected.size()));
+    selection_copy_->setEnabled(!selected.isEmpty());
     selection_forward_->setEnabled(
-        !selected.empty() && connection_available_ &&
+        !selected.isEmpty() && connection_available_ &&
         std::ranges::all_of(selected, [](auto const& ix) { return ix.data(message_model::content_role).toString() == QStringLiteral("message"); }));
+    bool own = !selected.isEmpty() && std::ranges::all_of(selected, [](auto const& ix) { return ix.data(message_model::outgoing_role).toBool(); });
+    selection_retract_->setVisible(own);
+    selection_retract_->setEnabled(connection_available_ && own);
+    if (selected.isEmpty() && messages_view_->selectionMode() == QAbstractItemView::ExtendedSelection &&
+        !static_cast<message_list_view*>(messages_view_)->selecting_range())
+    {
+        set_message_selection(false);
+    }
 }
+
+void chat_widget::retract_selected_messages()
+{
+    QList<QPersistentModelIndex> rows;
+    for (auto const& ix : selected_messages())
+    {
+        rows.append(ix);
+    }
+    auto room = active_conversation_;
+    auto visit = conversation_visit_;
+    if (rows.isEmpty() || !connection_available_ ||
+        !confirm_action(this,
+                        QStringLiteral("撤回所选消息"),
+                        QStringLiteral("撤回这 %1 条消息后，所有成员都将看到撤回提示。").arg(rows.size()),
+                        QStringLiteral("撤回消息")))
+    {
+        return;
+    }
+    if (visit != conversation_visit_ || !connection_available_ ||
+        !std::ranges::all_of(rows,
+                             [](auto const& ix)
+                             { return ix.isValid() && ix.flags().testFlag(Qt::ItemIsSelectable) && ix.data(message_model::outgoing_role).toBool(); }))
+    {
+        return;
+    }
+    for (auto const& row : rows)
+    {
+        emit delete_message_requested(room, row.data(message_model::id_role).toLongLong());
+    }
+    set_message_selection(false);
+}
+
 void chat_widget::copy_selected_messages()
 {
     QStringList lines;
@@ -2166,6 +2327,25 @@ void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows
 
 void chat_widget::show_message_menu(QPoint position)
 {
+    if (messages_view_->selectionMode() == QAbstractItemView::ExtendedSelection)
+    {
+        QMenu menu(this);
+        resume_reading_after_menu(menu);
+        for (auto* button : {selection_copy_, selection_forward_, selection_retract_})
+        {
+            if (button->isVisible())
+            {
+                auto* action = menu.addAction(button->icon(), button->text());
+                action->setEnabled(button->isEnabled());
+                connect(action, &QAction::triggered, button, &QToolButton::click);
+            }
+        }
+        menu.addSeparator();
+        menu.addAction(QStringLiteral("取消选择"), this, [this] { set_message_selection(false); });
+        connect(messages_view_->selectionModel(), &QItemSelectionModel::selectionChanged, &menu, &QMenu::close);
+        menu.exec(messages_view_->viewport()->mapToGlobal(position));
+        return;
+    }
     auto const index = messages_view_->indexAt(position);
     if (index.isValid() && index.data(message_model::send_state_role).toInt() != message_model::sent)
     {
@@ -2287,7 +2467,7 @@ void chat_widget::show_message_menu(QPoint position)
     auto const current = this->conversation(active_conversation_);
     auto const unpin = current && current->pinned_message.id == message_id;
     auto* group_pin = messages_->can_manage_group() ? menu.addAction(unpin ? QStringLiteral("取消置顶消息") : QStringLiteral("置顶消息")) : nullptr;
-    auto* multi = menu.addAction(QStringLiteral("多选"));
+    auto* multi = menu.addAction(QStringLiteral("选择消息"));
     auto* readers = index.data(message_model::read_count_role).isValid() ? menu.addAction(QStringLiteral("已读详情")) : nullptr;
     auto const key = index.data(message_model::attachment_key_role).toString();
     if (!key.isEmpty() && index.data(message_model::outgoing_role).toBool() && connection_available_)
@@ -2860,12 +3040,13 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
         auto point = event->type() == QEvent::ContextMenu ? static_cast<QContextMenuEvent*>(event)->pos()
                                                           : static_cast<QMouseEvent*>(event)->position().toPoint();
         auto index = messages_view_->indexAt(point);
-        if (index.data(message_model::unread_boundary_role).toBool())
+        if (index.isValid())
         {
             QStyleOptionViewItem option;
             option.initFrom(messages_view_);
             option.rect = messages_view_->visualRect(index);
-            if (message_delegate::on_unread_divider(option, index, point))
+            if (!(event->type() == QEvent::MouseButtonRelease && messages_view_->selectionMode() == QAbstractItemView::ExtendedSelection) &&
+                message_delegate::on_separator(option, index, point))
             {
                 return true;
             }
