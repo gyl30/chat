@@ -188,6 +188,7 @@ async def run(
                         "searchui", lambda r: r.get("anchor") == expected
                     )
 
+                await divider_lifecycle(ui, a, b, db, send, select, gate, other)
                 await select(group)
                 await ui.call("reading", activate=True)
                 await until(
@@ -422,7 +423,9 @@ async def run(
                 )
                 assert all(r["id"] != stale_anchor for r in state["rows"])
                 await select(group)
-                assert (await ui.call("reading"))["boundary"] == stale_anchor
+                small = await ui.call("reading", inspect=stale_anchor)
+                assert small["boundary"] == 0 and not small["latest"], small
+                assert 0 <= small["inspectTop"] < small["height"]
                 await open_anchor(stale_anchor)
                 await a.ok("clear_history", conversation=group, through=stale_anchor)
                 await ui.wait(
@@ -451,6 +454,8 @@ async def run(
                 await send(a, "未读区间内的本人消息")
                 await send(b, "另一个会话的消息", other)
                 second = await send(b, "第二条有效来信")
+                for i in range(22):
+                    await send(b, f"撤回起点之后的未读 {i}")
                 gate.hold.add("get_messages")
                 await ui.wait("select", lambda r: r["ok"], conv=group)
                 await gate.caught("get_messages")
@@ -460,7 +465,7 @@ async def run(
                     "reading", lambda r: r["ready"] and r["boundary"] == second
                 )
                 await select(other)
-                following = [await send(b, f"跨设备在途已读 {i}") for i in range(68)]
+                following = [await send(b, f"跨设备在途已读 {i}") for i in range(100)]
                 gate.hold.add("get_messages")
                 await ui.call("select", conv=group)
                 await gate.caught("get_messages")
@@ -480,6 +485,144 @@ async def run(
                 )
             finally:
                 await ui.stop()
+
+
+async def divider_lifecycle(ui, reader, peer, db, send, select, gate, other):
+    room = (await peer.ok("create_group", title="十八条未读", members=[1]))[
+        "conversation"
+    ]
+    for i in range(24):
+        prefix = await send(peer, f"已读上下文 {i}", room)
+    await reader.ok("mark_read", conversation=room, message=prefix)
+    ids = [
+        await send(peer, f"未读记录 {i + 1:02}\n" + "桌面阅读记录\n" * 9, room)
+        for i in range(18)
+    ]
+
+    def watermark():
+        with sqlite3.connect(db) as conn:
+            return conn.execute(
+                "SELECT last_read_message_id FROM conversation_members WHERE conversation_id=? AND user_id=1",
+                (room,),
+            ).fetchone()[0]
+
+    await select(room)
+    await ui.call("reading", activate=True)
+    marker = ids[0]
+    for read in (3, 8):
+        await ui.call("reading", through=ids[read - 1])
+        await until(lambda: watermark() == ids[read - 1], "viewport read watermark")
+        before = await ui.wait("reading", lambda r: r["count"] == 18 - read)
+        assert before["boundary"] == marker
+        assert before["buttonText"].endswith(str(18 - read))
+        state = await reader.ok("get_messages", conversation=room, capture_unread=True)
+        assert state["first_unread"] == ids[read]
+        await ui.call("reading", older=True)
+        above = await ui.wait(
+            "reading",
+            lambda r: r["ready"] and r["inspectTop"] >= r["height"],
+            inspect=ids[read],
+        )
+        assert above["boundary"] == marker and watermark() == ids[read - 1]
+        await ui.call("reading", unread=True)
+        positioned = await ui.wait(
+            "reading",
+            lambda r: r["boundaryTop"] < r["height"] and r["boundaryTop"] >= 0,
+        )
+        print(
+            f"read={read}, remaining={before['count']}, watermark={ids[read-1]}, expected={ids[read]}, "
+            f"divider={positioned['boundary']}, y={positioned['boundaryTop']}/{positioned['height']}",
+            flush=True,
+        )
+        assert positioned["boundary"] == ids[read], positioned
+        marker = ids[read]
+
+    # A partially visible first unread row already belongs to the viewport.
+    next_id = (await reader.ok("get_messages", conversation=room, capture_unread=True))[
+        "first_unread"
+    ]
+    current = await ui.call("reading", inspect=next_id)
+    assert 0 <= current["inspectTop"] < current["height"], current
+    await ui.call("reading", unread=True)
+    await until(
+        lambda: watermark() == ids[-1], "button jumps from visible unread to latest"
+    )
+    await ui.wait(
+        "reading", lambda r: r["count"] == 0 and not r["boundary"] and not r["latest"]
+    )
+
+    await ui.call("reading", older=True)
+    gate.hold.add("get_conversations")
+    tall = await send(peer, "新一批未读\n" + "不会在一屏内读完\n" * 50, room)
+    tail = await send(peer, "超长消息之后", room)
+    await gate.caught("get_conversations")
+    stale = await ui.wait(
+        "reading", lambda r: r["last"] == tail and r["ready"], inspect=tall
+    )
+    assert (
+        stale["count"] == 0
+        and stale["inspectTop"] >= stale["height"]
+        and stale["boundary"] == tall
+    )
+    await ui.call("reading", unread=True)
+    await ui.wait("reading", lambda r: 0 <= r["inspectTop"] < r["height"], inspect=tall)
+    assert watermark() == ids[-1]
+    await gate.release("get_conversations")
+    await ui.call("reading", inspect=tall, atY=-30)
+    above = await ui.call("reading", inspect=tall)
+    assert above["inspectTop"] < 0 and watermark() == ids[-1], above
+    await ui.call("reading", unread=True)
+    await until(
+        lambda: watermark() == tail, "first unread starts above viewport; jump to end"
+    )
+    await ui.wait("reading", lambda r: not r["boundary"] and not r["latest"])
+    await select(other)
+    more = [
+        await send(peer, f"下一批 {i}\n" + "阅读上下文\n" * 8, room) for i in range(76)
+    ]
+    await select(room)
+    loaded = await ui.call("reading")
+    assert loaded["last"] < more[38]
+    await reader.ok("mark_read", conversation=room, message=more[38])
+    await ui.wait("reading", lambda r: r["read"] == more[38])
+    await peer.ok("delete_message", conversation=room, message=more[39])
+    capture_before = sum(
+        p["params"].get("capture_unread", False) for p in gate.messages
+    )
+    await ui.call("reading", unread=True)
+    jumped = await ui.wait(
+        "reading", lambda r: r["ready"] and r["boundary"] == more[40]
+    )
+    assert 0 <= jumped["boundaryTop"] < jumped["height"] // 2
+    assert (
+        sum(p["params"].get("capture_unread", False) for p in gate.messages)
+        == capture_before + 1
+    )
+    await until(lambda: watermark() >= more[40], "remote unread reanchor displayed")
+    gate.hold_requests.add("mark_read")
+    await ui.call("reading", through=more[49])
+    await until(
+        lambda: any(
+            req["params"].get("message") == more[49] for _, req in gate.held_requests
+        ),
+        "unconfirmed read held",
+    )
+    assert watermark() < more[49]
+    await ui.call("reading", older=True)
+    await ui.wait(
+        "reading",
+        lambda r: r["ready"] and r["inspectTop"] >= r["height"],
+        inspect=more[50],
+    )
+    await ui.call("reading", unread=True)
+    jumped = await ui.wait("reading", lambda r: r["boundary"] == more[50])
+    assert 0 <= jumped["boundaryTop"] < jumped["height"] // 2 and watermark() < more[49]
+    await gate.release_requests("mark_read")
+    await until(lambda: watermark() >= more[50], "held local receipts reconciled")
+    print(
+        "PASS successive unread jumps use the current receipt, independent of the displayed divider",
+        flush=True,
+    )
 
 
 async def native_session(root, db, group, other, anchor, last, ui, gate, send, peer):

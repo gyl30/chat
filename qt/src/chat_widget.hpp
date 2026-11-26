@@ -311,6 +311,7 @@ class chat_widget final : public QWidget
     void navigate_down();
     quint64 conversation_unread() const;
     bool reading_enabled() const;
+    qint64 effective_read_position() const;
     void scroll_to_unread(QModelIndex const& index);
     void send_current_message();
     void draft_edited();

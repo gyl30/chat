@@ -3703,6 +3703,13 @@ void chat_widget::set_messages(qint64 user,
         return;
     }
 
+    if (page == history_page::unread && messages_loaded_ && first_unread && *first_unread > effective_read_position() &&
+        *first_unread < messages_->first_message_id())
+    {
+        set_messages_loading(false);
+        return_to_latest();
+        return;
+    }
     bool const position_page = page == history_page::latest || page == history_page::unread;
     auto* scroll = messages_view_->verticalScrollBar();
     QPersistentModelIndex const top = messages_view_->indexAt(QPoint(1, 0));
@@ -3742,7 +3749,7 @@ void chat_widget::set_messages(qint64 user,
     QModelIndex anchor;
     if (page == history_page::unread && first_unread)
     {
-        anchor = messages_->next_incoming(std::max(*first_unread - 1, messages_->read_position(self_user_)));
+        anchor = messages_->next_incoming(std::max(*first_unread - 1, effective_read_position()));
         if (!anchor.isValid() && has_newer)
         {
             // A concurrent clear, withdrawal or another device's receipt overtook the entry snapshot.
@@ -3751,9 +3758,8 @@ void chat_widget::set_messages(qint64 user,
             emit history_requested(user, history_page::unread);
             return;
         }
-        messages_->set_unread_boundary(anchor.data(message_model::id_role).toLongLong());
     }
-    if (page == history_page::latest)
+    if (position_page && !anchor.isValid())
     {
         messages_->set_unread_boundary(0);
     }
@@ -3883,7 +3889,7 @@ void chat_widget::add_message(qint64 user, message_data message)
     auto* scroll = messages_view_->verticalScrollBar();
     auto const at_bottom = scroll->value() == scroll->maximum();
     // A fresh unread run gets a fresh marker, even during the same visit.
-    auto const read = messages_->read_position(self_user_);
+    auto const read = effective_read_position();
     bool const new_run = !messages_->unread_boundary() || !messages_->next_incoming(read).isValid();
     auto const boundary = new_run && !viewing_latest() && message.from != self_user_ && !message.deleted && message.id > read ? message.id : 0;
     QPersistentModelIndex const top = at_bottom ? QModelIndex{} : messages_view_->indexAt(QPoint(1, 0));
@@ -4942,42 +4948,46 @@ quint64 chat_widget::conversation_unread() const
     return room != rooms.end() ? room->unread : 0;
 }
 
+qint64 chat_widget::effective_read_position() const { return std::max(requested_read_, messages_->read_position(self_user_)); }
+
 void chat_widget::scroll_to_unread(QModelIndex const& index)
 {
     auto* scroll = messages_view_->verticalScrollBar();
+    // Measure against the bottom-aligned timeline before reserving space for a divider.
+    if (tail_loaded_ && messages_view_->visualRect(index).top() >= scroll->maximum() - scroll->value())
+    {
+        return_to_latest();
+        return;
+    }
+    messages_->set_unread_boundary(index.data(message_model::id_role).toLongLong());
+    messages_view_->doItemsLayout();
     scroll->setValue(scroll->value() + messages_view_->visualRect(index).top() - std::min(64, messages_view_->viewport()->height() / 5));
 }
 
 void chat_widget::navigate_down()
 {
-    auto const marker = messages_->message_index(messages_->unread_boundary());
-    auto const next = messages_->next_incoming(messages_->read_position(self_user_));
-    auto const height = messages_view_->viewport()->height();
-    if (!conversation_unread())
+    auto const read = effective_read_position();
+    auto const next = messages_->next_incoming(read);
+    if (next.isValid() && messages_view_->visualRect(next).top() < messages_view_->viewport()->height())
     {
         return_to_latest();
-        return;
     }
-    if (marker.isValid() && messages_view_->visualRect(marker).top() >= height && (next.isValid() || !tail_loaded_))
+    else if ((!history_exhausted_ && read < messages_->first_message_id()) || (!next.isValid() && !tail_loaded_))
     {
-        scroll_to_unread(marker);
-    }
-    else if (next.isValid() && messages_view_->visualRect(next).bottom() >= height)
-    {
-        auto rect = messages_view_->visualRect(next);
-        messages_view_->scrollTo(
-            next, rect.height() >= height && rect.top() < height ? QAbstractItemView::PositionAtBottom : QAbstractItemView::PositionAtCenter);
-    }
-    else if (!tail_loaded_)
-    {
+        // The read frontier lies outside the known interval. Ask for an anchored page.
         set_messages_loading(true);
+        messages_->set_unread_boundary(0);
         emit history_requested(active_conversation_, history_page::unread);
+    }
+    else if (next.isValid())
+    {
+        scroll_to_unread(next);
+        mark_visible_messages();
     }
     else
     {
         return_to_latest();
     }
-    mark_visible_messages();
 }
 
 void chat_widget::request_newer_messages()
@@ -4992,9 +5002,9 @@ void chat_widget::request_newer_messages()
 
 void chat_widget::return_to_latest()
 {
+    messages_->set_unread_boundary(0);
     if (tail_loaded_)
     {
-        messages_->set_unread_boundary(0);
         messages_view_->doItemsLayout();
         messages_view_->scrollToBottom();
         mark_visible_messages();
@@ -5019,7 +5029,7 @@ void chat_widget::mark_visible_messages()
     }
     auto const height = messages_view_->viewport()->height();
     auto bottom = messages_view_->indexAt(QPoint(1, height - 1));
-    auto const floor = std::max(requested_read_, messages_->read_position(self_user_));
+    auto const floor = effective_read_position();
     for (int row = bottom.isValid() ? bottom.row() : messages_->rowCount() - 1; row >= 0; --row)
     {
         auto index = messages_->index(row, 0);

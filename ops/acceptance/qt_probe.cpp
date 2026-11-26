@@ -1854,6 +1854,18 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         {
             window.activateWindow();
         }
+        if (auto id = cmd["through"].toInteger())
+        {
+            list->scrollTo(chat->messages_->message_index(id), QAbstractItemView::PositionAtBottom);
+        }
+        auto inspect = chat->messages_->message_index(cmd["inspect"].toInteger());
+        if (inspect.isValid() && cmd.contains("atY"))
+        {
+            auto* scroll = list->verticalScrollBar();
+            scroll->setValue(scroll->value() + list->visualRect(inspect).top() - cmd["atY"].toInt());
+        }
+        out["inspectTop"] = list->visualRect(inspect).top();
+        out["buttonText"] = unread->text();
         if (cmd["up"].toBool())
         {
             auto* scroll = list->verticalScrollBar();
