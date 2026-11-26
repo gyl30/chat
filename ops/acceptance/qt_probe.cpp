@@ -1102,41 +1102,45 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 out["feedback"] = dialog->findChild<QLabel*>("pollFeedback")->text();
                 ok->click();
             }
-            if (dialog->windowTitle() == QStringLiteral("投票结果"))
+        }
+        if (auto* dialog = chat->poll_page_)
+        {
+            out["title"] = dialog->windowTitle();
+            QJsonArray rows, members;
+            int choice = cmd["choice"].toInt(1);
+            for (auto* label : dialog->findChildren<QLabel*>())
             {
-                QJsonArray rows, members;
-                int choice = cmd["choice"].toInt(1);
-                for (auto* label : dialog->findChildren<QLabel*>())
+                out["labels"] = out["labels"].toString() + label->text() + "\n";
+                if (label->isVisible() && label->objectName() == "pollGroup")
                 {
-                    out["labels"] = out["labels"].toString() + label->text() + "\n";
-                    if (label->objectName() == "pollGroup")
-                    {
-                        rows.append(label->text());
-                    }
-                    if (label->objectName() == "pollVoter" && label->property("choice").toInt() == choice)
-                    {
-                        members.append(label->text());
-                    }
+                    rows.append(label->text() + " · " + label->parentWidget()->findChild<QLabel*>("pollTally")->text());
                 }
-                out["rows"] = rows;
-                out["members"] = members;
-                auto buttons = dialog->findChildren<QPushButton*>();
-                for (auto* button : buttons)
+            }
+            for (auto* person : dialog->findChildren<QPushButton*>("pollVoter"))
+            {
+                if (person->isVisible() && person->property("choice").toInt() == choice)
                 {
-                    if (button->property("choice").toInt() != choice)
-                    {
-                        continue;
-                    }
-                    out["more"] = button->isVisible();
-                    if (cmd["more"].toBool() && button->isVisible())
-                    {
-                        button->click();
-                    }
+                    members.append(person->text());
                 }
-                if (cmd["close"].toBool())
+            }
+            out["rows"] = rows;
+            out["members"] = members;
+            auto buttons = dialog->findChildren<QPushButton*>("pollMore");
+            for (auto* button : buttons)
+            {
+                if (button->property("choice").toInt() != choice)
                 {
-                    dialog->reject();
+                    continue;
                 }
+                out["more"] = button->isVisible();
+                if (cmd["more"].toBool() && button->isVisible())
+                {
+                    button->click();
+                }
+            }
+            if (cmd["close"].toBool())
+            {
+                chat->close_poll_results();
             }
         }
     }

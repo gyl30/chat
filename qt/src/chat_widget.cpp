@@ -401,11 +401,17 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     layout->setSpacing(0);
 
     auto* conversation_panel = create_sidebar();
-    auto* chat_panel = create_chat_panel();
+    timeline_ = create_chat_panel();
     layout->addWidget(conversation_panel);
     layout->addWidget(make_separator(this));
-    layout->addWidget(chat_panel, 1);
+    layout->addWidget(timeline_, 1);
     connect_chat_controls();
+}
+
+void chat_widget::resizeEvent(QResizeEvent* event)
+{
+    QWidget::resizeEvent(event);
+    layout_poll_results();
 }
 
 QWidget* chat_widget::create_sidebar()
@@ -2801,6 +2807,7 @@ void chat_widget::connect_chat_controls()
 
 void chat_widget::set_user(QString const& username, qint64 user, QString const& server)
 {
+    close_poll_results();
     flush_draft();
     conversation_search_->clear();
     contacts_feedback_->clear();
@@ -4620,6 +4627,10 @@ void chat_widget::open_conversation(conversation_data conversation)
     {
         return;
     }
+    if (user != active_conversation_)
+    {
+        close_poll_results();
+    }
     auto const existing = conversations_->index_for_conversation(user);
     auto const* listed = conversations_->conversation_at(existing);
     if (connection_available_ && (conversation.marked_unread || (listed && listed->marked_unread)))
@@ -4665,6 +4676,7 @@ void chat_widget::open_conversation(conversation_data conversation)
         return;
     }
 
+    close_poll_results();
     flush_draft();
     stop_typing();
     typing_users_.clear();
@@ -4774,6 +4786,7 @@ void chat_widget::leave_conversation(qint64 conversation)
         images_.remove(conversation);
         return;
     }
+    close_poll_results();
     flush_draft();
     stop_typing();
     typing_users_.clear();

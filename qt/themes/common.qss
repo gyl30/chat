@@ -762,6 +762,32 @@ QMainWindow {
             border-radius: 18px;
             background: transparent;
         }
+        QToolButton#sendAttachmentButton::menu-button {
+            subcontrol-origin: padding;
+            subcontrol-position: center right;
+            width: 12px;
+            border: 0;
+            background: transparent;
+        }
+        QToolButton#sendAttachmentButton::menu-arrow {
+            image: url("${chevron_icon}");
+            width: 9px;
+            height: 9px;
+        }
+        QWidget#pollResults { background: ${panel}; }
+        QWidget#pollResults QPushButton {
+            color: ${link};
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            padding: 4px 8px;
+        }
+        QWidget#pollResults QPushButton:hover { background: ${subtle}; }
+        QWidget#pollResults QPushButton:focus { border-color: ${focus}; }
+        QWidget#pollResults QPushButton#pollVoter { color: ${text}; text-align: left; }
+        QLabel#pollStatus, QLabel#pollTally { color: ${text_secondary}; }
+        QLabel#pollQuestionHeading { font-weight: 600; font-size: 16px; }
+        QLabel#pollGroup { font-weight: 600; }
         QToolButton#screenshotButton:hover:enabled, QToolButton#sendAttachmentButton:hover:enabled, QToolButton#emojiButton:hover:enabled,
         QToolButton#chatHistoryButton:hover:enabled {
             background: ${canvas_hover};

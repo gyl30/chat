@@ -1,4 +1,4 @@
-#include "poll_dialog.hpp"
+#include "create_poll_dialog.hpp"
 #include "chat_widget.hpp"
 #include "client_bridge.hpp"
 #include "theme.hpp"

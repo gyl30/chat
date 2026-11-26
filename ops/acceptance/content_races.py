@@ -57,6 +57,10 @@ async def scenario(probe, mode):
                         client_id=4,
                     )
                 )["id"]
+            if mode in ("authority","poll_error","closed","voters","paging"):
+                await a.ok("vote_poll",choices=2,**args)
+            if mode in ("authority","poll_error","closed"):
+                await b.ok("vote_poll",choices=1,**args)
             if mode == "paging":
                 # The 50 fixture voters precede the UI login. Exercise all subsequent changes
                 # against the running server, including cancel and both actual page queries.
@@ -205,13 +209,13 @@ async def scenario(probe, mode):
                         gate.hold.clear()
                         await b.ok("vote_poll", choices=2, **args)
                         await ui.wait(
-                            "poll_ui", lambda r: r.get("members") == ["b"], choice=2
+                            "poll_ui", lambda r: r.get("members") == ["a","b"], choice=2
                         )
                         n = await count("voters")
                         await gate.release("get_poll_voters")
                         await seen("voters", n)
                         assert not (await ui.call("poll_ui", choice=1))["members"]
-                        assert (await ui.call("poll_ui", choice=2))["members"] == ["b"]
+                        assert (await ui.call("poll_ui", choice=2))["members"] == ["a","b"]
                     elif mode in ("authority", "poll_error"):
                         gate.hold.add("get_poll")
                         await ui.call("poll_ui", open=mid)
@@ -245,26 +249,19 @@ async def scenario(probe, mode):
                         assert ("结束投票" in menu["actions"]) == (mode != "authority")
                     elif mode == "write":
                         gate.hold_requests.add("vote_poll")
-                        gate.hold.add("poll_updated")
                         await ui.call("poll_ui", message=mid, vote=1)
-                        await until(
-                            lambda: bool(gate.held_requests), "vote awaiting dispatch"
-                        )
-                        await ui.call("poll_ui", open=mid)
-                        await ui.wait(
-                            "poll_ui", lambda r: "共 0 票" in r.get("labels", "")
-                        )
-                        await ui.call("poll_ui", close=True)
-                        await ui.call("poll_ui", open=mid)
-                        await ui.wait(
-                            "poll_ui", lambda r: "共 0 票" in r.get("labels", "")
-                        )
+                        await until(lambda: bool(gate.held_requests), "vote awaiting dispatch")
+                        # Another device votes first while this device's write is held.
+                        await a.ok("vote_poll", choices=2, **args)
+                        await ui.wait("poll_ui",lambda r:r["selection"]==2, message=mid)
+                        for attempt in range(2):
+                            await ui.call("poll_ui", open=mid)
+                            await ui.wait("poll_ui", lambda r:r.get("members")==["a"],choice=2)
+                            if not attempt: await ui.call("poll_ui",close=True)
+                        gate.hold.add("poll_updated")
                         await gate.release_requests("vote_poll")
-                        await ui.wait(
-                            "poll_ui",
-                            lambda r: "共 1 票" in r.get("labels", "")
-                            and r.get("members") == ["a"],
-                        )
+                        await ui.wait("poll_ui",lambda r:r.get("members")==["a"], choice=1)
+                        assert not (await ui.call("poll_ui",choice=2))["members"]
                         assert (await a.ok("get_poll", **args))["summary"]["selection"] == 1
                     elif mode == "closed":
                         gate.hold.add("get_poll")
@@ -287,7 +284,7 @@ async def scenario(probe, mode):
                         await ui.call("poll_ui", open=mid)
                         await ui.wait(
                             "poll_ui",
-                            lambda r: len(r.get("members", [])) == 50 and r.get("more"),
+                            lambda r: len(r.get("members", [])) == 10 and r.get("more"),
                         )
                         gate.hold.add("get_poll_voters")
                         await ui.call("poll_ui", more=True)

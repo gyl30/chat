@@ -52,7 +52,7 @@
 #include "chat_widget.hpp"
 #include "attachment_dialog.hpp"
 #include "bundle_dialog.hpp"
-#include "poll_dialog.hpp"
+#include "create_poll_dialog.hpp"
 #include "group_dialog.hpp"
 #include "client_bridge.hpp"
 #include "message_search_dialog.hpp"
@@ -1494,7 +1494,7 @@ void main_window::connect_messages()
                 }
                 if (kind == QStringLiteral("poll"))
                 {
-                    show_poll(*client_, *chat_page_, room, message, this);
+                    chat_page_->open_poll_results(*client_, room, message);
                 }
                 else if (kind == QStringLiteral("bundle"))
                 {

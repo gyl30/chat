@@ -104,6 +104,7 @@ class chat_widget final : public QWidget
     void set_read_message(qint64 conversation, qint64 user, qint64 message);
     void reset_read_positions(qint64 conversation);
     void set_typing(qint64 conversation, qint64 user, QString username, bool typing);
+    void open_poll_results(client_bridge& client, qint64 room, qint64 message);
     void finish_poll_write(qint64 room, qint64 message, QString error);
     void update_poll(chat::poll_update const& update);
     void add_message(qint64 user, message_data message);
@@ -225,6 +226,7 @@ class chat_widget final : public QWidget
     void pin_requested(qint64 conversation, bool pinned);
 
    protected:
+    void resizeEvent(QResizeEvent* event) override;
     bool eventFilter(QObject* object, QEvent* event) override;
 
    private:
@@ -237,6 +239,10 @@ class chat_widget final : public QWidget
     void setup_add_contact_dialog();
     void setup_friend_requests();
     QWidget* create_chat_panel();
+    void close_poll_results();
+    void layout_poll_results();
+    QWidget* timeline_;
+    QWidget* poll_page_ = nullptr;
     void setup_profile_friendship(
         QDialog& dialog, QVBoxLayout* info_layout, QLabel* relationship, QToolButton* message_button, qint64 user, QString const& username);
     void setup_profile_avatar(QDialog& dialog, QVBoxLayout* info_layout, qint64 user);
