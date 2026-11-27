@@ -10,6 +10,7 @@ import time
 import urllib.request
 
 import boto3
+from botocore.exceptions import ClientError
 
 from fixture import Client, connect
 
@@ -86,6 +87,15 @@ class Store:
                 aws_secret_access_key=self.secret,
                 region_name=self.region,
             )
+            # A newly started Silo can answer the health check before its S3 API is ready.
+            for attempt in range(8):
+                try:
+                    api.list_buckets()
+                    break
+                except ClientError as error:
+                    if error.response["Error"]["Code"] != "XMinioServerNotInitialized" or attempt == 7:
+                        raise
+                    time.sleep(0.25)
             yield (
                 api,
                 dict(

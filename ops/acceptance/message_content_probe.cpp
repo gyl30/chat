@@ -172,11 +172,11 @@ static void check_download_notification_scope()
         message_data message;
         message.id = id;
         message.conversation = 9;
-        message.attachment = attachment_data{QStringLiteral("file.txt"), QStringLiteral("application/octet-stream"), 1024, QString{}};
+        message.attachment = attachment_data{QStringLiteral("file.txt"), QStringLiteral("application/octet-stream"), 1024};
         assert(model.add_message(std::move(message)));
     }
     download_tasks::task running{};
-    running.source = {9, 2, 0, {}};
+    running.source = {9, 2};
     running.path = "same.txt";
     auto completed = running;
     completed.source.message = 1;
@@ -197,10 +197,10 @@ static void check_download_notification_scope()
     std::ranges::sort(notified);
     assert((notified == QList<qint64>{1, 2}));
     assert(tasks.tasks_.value(1).status == download_tasks::state::replaced);
-    // A bundled child or a group file never causes a message bubble to relayout.
+    // Bundle children and other chats cannot change this conversation's attachment rows.
     running.source.item = 1;
     tasks.tasks_.insert(3, running);
-    running.source = {9, 0, 0, QStringLiteral("group-file")};
+    running.source = {10, 2};
     tasks.tasks_.insert(4, running);
     notified.clear();
     for (qint64 id : {3, 4})
@@ -235,9 +235,9 @@ static void check_display_roles()
     m.markdown = true;
     assert(check("**源文**") == "**源文**");
     m.markdown = false;
-    m.attachment = attachment_data{"photo.png", "image/png", 1024, "image"};
+    m.attachment = attachment_data{"photo.png", "image/png", 1024};
     assert(check("photo.png") == "图片：photo.png\n1.0 KiB");
-    m.attachment = attachment_data{"file.bin", "application/octet-stream", 2048, "file"};
+    m.attachment = attachment_data{"file.bin", "application/octet-stream", 2048};
     assert(check("file.bin") == "文件：file.bin\n2.0 KiB");
     m.attachment.reset();
     m.content = "bundle";
@@ -315,7 +315,7 @@ static void check_display_roles()
         {
             for (bool attachment : {false, true})
             {
-                m.attachment = attachment ? std::optional{attachment_data{"photo.png", "image/png", 1024, "image"}} : std::nullopt;
+                m.attachment = attachment ? std::optional{attachment_data{"photo.png", "image/png", 1024}} : std::nullopt;
                 model.set_pending({{m, state == message_model::failed, {}, state == message_model::waiting}});
                 auto local = model.index(0);
                 assert(local.data(message_model::send_state_role).toInt() == state);

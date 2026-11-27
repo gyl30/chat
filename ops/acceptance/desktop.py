@@ -509,6 +509,14 @@ async def file_search(ui, gate, b):
     await gate.release(method)
     await ui.wait("history", lambda r: [v["id"] for v in r["rows"]] == [first_id])
 
+    gate.hold.add(method)
+    await ui.call("history", query="查询失败样例")
+    await gate.caught(method)
+    await gate.release(method, error=True)
+    await ui.wait(
+        "history", lambda r: r.get("statusVisible") and "QA search failure" in r.get("status", ""),
+    )
+
     await ui.call("history", query="不存在的文件")
     await ui.wait(
         "history",
