@@ -368,6 +368,52 @@ async def outbox(ui, gate, a, b, d, root, db, binary, url):
     print("PASS real Qt process death, hidden receipt reconciliation with original client_id", flush=True)
 
 
+async def outbox_queue(ui, gate, direct, group, root, db, binary, entry):
+    await ui.stop()
+    (journal,) = (root / "data").rglob("tasks.sqlite3")
+    first = list(range(8101, 8113))
+    second = list(range(8201, 8207))
+    rejected = 8100
+    with sqlite3.connect(journal) as conn:
+        conn.executemany(
+            "INSERT INTO text_outbox(user,client,conversation,body,created,rejection) VALUES(?,?,?,?,unixepoch(),?)",
+            [(1, rejected, direct, "已拒绝", -32015)]
+            + [(1, client, direct, f"队列 {client}", 0) for client in first]
+            + [(1, client, group, f"队列 {client}", 0) for client in second],
+        )
+    start = len(gate.messages)
+    method = "send_message"
+    gate.hold.add(method)
+    await ui.start(binary, root, entry)
+
+    def sent(conversation):
+        return [
+            r["params"]["client_id"]
+            for r in gate.messages[start:]
+            if r["method"] == method and r["params"]["conversation"] == conversation
+        ]
+
+    await until(lambda: len(gate.held) == 2, "only the two independent Outbox heads")
+    assert sent(direct) == first[:1] and sent(group) == second[:1]
+    await gate.release(method)
+
+    def remaining():
+        with sqlite3.connect(journal) as conn:
+            return conn.execute("SELECT client FROM text_outbox WHERE user=1").fetchall()
+
+    await until(lambda: remaining() == [(rejected,)], "queued messages acknowledged, rejection retained")
+    assert sent(direct) == first and sent(group) == second
+    with sqlite3.connect(db) as conn:
+        for conversation, expected in ((direct, first), (group, second)):
+            assert [
+                client for (client,) in conn.execute(
+                    "SELECT client_id FROM messages WHERE conversation_id=? AND sender_id=1 "
+                    "AND client_id BETWEEN 8100 AND 8206 ORDER BY id", (conversation,)
+                )
+            ] == expected
+    print("PASS Outbox dispatches independent heads, preserves 18 row order and skips definitive rejection", flush=True)
+
+
 async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
     async with AsyncExitStack() as stack:
         c = await login(stack, server, "c", "c", True)
@@ -582,10 +628,15 @@ async def main(root, binary):
                         if sys.argv[2:] == ["search"]:
                             await search_cases(ui, gate, a, b, other)
                             return
+                        if sys.argv[2:] == ["outbox"]:
+                            await outbox(ui, gate, a, b, d, root, db, binary, entry)
+                            await outbox_queue(ui, gate, d, g, root, db, binary, entry)
+                            return
                         await notifications(ui, gate, a, b, g, root)
                         await search_cases(ui, gate, a, b, other)
                         await other_views(ui, gate, a, b, g, d)
                         await outbox(ui, gate, a, b, d, root, db, binary, entry)
+                        await outbox_queue(ui, gate, d, g, root, db, binary, entry)
                         await transfers(ui, gate, a, b, g, d, root, db, binary, entry, url)
                         await pin_cases(ui, gate, a, b, g)
                     finally:

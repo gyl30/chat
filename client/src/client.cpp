@@ -1813,9 +1813,42 @@ struct client::impl
 
     std::expected<std::vector<pending_text>, error> read_pending_texts()
     {
-        auto query = journal_.prepare(
+        return read_text_rows(journal_.prepare(
             "SELECT client,conversation,COALESCE(reply,0),created,body,rejection,markdown,mention_all FROM text_outbox WHERE user=? ORDER BY rowid",
-            outbox_account_);
+            outbox_account_));
+    }
+
+    std::expected<std::vector<pending_text>, error> read_ready_texts()
+    {
+        std::string blocked = "[";
+        auto append_conversations = [&blocked](auto const& pending)
+        {
+            for (auto const& entry : pending)
+            {
+                if (blocked.size() > 1)
+                {
+                    blocked += ',';
+                }
+                blocked += std::to_string(entry.first);
+            }
+        };
+        append_conversations(sending_texts_);
+        append_conversations(deferred_text_conversations_);
+        blocked += ']';
+        return read_text_rows(journal_.prepare(R"SQL(
+            SELECT client,conversation,COALESCE(reply,0),created,body,rejection,markdown,mention_all
+            FROM text_outbox
+            WHERE rowid IN (
+                SELECT min(rowid) FROM text_outbox
+                WHERE user=?1 AND rejection=0 AND conversation NOT IN (SELECT value FROM json_each(?2))
+                GROUP BY conversation
+            )
+            ORDER BY rowid
+        )SQL", outbox_account_, std::string_view(blocked)));
+    }
+
+    std::expected<std::vector<pending_text>, error> read_text_rows(std::expected<sqlite_statement, sqlite_error> query)
+    {
         if (!query)
         {
             return std::unexpected(outbox_error("无法读取本地待发送消息"));
@@ -1862,7 +1895,7 @@ struct client::impl
         {
             return;
         }
-        auto items = read_pending_texts();
+        auto items = read_ready_texts();
         if (!items)
         {
             report_error(items.error());
@@ -1870,12 +1903,11 @@ struct client::impl
         }
         for (auto& item : *items)
         {
-            if (item.state != outbox_state::queued || deferred_text_conversations_.contains(item.conversation) ||
-                !sending_texts_.try_emplace(item.conversation, item.client_id).second)
+            if (!deferred_text_conversations_.contains(item.conversation) &&
+                sending_texts_.try_emplace(item.conversation, item.client_id).second)
             {
-                continue;
+                send_pending_text(std::move(item));
             }
-            send_pending_text(std::move(item));
         }
     }
 
