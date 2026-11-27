@@ -43,6 +43,7 @@ class QStackedWidget;
 class QToolButton;
 class QTimer;
 class conversation_model;
+class empty_state;
 class feedback_label;
 class message_model;
 class message_list_view;
@@ -225,6 +226,7 @@ class chat_widget final : public QWidget
     void read_requested(qint64 conversation, qint64 message);
     void history_discarded(qint64 conversation, qint64 through);
     void history_view_requested(qint64 conversation, bool hide);
+    void notification_expired();
     void notification_level_requested(qint64 conversation, chat::notification_level level, qint64 until);
     void create_conversation_folder(QString name);
     void rename_conversation_folder(qint64 folder, QString name);
@@ -258,10 +260,9 @@ class chat_widget final : public QWidget
                                   QVBoxLayout* info_layout,
                                   QLabel* relationship,
                                   QToolButton* message_button,
-                                  QMenu& menu,
                                   qint64 user,
                                   QString const& username);
-    void setup_profile_avatar(QDialog& dialog, QVBoxLayout* info_layout, qint64 user);
+    void setup_profile_avatar(QDialog& dialog, QVBoxLayout* info_layout, QToolButton* change, qint64 user);
     void setup_chat_header(QVBoxLayout* chat_layout);
     void setup_message_list(QVBoxLayout* chat_layout);
     void setup_composer(QVBoxLayout* chat_layout);
@@ -304,6 +305,7 @@ class chat_widget final : public QWidget
     void update_request_actions();
     void show_add_contact_dialog();
     void filter_contacts(QString const& query);
+    void update_contact_status();
     void search_users();
     void set_add_contact_status(QString message = {});
     void select_contact(QModelIndex const& index);
@@ -398,6 +400,7 @@ class chat_widget final : public QWidget
     QPushButton* add_search_button_ = nullptr;
     quint64 add_search_request_ = 0;
     QListView* conversations_view_ = nullptr;
+    empty_state* conversations_empty_;
     QLabel* conversations_status_ = nullptr;
     QToolButton* cancel_reply_button_ = nullptr;
     QLabel* main_menu_badge_ = nullptr;
@@ -416,6 +419,7 @@ class chat_widget final : public QWidget
     QTimer* loading_status_timer_ = nullptr;
     QLineEdit* contact_search_ = nullptr;
     QListView* contacts_view_ = nullptr;
+    empty_state* contacts_empty_;
     QLabel* contacts_status_ = nullptr;
     QListWidget* incoming_friends_ = nullptr;
     QListWidget* outgoing_friends_ = nullptr;

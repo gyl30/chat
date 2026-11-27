@@ -1,3 +1,4 @@
+#include "empty_state.hpp"
 #include "group_files_page.hpp"
 #include "client_bridge.hpp"
 #include "theme.hpp"
@@ -120,6 +121,7 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
     list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     list_->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(list_, 1);
+    empty_ = new empty_state(*list_->viewport(), QStringLiteral("groupFilesEmpty"));
     status_ = new QLabel(this);
     status_->setTextFormat(Qt::PlainText);
     status_->hide();
@@ -188,25 +190,34 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
                 }
                 more_->setVisible(page.has_more);
                 more_->setEnabled(page.has_more);
-                set_status(list_->count() ? QString{} : QStringLiteral("没有匹配的群文件"));
+                const bool has_files = list_->count() && list_->item(list_->count() - 1)->data(key_role).isValid();
+                set_status(has_files                                                               ? QString{}
+                           : search_->text().trimmed().isEmpty() && category_->currentIndex() == 0 ? QStringLiteral("暂无群文件")
+                                                                                                   : QStringLiteral("未找到匹配文件"),
+                           !has_files);
             });
     connect(&client_,
             &client_bridge::files_changed,
             this,
             [this](qint64 group, QString const& error)
             {
-                if (group == conversation_ && isVisible() && isEnabled())
+                if (group != conversation_ || !isEnabled())
                 {
-                    if (error.isEmpty())
+                    return;
+                }
+                if (!error.isEmpty())
+                {
+                    set_status(error);
+                }
+                else if (!search_delay_.isActive())
+                {
+                    if (isVisible())
                     {
-                        if (!search_delay_.isActive())
-                        {
-                            refresh();
-                        }
+                        refresh();
                     }
                     else
                     {
-                        set_status(error);
+                        request_ = 0;
                     }
                 }
             });
@@ -229,10 +240,18 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
     setEnabled(false);
 }
 
-void group_files_page::set_status(QString const& text)
+void group_files_page::set_status(QString const& text, bool empty_result)
 {
     status_->setText(text);
-    status_->setVisible(!text.isEmpty());
+    empty_->set_message(text, empty_result ? u"folder" : QStringView{});
+    update_status_layout();
+}
+
+void group_files_page::update_status_layout()
+{
+    bool const populated = list_->count() != 0;
+    status_->setVisible(populated && !status_->text().isEmpty());
+    empty_->setVisible(!populated && !status_->text().isEmpty());
 }
 
 void group_files_page::activate(QListWidgetItem const& item)
@@ -362,6 +381,7 @@ void group_files_page::refresh_uploads()
         row->setToolTip(task.error.isEmpty() ? task.filename : task.filename + u'\n' + task.error);
         list_->insertItem(1, row);
     }
+    update_status_layout();
 }
 void group_files_page::set_access(bool member, bool manager, bool can_publish)
 {
@@ -373,8 +393,9 @@ void group_files_page::set_access(bool member, bool manager, bool can_publish)
     {
         request_ = 0;
         search_delay_.stop();
-        more_->setEnabled(false);
+        more_->hide();
         list_->clear();
+        set_status(QStringLiteral("当前无法访问群文件"));
     }
     if (gained && isVisible())
     {
@@ -385,7 +406,6 @@ void group_files_page::reset_files()
 {
     request_ = 0;
     more_->hide();
-    set_status(QStringLiteral("正在加载…"));
     for (int row = list_->count() - 1; row >= 0; --row)
     {
         if (list_->item(row)->data(key_role).isValid())
@@ -394,7 +414,16 @@ void group_files_page::reset_files()
         }
     }
     refresh_uploads();
+    set_status(QStringLiteral("正在加载…"));
 }
+void group_files_page::show_files()
+{
+    if (!request_ && !search_delay_.isActive())
+    {
+        refresh();
+    }
+}
+
 void group_files_page::refresh()
 {
     if (!isEnabled())

@@ -7,6 +7,8 @@ add_subdirectory("${PROJECT_SOURCE_DIR}/third/emoji-segmenter" "${PROJECT_BINARY
 add_executable(client
     src/main.cpp
     src/avatar.cpp
+    src/empty_state.cpp
+    src/profile_controls.cpp
     src/attachment_dialog.cpp
     src/download_tasks.cpp
     src/file_presentation.cpp
@@ -99,6 +101,14 @@ qt_add_resources(client chat_icons
     PREFIX "/icons"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons"
     FILES
+        resources/icons/bell.svg
+        resources/icons/image.svg
+        resources/icons/file.svg
+        resources/icons/folder.svg
+        resources/icons/link.svg
+        resources/icons/logout.svg
+        resources/icons/user-minus.svg
+        resources/icons/monitor.svg
         resources/icons/activity.svg
         resources/icons/attach.svg
         resources/icons/bell-off.svg

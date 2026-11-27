@@ -337,7 +337,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         if (auto* profile = chat->findChild<QDialog*>("profileDialog"))
         {
             out["profile"] = profile->findChild<QLabel*>("profileDialogName")->text();
-            auto* editor = profile->findChild<QPushButton*>("editUserProfile");
+            auto* editor = profile->findChild<QAbstractButton*>("editUserProfile");
             out["signature"] = profile->findChild<QLabel*>("profileSignatureText")->text();
             out["canEdit"] = editor->isVisible() && editor->isEnabled();
             if (cmd.contains("nickname") && out["canEdit"].toBool())
@@ -353,7 +353,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                                    });
                 editor->click();
             }
-            if (auto* avatar = profile->findChild<QPushButton*>("changeAvatarButton"))
+            if (auto* avatar = profile->findChild<QAbstractButton*>("changeAvatarButton"))
             {
                 auto* clear = profile->findChild<QPushButton*>("removeAvatarButton");
                 out["avatarEditable"] = avatar->isEnabled();
@@ -396,7 +396,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                     out["avatarPixel"] = image.pixelColor(image.width() / 2, image.height() / 2).name(QColor::HexArgb);
                 }
             }
-            auto* remove = profile->findChild<QAction*>("removeContactButton");
+            auto* remove = profile->findChild<QPushButton*>("removeContactButton");
             out["friend"] = remove && remove->isVisible();
             if (cmd["closeProfile"].toBool())
             {

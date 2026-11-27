@@ -8,6 +8,7 @@ class chat_widget;
 class QToolButton;
 class client_bridge;
 class QComboBox;
+class empty_state;
 class QLabel;
 class QLineEdit;
 class QPushButton;
@@ -22,6 +23,7 @@ class group_files_page final : public QWidget
     void bind_uploads(chat_widget& chat);
     void set_access(bool member, bool manager, bool can_publish);
     void refresh();
+    void show_files();
    signals:
     void upload_requested(bool group_only);
 
@@ -30,7 +32,8 @@ class group_files_page final : public QWidget
     void reset_files();
     void activate(QListWidgetItem const& item);
     void show_menu(QPoint position);
-    void set_status(QString const& text);
+    void set_status(QString const& text, bool empty_result = false);
+    void update_status_layout();
     QListWidgetItem* find_file(QString const& key) const;
     void download(QListWidgetItem const& item, bool open);
 
@@ -47,6 +50,7 @@ class group_files_page final : public QWidget
     QLineEdit* search_;
     QListWidget* list_;
     QLabel* status_;
+    empty_state* empty_;
     QPushButton* more_;
 };
 #endif

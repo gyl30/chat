@@ -1053,17 +1053,16 @@ void main_window::show_group_details(qint64 conversation, qint64 self_user, QStr
             client_.get(),
             [this, conversation](bool mute)
             { client_->set_notification_level(conversation, mute ? chat::notification_level::muted : chat::notification_level::all, 0); });
-    connect(
-        client_.get(),
-        &client_bridge::notifications_changed,
-        &dialog,
-        [&dialog, conversation](qint64 id, chat::notification_level level, qint64 until)
-        {
-            if (id == conversation)
+    connect(client_.get(),
+            &client_bridge::notifications_changed,
+            &dialog,
+            [&dialog, conversation](qint64 id)
             {
-                dialog.set_notification_muted(level == chat::notification_level::muted && (!until || until > QDateTime::currentMSecsSinceEpoch()));
-            }
-        });
+                if (id == conversation)
+                {
+                    dialog.refresh_notifications();
+                }
+            });
     connect(chat_page_, &chat_widget::history_discarded, &dialog, &group_dialog::discard_history);
     connect(&dialog,
             &group_dialog::upload_requested,

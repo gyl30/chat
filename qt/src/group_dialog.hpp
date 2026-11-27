@@ -2,6 +2,7 @@
 #define CHAT_QT_SRC_GROUP_DIALOG_HPP
 
 #include <QDialog>
+#include <QPointer>
 #include <optional>
 #include "member_data.hpp"
 #include "conversation_data.hpp"
@@ -19,7 +20,7 @@ class QPushButton;
 class QCheckBox;
 class QStackedWidget;
 class QToolButton;
-class QAction;
+class empty_state;
 class QTimer;
 class QScrollArea;
 
@@ -48,7 +49,7 @@ class group_dialog final : public QDialog
     void set_invite(qint64 conversation, QString const& token, QString const& error);
     void set_requests(qint64 conversation, QList<user_data> users, qint64 next, bool older, QString const& error);
     void refresh_requests();
-    void set_notification_muted(bool muted);
+    void refresh_notifications();
     void refresh_member_status();
 
    signals:
@@ -90,6 +91,7 @@ class group_dialog final : public QDialog
     void refresh_speech();
     void update_actions();
     void update_title();
+    void show_page(QWidget* page);
 
     bool open_requests_ = false;
     group_files_page* files_;
@@ -114,7 +116,7 @@ class group_dialog final : public QDialog
     QPushButton* admin_button_;
     QPushButton* rename_button_;
     QPushButton* invite_button_;
-    QPushButton* leave_button_;
+    QToolButton* leave_button_;
     QPushButton* transfer_button_;
     QPushButton* remove_button_;
     QPushButton* member_mute_button_;
@@ -131,12 +133,13 @@ class group_dialog final : public QDialog
     QPushButton* revoke_invite_button_;
     QCheckBox* approval_;
     QStackedWidget* pages_;
+    QPointer<QWidget> overview_focus_;
     QScrollArea* overview_scroll_;
     QWidget* requests_page_;
     QToolButton* back_;
-    QPushButton* notification_;
-    QAction* management_action_;
-    QAction* requests_action_;
+    QToolButton* notification_;
+    QToolButton* management_button_;
+    QPushButton* requests_button_;
     QLabel* description_heading_;
     QLabel* announcement_heading_;
     QScrollArea* management_scroll_;
@@ -154,6 +157,8 @@ class group_dialog final : public QDialog
     QPushButton* change_avatar_;
     QPushButton* clear_avatar_;
     QLineEdit* member_search_;
+    QLabel* members_heading_;
+    empty_state* members_empty_;
     QLabel* overview_announcement_;
     QPushButton* read_announcement_button_;
     QPushButton* overview_pin_;

@@ -8,6 +8,7 @@ class user_delegate : public QStyledItemDelegate
 {
     Q_OBJECT
    public:
+    static constexpr int badge_role = Qt::UserRole + 20;
     explicit user_delegate(QObject* parent = nullptr, std::function<QString(QModelIndex const&)> status = {});
     void paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const override;
     QSize sizeHint(QStyleOptionViewItem const& option, QModelIndex const& index) const override;

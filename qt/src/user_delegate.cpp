@@ -76,7 +76,8 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
     }
 
     auto const left = avatar_rect.right() + 12;
-    auto const right = rect.right() - chat_theme::dialog_right + 1;
+    auto right = rect.right() - chat_theme::dialog_right + 1;
+    auto const badge = index.data(badge_role).toString();
     const auto request_status = index.data(Qt::StatusTipRole);
     const auto status = status_ ? status_(index) : request_status.isValid() ? request_status.toString() : presence_text(online, last_seen);
 
@@ -85,13 +86,20 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
     username_font.setPixelSize(14);
     QFont status_font = option.font;
     status_font.setPixelSize(13);
+    if (!badge.isEmpty())
+    {
+        auto const width = QFontMetrics(status_font).horizontalAdvance(badge);
+        paint_emoji_line(*painter, {right - width, rect.top(), width + 1, rect.height()}, badge, status_font, themed("accent"));
+        right -= width + 12;
+    }
     const auto name_height = QFontMetrics(username_font).height();
     const auto status_height = status.isEmpty() ? 0 : QFontMetrics(status_font).height();
     const auto top = rect.center().y() - (name_height + status_height) / 2;
     paint_emoji_line(*painter, {left, top, right - left, name_height}, username, username_font, themed("text"));
     if (!status.isEmpty())
     {
-        paint_emoji_line(*painter, {left, top + name_height, right - left, status_height}, status, status_font, themed("text_secondary"));
+        paint_emoji_line(
+            *painter, {left, top + name_height, right - left, status_height}, status, status_font, themed(online ? "online" : "text_secondary"));
     }
 
     if (option.state.testFlag(QStyle::State_HasFocus) && !selected)

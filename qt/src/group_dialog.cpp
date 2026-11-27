@@ -1,3 +1,5 @@
+#include "profile_controls.hpp"
+#include "empty_state.hpp"
 #include "group_dialog.hpp"
 #include "group_files_page.hpp"
 #include "create_group_dialog.hpp"
@@ -33,6 +35,7 @@
 #include <QScrollArea>
 #include <QKeyEvent>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QTimer>
 #include <QInputDialog>
 
@@ -89,7 +92,7 @@ group_dialog::group_dialog(client_bridge& client,
     pages_->addWidget(files_);
     files_->bind_uploads(chat_);
     connect(files_, &group_files_page::upload_requested, this, &group_dialog::upload_requested);
-    connect(back_, &QToolButton::clicked, this, [this] { pages_->setCurrentWidget(overview_scroll_); });
+    connect(back_, &QToolButton::clicked, this, [this] { show_page(overview_scroll_); });
     connect(pages_,
             &QStackedWidget::currentChanged,
             this,
@@ -98,7 +101,7 @@ group_dialog::group_dialog(client_bridge& client,
                 update_title();
                 if (pages_->currentWidget() == files_)
                 {
-                    files_->refresh();
+                    files_->show_files();
                 }
             });
     connect(overview_scroll_->verticalScrollBar(), &QScrollBar::valueChanged, this, &group_dialog::update_title);
@@ -124,6 +127,25 @@ group_dialog::group_dialog(client_bridge& client,
                 update_actions();
             });
     update_actions();
+}
+
+void group_dialog::show_page(QWidget* page)
+{
+    if (pages_->currentWidget() == page)
+    {
+        return;
+    }
+    if (pages_->currentWidget() == overview_scroll_)
+    {
+        auto* focused = focusWidget();
+        overview_focus_ = focused && overview_scroll_->isAncestorOf(focused) ? focused : nullptr;
+    }
+    setFocus(Qt::OtherFocusReason);
+    pages_->setCurrentWidget(page);
+    if (page == overview_scroll_ && overview_focus_ && overview_focus_->isVisible() && overview_focus_->isEnabled())
+    {
+        overview_focus_->setFocus(Qt::OtherFocusReason);
+    }
 }
 
 void group_dialog::update_title()
@@ -175,33 +197,42 @@ void group_dialog::setup_overview()
     overview_layout->addWidget(overview_count_);
 
     auto* quick = new QHBoxLayout;
-    notification_ = new QPushButton(overview);
+    quick->setSpacing(9);
+    notification_ = profile_action(overview, QStringLiteral("静音"), {});
     notification_->setObjectName(QStringLiteral("groupNotificationButton"));
-    set_notification_muted(false);
-    quick->addWidget(notification_);
-    leave_button_ = new QPushButton(QStringLiteral("退出群聊"), overview);
+    leave_button_ = profile_action(overview, QStringLiteral("退出群聊"), u"logout", true);
     leave_button_->setObjectName(QStringLiteral("groupLeaveButton"));
-    leave_button_->setAutoDefault(false);
-    quick->addWidget(leave_button_);
-    auto* more = new QPushButton(QStringLiteral("更多"), overview);
-    more->setObjectName(QStringLiteral("groupProfileMore"));
-    auto* menu = new QMenu(more);
-    more->setMenu(menu);
-    management_action_ = menu->addAction(QStringLiteral("群管理"), this, [this] { pages_->setCurrentWidget(management_scroll_); });
-    requests_action_ = menu->addAction(QStringLiteral("入群申请"), this, [this] { pages_->setCurrentWidget(requests_page_); });
-    menu->addAction(QStringLiteral("聊天记录"), this, [this] { emit history_requested(0); });
-    quick->addWidget(more);
+    management_button_ = profile_action(overview, QStringLiteral("群管理"), u"settings");
+    management_button_->setObjectName(QStringLiteral("groupManageButton"));
+    for (auto* action : {notification_, leave_button_, management_button_})
+    {
+        quick->addWidget(action, 1);
+    }
     overview_layout->addLayout(quick);
+    connect(notification_,
+            &QToolButton::clicked,
+            this,
+            [this]
+            {
+                if (auto const room = chat_.conversation(conversation_))
+                {
+                    emit notification_requested(!room->muted());
+                }
+            });
+    connect(management_button_, &QToolButton::clicked, this, [this] { show_page(management_scroll_); });
+    connect(&theme_manager::instance(), &theme_manager::changed, this, &group_dialog::refresh_notifications);
+    connect(&chat_, &chat_widget::notification_expired, this, &group_dialog::refresh_notifications);
+    refresh_notifications();
     description_ = new QLabel(overview);
     description_->setObjectName(QStringLiteral("groupDescription"));
     description_->setTextFormat(Qt::PlainText);
     description_->setWordWrap(true);
     description_heading_ = new QLabel(QStringLiteral("群简介"), overview);
     description_heading_->setObjectName(QStringLiteral("groupSectionHeading"));
+    overview_layout->addWidget(description_);
     overview_layout->addWidget(description_heading_);
     description_heading_->hide();
     description_->hide();
-    overview_layout->addWidget(description_);
     if (avatars_)
     {
         connect(avatars_,
@@ -281,38 +312,36 @@ void group_dialog::setup_overview()
     invite_overview_row->addWidget(overview_copy_invite_);
     invite_overview_row->addStretch();
     overview_layout->addLayout(invite_overview_row);
-    auto* shared = new QLabel(QStringLiteral("共享内容"), overview);
-    shared->setObjectName(QStringLiteral("groupSectionHeading"));
-    overview_layout->addWidget(shared);
-    int category = 0;
-    for (auto const* name : {"图片", "文件", "链接"})
+    overview_layout->addSpacing(6);
+    auto* media = new QVBoxLayout;
+    media->setSpacing(0);
+    static const QStringView titles[]{u"图片", u"文件", u"链接"};
+    static const QStringView icons[]{u"image", u"file", u"link"};
+    for (int i = 0; i < 3; ++i)
     {
-        auto* entry = new QPushButton(QString::fromUtf8(name), overview);
-        entry->setProperty("profileEntry", true);
-        overview_layout->addWidget(entry);
-        connect(entry, &QPushButton::clicked, this, [this, category = ++category] { emit history_requested(category); });
+        auto* entry = profile_entry(overview, titles[i].toString(), icons[i]);
+        media->addWidget(entry);
+        connect(entry, &QPushButton::clicked, this, [this, category = i + 1] { emit history_requested(category); });
     }
-    auto* group_files = new QPushButton(QStringLiteral("群文件"), overview);
+    auto* group_files = profile_entry(overview, QStringLiteral("群文件"), u"folder");
     group_files->setObjectName(QStringLiteral("groupFilesEntry"));
-    group_files->setProperty("profileEntry", true);
-    overview_layout->addWidget(group_files);
-    connect(group_files, &QPushButton::clicked, this, [this] { pages_->setCurrentWidget(files_); });
+    media->addWidget(group_files);
+    connect(group_files, &QPushButton::clicked, this, [this] { show_page(files_); });
+    requests_button_ = profile_entry(overview, QStringLiteral("入群申请"), u"user-plus");
+    requests_button_->setObjectName(QStringLiteral("groupRequestsEntry"));
+    media->addWidget(requests_button_);
+    connect(requests_button_, &QPushButton::clicked, this, [this] { show_page(requests_page_); });
+    overview_layout->addLayout(media);
     setup_members(overview_layout);
     overview_layout->addStretch();
     pages_->insertWidget(0, overview_scroll);
     pages_->setCurrentWidget(overview_scroll);
 }
 
-void group_dialog::set_notification_muted(bool muted)
+void group_dialog::refresh_notifications()
 {
-    notification_->setText(muted ? QStringLiteral("取消静音") : QStringLiteral("静音"));
-    if (notification_->property("muted").isValid())
-    {
-        notification_->setProperty("muted", muted);
-        return;
-    }
-    notification_->setProperty("muted", muted);
-    connect(notification_, &QPushButton::clicked, this, [this] { emit notification_requested(!notification_->property("muted").toBool()); });
+    auto const room = chat_.conversation(conversation_);
+    display_notification_action(*notification_, room && room->muted());
 }
 
 void group_dialog::setup_management(bool join_approval)
@@ -451,10 +480,17 @@ void group_dialog::setup_members(QVBoxLayout* members_layout)
 {
     auto* overview = members_layout->parentWidget();
     auto* header = new QHBoxLayout;
-    auto* heading = new QLabel(QStringLiteral("成员"), overview);
-    heading->setObjectName(QStringLiteral("groupSectionHeading"));
-    header->addWidget(heading, 1);
+    auto* members_icon = new QLabel(overview);
+    auto update_icon = [members_icon] { members_icon->setPixmap(svg_icon(u"groups", themed("text_secondary"), {23, 23}).pixmap(23, 23)); };
+    update_icon();
+    connect(&theme_manager::instance(), &theme_manager::changed, members_icon, update_icon);
+    header->addWidget(members_icon);
+
+    members_heading_ = new QLabel(QStringLiteral("成员"), overview);
+    members_heading_->setObjectName(QStringLiteral("groupMembersTitle"));
+    header->addWidget(members_heading_, 1);
     auto* search = new QToolButton(overview);
+    search->setObjectName(QStringLiteral("groupMemberSearchButton"));
     search->setToolTip(QStringLiteral("搜索成员"));
     search->setAccessibleName(search->toolTip());
     search->setCheckable(true);
@@ -470,6 +506,7 @@ void group_dialog::setup_members(QVBoxLayout* members_layout)
     list_->setObjectName(QStringLiteral("groupMembersList"));
     list_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     list_->setFixedHeight(0);
+    members_empty_ = new empty_state(*list_->viewport(), QStringLiteral("groupMembersEmpty"));
     for (auto* list : {list_, requests_})
     {
         auto* delegate = new user_delegate(list);
@@ -521,19 +558,27 @@ void group_dialog::setup_members(QVBoxLayout* members_layout)
     connect(search,
             &QToolButton::toggled,
             this,
-            [this](bool on)
+            [this, search](bool on)
             {
-                member_search_->setVisible(on);
                 if (on)
                 {
+                    member_search_->show();
                     member_search_->setFocus(Qt::ShortcutFocusReason);
                     overview_scroll_->ensureWidgetVisible(member_search_);
                 }
                 else
                 {
+                    if (member_search_->hasFocus())
+                    {
+                        search->setFocus(Qt::OtherFocusReason);
+                    }
+                    member_search_->hide();
                     member_search_->clear();
                 }
             });
+    auto* close_search = new QShortcut(QKeySequence(Qt::Key_Escape), member_search_);
+    close_search->setContext(Qt::WidgetShortcut);
+    connect(close_search, &QShortcut::activated, search, [search] { search->setChecked(false); });
     connect(member_search_, &QLineEdit::textChanged, this, &group_dialog::filter_members);
     members_layout->addWidget(list_);
     connect(list_,
@@ -812,7 +857,7 @@ void group_dialog::connect_member_actions()
                 }
             });
     connect(leave_button_,
-            &QPushButton::clicked,
+            &QToolButton::clicked,
             this,
             [this]
             {
@@ -1005,6 +1050,7 @@ void group_dialog::set_members(qint64 conversation, QList<member_data> members, 
         members_.begin(), members_.end(), [](auto const& a, auto const& b) { return static_cast<int>(a.role) > static_cast<int>(b.role); });
     list_->clear();
     overview_count_->setText(QStringLiteral("%1 位成员").arg(members_.size()));
+    members_heading_->setText(overview_count_->text());
     for (auto const& member : members_)
     {
         if (avatars_)
@@ -1030,7 +1076,7 @@ void group_dialog::set_members(qint64 conversation, QList<member_data> members, 
     {
         if (open_requests_)
         {
-            pages_->setCurrentWidget(requests_page_);
+            show_page(requests_page_);
         }
         emit invite_link_requested(std::nullopt);
         refresh_requests();
@@ -1074,7 +1120,9 @@ void group_dialog::filter_members()
     {
         count += !list_->item(i)->isHidden();
     }
-    list_->setFixedHeight(count * chat_theme::user_row_height);
+    const bool empty_search = !query.isEmpty() && !count;
+    list_->setFixedHeight(empty_search ? 70 : count * chat_theme::user_row_height);
+    members_empty_->set_message(empty_search ? QStringLiteral("未找到成员") : QString{});
     update_actions();
 }
 
@@ -1122,7 +1170,7 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
     description_->setText(found->description);
     description_->setVisible(!found->description.isEmpty());
     description_heading_->setVisible(!found->description.isEmpty());
-    set_notification_muted(found->muted());
+    refresh_notifications();
     if (avatars_)
     {
         avatars_->observe(-conversation_, found->avatar);
@@ -1274,7 +1322,7 @@ void group_dialog::set_requests(qint64 conversation, QList<user_data> users, qin
     }
     next_request_ = next;
     requests_status_->setText(requests_->count() == 0 ? QStringLiteral("暂无待处理申请") : QString{});
-    requests_action_->setText(requests_->count()
+    requests_button_->setText(requests_->count()
                                   ? QStringLiteral("入群申请 (%1%2)").arg(requests_->count()).arg(next ? QStringLiteral("+") : QString{})
                                   : QStringLiteral("入群申请"));
     update_actions();
@@ -1298,52 +1346,48 @@ void group_dialog::refresh_speech()
     {
         next = own_speech_until_;
     }
-    auto describe = [](QListWidgetItem* item, QString const& description)
-    {
-        if (item->statusTip() != description)
-        {
-            auto const text = item->text() + QStringLiteral(" · ") + description;
-            item->setStatusTip(description);
-            item->setData(Qt::AccessibleTextRole, text);
-            item->setToolTip(text);
-        }
-    };
     for (int row = 0; row < list_->count(); ++row)
     {
         auto const& member = members_[row];
         auto const role = member.role == chat::member_role::owner   ? QStringLiteral("群主")
                           : member.role == chat::member_role::admin ? QStringLiteral("管理员")
-                                                                    : QStringLiteral("成员");
-        auto description = role + (member.id == self_user_ ? QStringLiteral(" · 你") : QString{});
+                                                                    : QString{};
+        auto badge = role;
+        if (member.id == self_user_)
+        {
+            badge += badge.isEmpty() ? QStringLiteral("你") : QStringLiteral(" · 你");
+        }
+        QString description;
         if (member.role == chat::member_role::member)
         {
             if (member.speech_until == -1)
             {
-                description += QStringLiteral(" · 永久禁言");
+                description = QStringLiteral("永久禁言");
             }
             else if (member.speech_until > now)
             {
                 next = std::min(next, member.speech_until);
-                description += QStringLiteral(" · 禁言至 %1")
-                                   .arg(QDateTime::fromMSecsSinceEpoch(member.speech_until).toString(QStringLiteral("MM-dd HH:mm:ss")));
+                description =
+                    QStringLiteral("禁言至 %1").arg(QDateTime::fromMSecsSinceEpoch(member.speech_until).toString(QStringLiteral("MM-dd HH:mm:ss")));
             }
         }
-        if (member.display_name() != member.username)
-        {
-            description += QStringLiteral(" · ") + member.username;
-        }
-        const auto presence = chat_.member_presence(member.id);
+        auto const presence = chat_.member_presence(member.id);
         if (presence)
         {
-            const auto label = presence_text(presence->online, presence->last_seen);
+            auto const label = presence_text(presence->online, presence->last_seen);
             if (!label.isEmpty())
             {
-                description += QStringLiteral(" · ") + label;
+                description = description.isEmpty() ? label : label + QStringLiteral(" · ") + description;
             }
         }
         auto* item = list_->item(row);
         item->setData(user_model::online_role, presence && presence->online);
-        describe(item, description);
+        item->setData(user_delegate::badge_role, badge);
+        item->setStatusTip(description);
+        const auto accessible = item->text() + (badge.isEmpty() ? QString{} : QStringLiteral(" · ") + badge) +
+                                (description.isEmpty() ? QString{} : QStringLiteral(" · ") + description);
+        item->setToolTip(accessible);
+        item->setData(Qt::AccessibleTextRole, accessible);
     }
     if (next == std::numeric_limits<qint64>::max())
     {
@@ -1375,8 +1419,8 @@ void group_dialog::update_actions()
     status_->setVisible(!status_->text().isEmpty());
     invite_controls_->setVisible(manager);
     approval_->setEnabled(enabled && manager);
-    management_action_->setVisible(can_manage);
-    requests_action_->setVisible(can_manage);
+    management_button_->setVisible(can_manage);
+    requests_button_->setVisible(can_manage);
     notification_->setEnabled(enabled && self != members_.end());
     overview_invite_->setVisible(manager && !invite_edit_->text().isEmpty());
     overview_invite_->setText(QStringLiteral("邀请码 · ") + invite_edit_->text());
@@ -1392,7 +1436,7 @@ void group_dialog::update_actions()
         }
         if (pages_->currentWidget() == management_scroll_ || pages_->currentWidget() == requests_page_)
         {
-            pages_->setCurrentWidget(overview_scroll_);
+            show_page(overview_scroll_);
         }
     }
     accept_request_button_->setEnabled(enabled && manager && requests_->currentItem());

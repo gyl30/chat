@@ -465,24 +465,6 @@ QMainWindow {
         QRadioButton::indicator:checked { background: ${on_accent}; border: 5px solid ${accent}; width: 8px; height: 8px; }
         QCheckBox::indicator:focus, QRadioButton::indicator:focus { border-color: ${focus}; }
         QCheckBox::indicator:disabled, QRadioButton::indicator:disabled { border-color: ${border}; }
-        QToolButton#profileActionButton {
-            padding: 0 12px;
-            background: transparent;
-            color: ${accent};
-            border: 2px solid transparent;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
-        }
-        QToolButton#profileActionButton:hover {
-            background: ${subtle};
-        }
-        QToolButton#profileActionButton:pressed {
-            background: ${selected};
-        }
-        QToolButton#profileActionButton:focus {
-            border-color: ${focus};
-        }
         QDialog#profileDialog QPushButton {
             background: transparent;
             border: 2px solid transparent;
@@ -537,7 +519,7 @@ QMainWindow {
             background: transparent;
         }
         QScrollBar::handle {
-            background: ${border_strong};
+            background: ${input_border};
             border-radius: 3px;
         }
         QScrollBar::handle:vertical { min-height: 32px; }
@@ -768,17 +750,13 @@ QToolButton#contactsAddButton:focus {
     border-color: ${focus};
 }
 /* The same primary role applies to actions in every dialog. */
-QPushButton[primary="true"], QDialog#profileDialog QPushButton[primary="true"], QToolButton#profileActionButton[primary="true"] {
+QPushButton[primary="true"], QDialog#profileDialog QPushButton[primary="true"] {
     background: ${accent}; color: ${on_accent}; border: 1px solid transparent; font-weight: 600;
 }
-QPushButton[primary="true"]:hover:enabled, QDialog#profileDialog QPushButton[primary="true"]:hover:enabled,
-QToolButton#profileActionButton[primary="true"]:hover:enabled { background: ${accent_hover}; }
-QPushButton[primary="true"]:pressed:enabled, QDialog#profileDialog QPushButton[primary="true"]:pressed:enabled,
-QToolButton#profileActionButton[primary="true"]:pressed:enabled { background: ${accent_pressed}; }
-QPushButton[primary="true"]:disabled, QDialog#profileDialog QPushButton[primary="true"]:disabled,
-QToolButton#profileActionButton[primary="true"]:disabled { background: ${accent_disabled}; color: ${text_muted}; }
-QPushButton[primary="true"]:focus, QDialog#profileDialog QPushButton[primary="true"]:focus,
-QToolButton#profileActionButton[primary="true"]:focus { border-color: ${on_accent}; }
+QPushButton[primary="true"]:hover:enabled, QDialog#profileDialog QPushButton[primary="true"]:hover:enabled { background: ${accent_hover}; }
+QPushButton[primary="true"]:pressed:enabled, QDialog#profileDialog QPushButton[primary="true"]:pressed:enabled { background: ${accent_pressed}; }
+QPushButton[primary="true"]:disabled, QDialog#profileDialog QPushButton[primary="true"]:disabled { background: ${accent_disabled}; color: ${text_muted}; }
+QPushButton[primary="true"]:focus, QDialog#profileDialog QPushButton[primary="true"]:focus { border-color: ${on_accent}; }
 
 /* Settings uses the same compact dialog surfaces and focus language as Contacts. */
 QDialog#settingsDialog {
@@ -896,3 +874,35 @@ QToolButton[backgroundPreview="true"]:checked {
 QToolButton[backgroundPreview="true"]:focus {
     background: ${selected};
 }
+
+QLabel#emptyStateText {
+    color: ${text_secondary};
+    font-size: 14px;
+    font-weight: 600;
+}
+QLabel#emptyStateHint {
+    color: ${text_muted};
+    font-size: 13px;
+}
+
+
+QToolButton[profileAction="true"] {
+    background: ${subtle};
+    border: 1px solid transparent;
+    border-radius: 9px;
+    color: ${text};
+    font-size: 14px;
+    font-weight: 600;
+}
+QToolButton[profileAction="true"]:hover { background: ${canvas_hover}; }
+QToolButton[profileAction="true"]:pressed { background: ${selected}; }
+QToolButton[profileAction="true"]:focus { border-color: ${focus}; }
+QToolButton[profileAction="true"][danger="true"], QDialog QPushButton[profileEntry="true"][danger="true"] {
+    color: ${danger};
+}
+QToolButton[profileAction="true"]:disabled { color: ${text_muted}; }
+QDialog QPushButton[profileEntry="true"]:focus { border: 1px solid ${focus}; }
+QLabel#profileFieldCaption { color: ${text_secondary}; font-size: 13px; }
+
+QLabel#globalSearchFilterError { color: ${danger}; }
+QLabel#groupMembersTitle { font-size: 14px; font-weight: 600; color: ${text}; }

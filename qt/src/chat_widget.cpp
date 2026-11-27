@@ -86,6 +86,8 @@
 #include "message_list_view.hpp"
 #include "message_model.hpp"
 #include "presence.hpp"
+#include "profile_controls.hpp"
+#include "empty_state.hpp"
 #include "theme.hpp"
 #include "user_delegate.hpp"
 #include "user_model.hpp"
@@ -394,6 +396,7 @@ QWidget* chat_widget::create_sidebar()
     conversations_view_->setObjectName(QStringLiteral("conversationList"));
     conversations_view_->setAccessibleName(QStringLiteral("会话列表"));
     conversations_view_->setModel(conversations_);
+    conversations_empty_ = new empty_state(*conversations_view_->viewport(), QStringLiteral("conversationsEmpty"));
     mute_expiry_timer_ = new QTimer(this);
     mute_expiry_timer_->setSingleShot(true);
     connect(mute_expiry_timer_,
@@ -403,6 +406,7 @@ QWidget* chat_widget::create_sidebar()
             {
                 conversations_view_->viewport()->update();
                 update_main_menu();
+                emit notification_expired();
             });
     auto* conversations_delegate = new conversation_delegate(conversations_view_);
     conversations_view_->setItemDelegate(conversations_delegate);
@@ -731,6 +735,7 @@ void chat_widget::show_conversation_menu(QPoint point)
     auto add_level = [this, levels, conversation](QString title, chat::notification_level level, qint64 duration = 0)
     {
         return levels->addAction(
+            svg_icon(level == chat::notification_level::muted ? u"bell-off" : u"bell", themed("text_secondary")),
             title,
             this,
             [this, conversation, level, duration]
@@ -1006,6 +1011,8 @@ void chat_widget::setup_contacts_dialog()
     contacts_view_->setMouseTracking(true);
     contacts_view_->verticalScrollBar()->setSingleStep(24);
     friends_layout->addWidget(contacts_view_, 1);
+    contacts_empty_ = new empty_state(*contacts_view_->viewport(), QStringLiteral("friendsEmpty"));
+    update_contact_status();
     contacts_status_->setAlignment(Qt::AlignCenter);
     auto* groups_page = new QWidget(tabs);
     auto* groups_layout = new QVBoxLayout(groups_page);
@@ -1016,9 +1023,7 @@ void chat_widget::setup_contacts_dialog()
     groups->setContextMenuPolicy(Qt::CustomContextMenu);
     groups->setIconSize(QSize(34, 34));
     groups_layout->addWidget(groups, 1);
-    auto* empty_groups = new QLabel(groups_page);
-    empty_groups->setAlignment(Qt::AlignCenter);
-    groups_layout->addWidget(empty_groups, 1);
+    auto* empty_groups = new empty_state(*groups->viewport(), QStringLiteral("groupsEmpty"));
     tabs->addTab(groups_page, QStringLiteral("群聊"));
     auto* pending = new QToolButton(groups_page);
     pending->setObjectName(QStringLiteral("groupApplicationsButton"));
@@ -1085,9 +1090,10 @@ void chat_widget::setup_contacts_dialog()
                 row->setSizeHint(QSize(0, 46));
             }
         }
-        groups->setVisible(groups->count() > 0);
-        empty_groups->setVisible(groups->count() == 0);
-        empty_groups->setText(query.isEmpty() ? QStringLiteral("暂无群聊") : QStringLiteral("没有匹配的群聊"));
+        empty_groups->set_message(groups->count()   ? QString{}
+                                  : query.isEmpty() ? QStringLiteral("暂无群聊")
+                                                    : QStringLiteral("未找到群聊"),
+                                  query.isEmpty() ? u"groups" : u"search");
     };
     connect(tabs,
             &QTabWidget::currentChanged,
@@ -3090,7 +3096,7 @@ void chat_widget::load_visible_images()
 void chat_widget::set_loading()
 {
     contacts_status_->setText(QStringLiteral("正在加载好友…"));
-    contacts_status_->show();
+    update_contact_status();
     update_request_actions();
     set_list_status(QStringLiteral("正在加载…"));
 }
@@ -3116,8 +3122,10 @@ void chat_widget::set_conversations_error(QString message)
 // The status row takes space only while it has something to say.
 void chat_widget::set_list_status(QString text)
 {
-    conversations_status_->setText(std::move(text));
-    conversations_status_->setVisible(!conversations_status_->text().isEmpty());
+    const bool empty = conversations_->items().empty() && !text.isEmpty();
+    conversations_empty_->set_message(empty ? text : QString{}, text == QStringLiteral("暂无会话") ? u"chat" : QStringView{});
+    conversations_status_->setText(text);
+    conversations_status_->setVisible(!text.isEmpty() && !empty);
 }
 
 void chat_widget::set_connection_available(bool available)
@@ -3411,7 +3419,7 @@ void chat_widget::set_presence(presence_data user)
 void chat_widget::set_contacts_error(QString message)
 {
     contacts_status_->setText(std::move(message));
-    contacts_status_->setVisible(!contacts_status_->text().isEmpty());
+    update_contact_status();
 }
 
 void chat_widget::set_add_contact_search_results(QList<user_data> users, quint64 request)
@@ -4011,7 +4019,18 @@ void chat_widget::filter_contacts(QString const& query)
         contacts_status_->setText(friends_list_->rowCount() == 0 ? QStringLiteral("未找到好友") : QString{});
     }
     // With an empty model, the request result owns loading, error or empty feedback.
-    contacts_status_->setVisible(!contacts_status_->text().isEmpty());
+    update_contact_status();
+}
+
+void chat_widget::update_contact_status()
+{
+    const bool empty = !friends_list_->rowCount();
+    const auto text = contacts_status_->text();
+    contacts_empty_->set_message(empty ? text : QString{},
+                                 text == QStringLiteral("暂无好友")     ? u"contacts"
+                                 : text == QStringLiteral("未找到好友") ? u"search"
+                                                                        : QStringView{});
+    contacts_status_->setVisible(!text.isEmpty() && !empty);
 }
 
 void chat_widget::set_add_contact_status(QString message)
@@ -5214,7 +5233,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     dialog.setObjectName(QStringLiteral("profileDialog"));
     dialog.setWindowTitle(username);
     dialog.setModal(true);
-    dialog.resize(460, 580);
+    dialog.resize(436, 480);
     auto* layout = new QVBoxLayout(&dialog);
     frame_dialog(dialog);
     layout->setContentsMargins(0, 0, 0, 8);
@@ -5268,106 +5287,104 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     relationship->setWordWrap(true);
     header_layout->addWidget(relationship);
 
-    header_layout->addSpacing(4);
-
     auto* actions = new QHBoxLayout;
-    actions->setContentsMargins(0, 0, 0, 0);
-    actions->setSpacing(12);
-    actions->addStretch();
-    auto make_action = [header](QString text, QStringView icon, QColor const& color)
-    {
-        auto* button = new QToolButton(header);
-        button->setObjectName(QStringLiteral("profileActionButton"));
-        button->setText(std::move(text));
-        button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-        button->setIcon(svg_icon(icon, color, QSize(20, 20)));
-        button->setIconSize(QSize(20, 20));
-        button->setMinimumHeight(38);
-        button->setCursor(Qt::PointingHandCursor);
-        return button;
-    };
-    auto* message_button = make_action(QStringLiteral("消息"), QStringLiteral("chat"), themed("on_accent"));
-    message_button->setProperty("primary", true);
-    auto* mute = make_action(QStringLiteral("静音"), u"bell-off", themed("accent"));
-    auto* options = make_action(QStringLiteral("更多"), u"more", themed("accent"));
-    auto* more = new QMenu(options);
-    auto* copy_username = more->addAction(QStringLiteral("复制用户名"));
-    copy_username->setEnabled(false);
-    options->setMenu(more);
-    options->setPopupMode(QToolButton::InstantPopup);
-    connect(&theme_manager::instance(),
-            &theme_manager::changed,
-            &dialog,
-            [this, message_button, mute, options, avatar, user, username]
-            {
-                message_button->setIcon(svg_icon(u"chat", themed("on_accent")));
-                mute->setIcon(svg_icon(u"bell-off", themed("accent")));
-                options->setIcon(svg_icon(u"more", themed("accent")));
-                avatar->setPixmap(avatar_icon(username, 104, avatars_.image(user)).pixmap(104, 104));
-            });
-    actions->addWidget(message_button);
-    actions->addWidget(mute);
-    actions->addWidget(options);
-    actions->addStretch();
-    for (auto* action : {message_button, mute, options})
-    {
-        action->setMinimumWidth(96);
-        action->setMaximumWidth(QWIDGETSIZE_MAX);
-    }
+    actions->setSpacing(9);
+    auto* message_button = profile_action(header, QStringLiteral("消息"), u"chat");
+    message_button->setObjectName(QStringLiteral("profileMessageButton"));
+    auto* mute = profile_action(header, QStringLiteral("静音"), {});
+    mute->setObjectName(QStringLiteral("profileMuteButton"));
+    actions->addWidget(message_button, 1);
+    actions->addWidget(mute, 1);
     header_layout->addLayout(actions);
     body->addWidget(header);
 
     auto* info = new QFrame(content);
     info->setObjectName(QStringLiteral("profileInfoSection"));
     auto* info_layout = new QVBoxLayout(info);
-    info_layout->setContentsMargins(0, 0, 0, 0);
-    info_layout->setSpacing(6);
-
-    auto* account = new QLabel(info);
-    account->setTextFormat(Qt::PlainText);
-    account->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    account->hide();
-    info_layout->addWidget(account);
-    auto* signature = new QLabel(info);
+    info_layout->setContentsMargins(6, 0, 6, 0);
+    info_layout->setSpacing(10);
+    auto field = [info, info_layout](QString const& caption, QToolButton* accessory = nullptr)
+    {
+        auto* row = new QWidget(info);
+        auto* line = new QHBoxLayout(row);
+        line->setContentsMargins(0, 0, 0, 0);
+        auto* labels = new QVBoxLayout;
+        labels->setSpacing(2);
+        auto* value = new QLabel(row);
+        value->setTextFormat(Qt::PlainText);
+        value->setWordWrap(true);
+        value->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        auto* label = new QLabel(caption, row);
+        label->setObjectName(QStringLiteral("profileFieldCaption"));
+        labels->addWidget(value);
+        labels->addWidget(label);
+        line->addLayout(labels, 1);
+        if (accessory)
+        {
+            line->addWidget(accessory);
+        }
+        info_layout->addWidget(row);
+        row->hide();
+        return value;
+    };
+    auto* copy_username = new QToolButton(info);
+    copy_username->setObjectName(QStringLiteral("profileCopyUsername"));
+    copy_username->setProperty("navigationTool", true);
+    copy_username->setToolTip(QStringLiteral("复制用户名"));
+    copy_username->setAccessibleName(copy_username->toolTip());
+    copy_username->setIconSize(chat_theme::action_icon);
+    copy_username->setFixedSize(34, 34);
+    auto copy_icon = [copy_username] { copy_username->setIcon(svg_icon(u"copy", themed("text_secondary"), chat_theme::action_icon)); };
+    copy_icon();
+    connect(&theme_manager::instance(), &theme_manager::changed, copy_username, copy_icon);
+    auto* account = field(QStringLiteral("用户名"), copy_username);
+    auto* nickname = field(QStringLiteral("昵称"));
+    auto* remark = field(QStringLiteral("好友备注"));
+    auto* signature = field(QStringLiteral("简介"));
     signature->setObjectName(QStringLiteral("profileSignatureText"));
-    signature->setTextFormat(Qt::PlainText);
-    signature->setWordWrap(true);
-    signature->hide();
-    info_layout->addWidget(signature);
-    auto* edit_profile = new QPushButton(QStringLiteral("编辑昵称与签名"), info);
+    auto* edit_profile = profile_action(header, QStringLiteral("编辑资料"), u"settings");
     edit_profile->setObjectName(QStringLiteral("editUserProfile"));
     edit_profile->setVisible(user == self_user_);
     edit_profile->setEnabled(false);
-    info_layout->addWidget(edit_profile);
+    auto* avatar_action = profile_action(header, QStringLiteral("更换头像"), u"image");
+    avatar_action->setObjectName(QStringLiteral("changeAvatarButton"));
+    avatar_action->setVisible(user == self_user_);
+    actions->addWidget(edit_profile, 1);
+    actions->addWidget(avatar_action, 1);
     connect(this,
             &chat_widget::profile_received,
             &dialog,
-            [this, user, account, name, signature, edit_profile, copy_username](qint64 id, QString login, QString nick, QString text)
+            [this, &dialog, body, user, account, name, nickname, remark, signature, edit_profile, first = true](
+                qint64 id, QString login, QString nick, QString text) mutable
             {
                 if (id != user)
                 {
                     return;
                 }
-                name->setText(user_display_name(login, nick, friend_remark(id)));
-                copy_username->setData(login);
-                copy_username->setEnabled(!login.isEmpty());
-                auto info = QStringList{QStringLiteral("用户名 · ") + login};
-                if (!nick.isEmpty() && nick != name->text() && nick != login)
+                const auto alias = friend_remark(id);
+                name->setText(user_display_name(login, nick, alias));
+                auto set_value = [](QLabel* field, QString const& value)
                 {
-                    info << QStringLiteral("昵称 · ") + nick;
-                }
-                account->setText(info.join(u'\n'));
-                account->setVisible(name->text() != login);
-                signature->setText(text);
-                signature->setVisible(!text.isEmpty());
+                    field->setText(value);
+                    field->parentWidget()->setVisible(!value.isEmpty());
+                };
+                set_value(account, login);
+                set_value(nickname, nick == login || nick == name->text() ? QString{} : nick);
+                set_value(remark, alias == login || alias == nick || alias == name->text() ? QString{} : alias);
+                set_value(signature, text);
                 edit_profile->setProperty("nickname", nick);
                 edit_profile->setEnabled(connection_available_);
+                if (first)
+                {
+                    first = false;
+                    body->layout()->activate();
+                    dialog.resize(dialog.width(), std::clamp(body->sizeHint().height() + 62, 350, 620));
+                }
             });
     connect(contacts_, &QAbstractItemModel::modelReset, &dialog, [this, user] { emit profile_requested(user); });
-    connect(
-        copy_username, &QAction::triggered, &dialog, [copy_username] { QGuiApplication::clipboard()->setText(copy_username->data().toString()); });
+    connect(copy_username, &QToolButton::clicked, &dialog, [account] { QGuiApplication::clipboard()->setText(account->text()); });
     connect(edit_profile,
-            &QPushButton::clicked,
+            &QToolButton::clicked,
             &dialog,
             [this, &dialog, edit_profile, signature]
             {
@@ -5399,20 +5416,17 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
                 &dialog,
                 [this, user, signature]
                 {
-                    signature->hide();
+                    signature->parentWidget()->hide();
                     emit profile_requested(user);
                 });
     }
     emit profile_requested(user);
-    setup_profile_friendship(dialog, info_layout, relationship, message_button, *more, user, username);
+    setup_profile_friendship(dialog, info_layout, relationship, message_button, user, username);
 
     auto* shared = new QWidget(content);
     auto* shared_layout = new QVBoxLayout(shared);
     shared_layout->setContentsMargins(0, 0, 0, 0);
-    shared_layout->setSpacing(3);
-    auto* shared_title = new QLabel(QStringLiteral("共享内容"), shared);
-    shared_title->setObjectName(QStringLiteral("groupSectionHeading"));
-    shared_layout->addWidget(shared_title);
+    shared_layout->setSpacing(0);
     auto direct = [this, user]() -> std::optional<conversation_data>
     {
         auto const& rooms = conversations_->items();
@@ -5425,9 +5439,11 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
         shared->setVisible(room.has_value());
         mute->setVisible(room.has_value());
         mute->setEnabled(connection_available_);
-        mute->setText(room && room->muted() ? QStringLiteral("取消静音") : QStringLiteral("静音"));
+        display_notification_action(*mute, room && room->muted());
     };
     connect(this, &chat_widget::friendship_updated, &dialog, update_shared);
+    connect(this, &chat_widget::notification_expired, &dialog, update_shared);
+    connect(&theme_manager::instance(), &theme_manager::changed, &dialog, update_shared);
     connect(conversations_, &QAbstractItemModel::modelReset, &dialog, update_shared);
     connect(conversations_, &QAbstractItemModel::dataChanged, &dialog, update_shared);
     connect(mute,
@@ -5441,16 +5457,16 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
                 }
             });
     update_shared();
-    int category = 0;
-    for (auto const* title : {"聊天记录", "图片", "文件", "链接"})
+    static const QStringView titles[]{u"图片", u"文件", u"链接"};
+    static const QStringView icons[]{u"image", u"file", u"link"};
+    for (int i = 0; i < 3; ++i)
     {
-        auto* entry = new QPushButton(QString::fromUtf8(title), shared);
-        entry->setProperty("profileEntry", true);
+        auto* entry = profile_entry(shared, titles[i].toString(), icons[i]);
         shared_layout->addWidget(entry);
         connect(entry,
                 &QPushButton::clicked,
                 &dialog,
-                [this, direct, kind = category++]
+                [this, direct, kind = i + 1]
                 {
                     if (auto const room = direct(); connection_available_ && room)
                     {
@@ -5460,21 +5476,25 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     }
     if (user == self_user_)
     {
-        setup_profile_avatar(dialog, info_layout, user);
-        auto* bookmarks = new QPushButton(QStringLiteral("消息收藏"), info);
+        setup_profile_avatar(dialog, info_layout, avatar_action, user);
+        auto* bookmarks = profile_entry(info, QStringLiteral("消息收藏"), u"bookmark");
         bookmarks->setObjectName(QStringLiteral("profileBookmarks"));
         info_layout->addWidget(bookmarks);
         connect(bookmarks, &QPushButton::clicked, &dialog, [this, &dialog] { emit profile_bookmarks_requested(&dialog); });
-        auto* devices = new QPushButton(QStringLiteral("账号安全与登录设备"), info);
+        auto* devices = profile_entry(info, QStringLiteral("账号安全与登录设备"), u"monitor");
         info_layout->addWidget(devices);
         connect(devices, &QPushButton::clicked, &dialog, [this, &dialog] { emit profile_devices_requested(&dialog); });
-        auto* logout = new QPushButton(QStringLiteral("退出登录"), info);
+        auto* logout = profile_entry(info, QStringLiteral("退出登录"), u"logout", true);
         logout->setObjectName(QStringLiteral("profileLogoutButton"));
         info_layout->addWidget(logout);
         connect(logout, &QPushButton::clicked, &dialog, [this, &dialog] { emit logout_requested(&dialog); });
     }
     body->addWidget(info);
     body->addWidget(shared);
+    if (auto* remove = dialog.findChild<QPushButton*>(QStringLiteral("removeContactButton")))
+    {
+        body->addWidget(remove);
+    }
     body->addStretch();
 
     dialog.setFocus(Qt::OtherFocusReason);
@@ -5482,17 +5502,17 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
 }
 
 void chat_widget::setup_profile_friendship(
-    QDialog& dialog, QVBoxLayout* info_layout, QLabel* relationship, QToolButton* message_button, QMenu& menu, qint64 user, QString const& username)
+    QDialog& dialog, QVBoxLayout* info_layout, QLabel* relationship, QToolButton* message_button, qint64 user, QString const& username)
 {
     auto* info = info_layout->parentWidget();
-    QAction* remove_contact_button = nullptr;
+    QPushButton* remove_contact_button = nullptr;
     if (user != self_user_)
     {
-        auto* remove = menu.addAction(QStringLiteral("删除好友"));
+        auto* remove = profile_entry(info, QStringLiteral("删除好友"), u"user-minus", true);
         remove_contact_button = remove;
         remove->setObjectName(QStringLiteral("removeContactButton"));
         connect(remove,
-                &QAction::triggered,
+                &QPushButton::clicked,
                 &dialog,
                 [this, &dialog, user, username]
                 {
@@ -5629,18 +5649,14 @@ void chat_widget::setup_profile_friendship(
             });
 }
 
-void chat_widget::setup_profile_avatar(QDialog& dialog, QVBoxLayout* info_layout, qint64 user)
+void chat_widget::setup_profile_avatar(QDialog& dialog, QVBoxLayout* info_layout, QToolButton* change, qint64 user)
 {
     auto* info = info_layout->parentWidget();
-    auto* change = new QPushButton(QStringLiteral("更换头像"), info);
-    change->setObjectName(QStringLiteral("changeAvatarButton"));
-    change->setProperty("primary", true);
     auto* remove = new QPushButton(QStringLiteral("移除头像"), info);
     remove->setObjectName(QStringLiteral("removeAvatarButton"));
     auto* status = new QLabel(info);
     status->setObjectName(QStringLiteral("avatarUploadStatus"));
     status->setWordWrap(true);
-    info_layout->addWidget(change);
     info_layout->addWidget(remove);
     info_layout->addWidget(status);
     auto update = [this, user, change, remove, status]
@@ -5664,7 +5680,7 @@ void chat_widget::setup_profile_avatar(QDialog& dialog, QVBoxLayout* info_layout
                 update();
             });
     connect(change,
-            &QPushButton::clicked,
+            &QToolButton::clicked,
             &dialog,
             [this, &dialog, status, update]
             {
