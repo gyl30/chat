@@ -19,6 +19,7 @@
 
 #include "conversation_data.hpp"
 #include "avatar.hpp"
+#include "file_presentation.hpp"
 #include "message_data.hpp"
 #include "presence_data.hpp"
 #include "user_data.hpp"
@@ -60,9 +61,11 @@ class chat_widget final : public QWidget
         qint64 id;
         QString filename;
         qint64 size;
-        QString status;
+        file_transfer transfer;
+        QString error;
     };
     QList<upload_row> group_uploads(qint64 conversation) const;
+    void activate_upload(qint64 id, file_action action);
     void add_upload_actions(QMenu& menu, qint64 id);
     void set_downloads(download_tasks& downloads);
     void setup_unified_search(client_bridge& client);
@@ -153,6 +156,7 @@ class chat_widget final : public QWidget
     std::optional<conversation_data> conversation(qint64 id) const;
     void set_notifications(qint64 conversation, chat::notification_level level, qint64 until);
     void set_conversation_pinned(qint64 conversation, bool pinned);
+    std::optional<presence_data> member_presence(qint64 user) const;
     void show_user_details(qint64 user, QString const& username, QWidget* profile_parent = nullptr);
     void set_control_enter_send(bool enabled);
     bool control_enter_send() const { return control_enter_send_; }
@@ -203,7 +207,7 @@ class chat_widget final : public QWidget
     void bookmark_requested(qint64 message, bool bookmarked);
     void global_search_requested(QString query, bool submit);
     void message_context_requested(qint64 conversation, qint64 anchor);
-    void chat_history_requested(qint64 conversation, QString title);
+    void chat_history_requested(qint64 conversation, QString title, int category = 0);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
     void add_file_requested(qint64 conversation, QString key);
     void poll_write_requested(qint64 room, qint64 message, qint64 choice);
@@ -249,8 +253,13 @@ class chat_widget final : public QWidget
     QWidget* timeline_;
     QWidget* poll_page_ = nullptr;
     QPointer<QWidget> poll_return_focus_;
-    void setup_profile_friendship(
-        QDialog& dialog, QVBoxLayout* info_layout, QLabel* relationship, QToolButton* message_button, qint64 user, QString const& username);
+    void setup_profile_friendship(QDialog& dialog,
+                                  QVBoxLayout* info_layout,
+                                  QLabel* relationship,
+                                  QToolButton* message_button,
+                                  QMenu& menu,
+                                  qint64 user,
+                                  QString const& username);
     void setup_profile_avatar(QDialog& dialog, QVBoxLayout* info_layout, qint64 user);
     void setup_chat_header(QVBoxLayout* chat_layout);
     void setup_message_list(QVBoxLayout* chat_layout);
@@ -279,6 +288,9 @@ class chat_widget final : public QWidget
         quoted_message_data reply;
         qint64 created = 0;
         bool group_only = false;
+        qint64 confirmed = -1;
+        QPixmap thumbnail;
+        file_transfer upload_transfer() const;
         bool failed = false;
         QString error;
         bool waiting = false;

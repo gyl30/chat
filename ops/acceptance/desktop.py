@@ -551,6 +551,8 @@ async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
                 ))
 
         await until(lambda: first_parts() == {(cid, 1) for cid in ids.values()}, "each transfer has exactly one confirmed part")
+        painted = await ui.call("transfers")
+        assert painted["confirmed"] == [0, 0, 0], painted
 
         async def label(prefix, *, ready=False):
             field = "resumable" if ready else "labels"

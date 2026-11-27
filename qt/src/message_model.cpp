@@ -155,7 +155,7 @@ void message_model::set_downloads(download_tasks& downloads)
                 {
                     if (row.isValid() && messages_.at(row.row()).attachment && !messages_.at(row.row()).deleted)
                     {
-                        emit dataChanged(row, row, {download_status_role});
+                        emit dataChanged(row, row, {download_status_role, transfer_role});
                     }
                 };
                 if (sources.isEmpty())
@@ -233,9 +233,13 @@ QVariant message_model::data(QModelIndex const& index, int role) const
                 return item.error;
             case read_role:
             case read_members_role:
-            case image_role:
-            case image_status_role:
                 return {};
+            case image_role:
+                return item.thumbnail.isNull() ? QVariant{} : QVariant::fromValue(item.thumbnail);
+            case image_status_role:
+                return item.thumbnail.isNull() ? QVariant{} : QVariant(QString{});
+            case transfer_role:
+                return QVariant::fromValue(item.transfer);
             default:
                 break;
         }
@@ -333,6 +337,12 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return message.text;
         case download_status_role:
             return downloads_ && message.attachment && !message.deleted ? downloads_->summary({message.conversation, message.id, 0, {}}) : QString{};
+        case transfer_role:
+            return QVariant::fromValue(downloads_ && message.attachment && !message.deleted
+                                           ? downloads_->transfer({message.conversation, message.id, 0, {}})
+                                           : file_transfer{});
+        case attachment_size_role:
+            return message.attachment ? message.attachment->size : 0;
         case attachment_key_role:
             return message.attachment ? message.attachment->object_key : QString{};
         case attachment_name_role:
@@ -516,8 +526,9 @@ void message_model::set_pending(QList<pending_message> pending)
         {
             pending_[row] = std::move(item);
             auto const changed = index(messages_.size() + row, 0);
-            emit dataChanged(
-                changed, changed, {Qt::DisplayRole, Qt::AccessibleTextRole, text_role, send_state_role, send_error_role, reply_text_role});
+            emit dataChanged(changed,
+                             changed,
+                             {Qt::DisplayRole, Qt::AccessibleTextRole, text_role, send_state_role, send_error_role, transfer_role, reply_text_role});
         }
     }
 }

@@ -685,16 +685,10 @@ async def qt_scenarios(root, probe, url, owner, member, db):
             await muted(owner, conv, 2, -1)
 
             def has_label(state, user, label):
-                return all(
-                    any(
-                        row["id"] == user
-                        and all(
-                            label in row[role]
-                            for role in ("status", "accessible", "tooltip")
-                        )
-                        for row in state.get(view, [])
-                    )
-                    for view in ("list", "preview")
+                return any(
+                    row["id"] == user
+                    and all(label in row[role] for role in ("status", "accessible", "tooltip"))
+                    for row in state.get("list", [])
                 )
 
             await admin.wait(
@@ -717,16 +711,9 @@ async def qt_scenarios(root, probe, url, owner, member, db):
             await ui.wait("moderate", lambda r: r.get("publish"), members=True)
             after = await admin.wait(
                 "moderate",
-                lambda r: all(
-                    any(
-                        row["id"] == 3
-                        and all(
-                            "禁言" not in row[role]
-                            for role in ("status", "accessible", "tooltip")
-                        )
-                        for row in r.get(view, [])
-                    )
-                    for view in ("list", "preview")
+                lambda r: any(
+                    row["id"] == 3 and all("禁言" not in row[role] for role in ("status", "accessible", "tooltip"))
+                    for row in r.get("list", [])
                 ),
                 members=True,
             )
@@ -738,7 +725,7 @@ async def qt_scenarios(root, probe, url, owner, member, db):
             ]
             assert not management.messages[rpc_count:]
             print(
-                "PASS Qt natural mute expiry updates member list, preview, accessibility and own publishing without an RPC",
+                "PASS Qt natural mute expiry updates member list, accessibility and own publishing without an RPC",
                 flush=True,
             )
             await ui.call("moderate", close=True)

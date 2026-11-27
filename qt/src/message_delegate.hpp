@@ -33,7 +33,7 @@ class message_delegate final : public QStyledItemDelegate
     void reaction_clicked(QModelIndex const& index, QString emoji);
     void vote_clicked(QModelIndex const& index, qint64 choice);
     void content_clicked(QModelIndex const& index);
-    void image_clicked(QModelIndex const& index);
+    void attachment_clicked(QModelIndex const& index, bool preview);
 
    private:
     QPersistentModelIndex text_index_;

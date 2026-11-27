@@ -4,10 +4,12 @@
 #include <QByteArray>
 #include <QDialog>
 #include <QPixmap>
+#include <optional>
 
 class download_tasks;
 class QLabel;
 class QPushButton;
+class QScrollArea;
 
 class attachment_dialog final : public QDialog
 {
@@ -42,6 +44,12 @@ class attachment_dialog final : public QDialog
     QLabel* status_;
     QLabel* image_;
     QPushButton* save_button_;
+    QScrollArea* scroll_ = nullptr;
+    QPushButton* fit_button_ = nullptr;
+    QPushButton* copy_button_ = nullptr;
+    double zoom_ = 0;
+    std::optional<QPoint> drag_;
+    void update_image();
 };
 
 #endif

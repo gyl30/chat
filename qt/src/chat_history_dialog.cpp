@@ -5,6 +5,11 @@
 #include <utf8proc.h>
 
 #include <QAction>
+#include <QDateTime>
+#include <QDesktopServices>
+#include <QPainter>
+#include <QStyledItemDelegate>
+#include <QTimer>
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QHBoxLayout>
@@ -19,24 +24,134 @@
 #include <QVBoxLayout>
 
 #include "message_preview.hpp"
+#include "file_presentation.hpp"
+#include "download_tasks.hpp"
+#include "message_images.hpp"
+#include "message_links.hpp"
 #include "theme.hpp"
 #include "theme_manager.hpp"
 
 namespace
 {
 
-QString size_text(qint64 bytes)
+enum media_role
 {
-    if (bytes < 1024)
-    {
-        return QStringLiteral("%1 B").arg(bytes);
-    }
-    if (bytes < 1024 * 1024)
-    {
-        return QStringLiteral("%1 KB").arg(bytes / 1024.0, 0, 'f', 1);
-    }
-    return QStringLiteral("%1 MB").arg(bytes / 1024.0 / 1024.0, 0, 'f', 1);
+    filename_role = preview_role::more + 1,
+    size_role,
+    date_role,
+    link_role,
+    category_role,
+};
+
+QUrl first_link(QString const& text)
+{
+    auto const links = message_links(text);
+    return links.isEmpty() ? QUrl{} : QUrl(links.front().format.anchorHref());
 }
+
+QDate sent_date(message_data const& message) { return QDateTime::fromMSecsSinceEpoch(message.timestamp).date(); }
+
+class history_media_delegate final : public QStyledItemDelegate
+{
+   public:
+    history_media_delegate(QListWidget& list, QAbstractItemDelegate& previews, message_images* images, download_tasks* downloads)
+        : QStyledItemDelegate(&list), previews_(previews), images_(images), downloads_(downloads)
+    {
+    }
+
+    QSize sizeHint(QStyleOptionViewItem const& option, QModelIndex const& index) const override
+    {
+        switch (index.data(category_role).toInt())
+        {
+            case int(chat::message_category::images):
+                return {110, 132};
+            case int(chat::message_category::files):
+                return {0, file_row_height + 8};
+            case int(chat::message_category::links):
+                return {0, 66};
+            default:
+                return previews_.sizeHint(option, index);
+        }
+    }
+
+    void paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const override
+    {
+        auto const category = static_cast<chat::message_category>(index.data(category_role).toInt());
+        if (category == chat::message_category::all)
+        {
+            previews_.paint(painter, option, index);
+            return;
+        }
+
+        painter->save();
+        auto const selected = option.state & QStyle::State_Selected;
+        if (selected || option.state & QStyle::State_MouseOver)
+        {
+            painter->fillRect(option.rect, themed(selected ? "selected" : "canvas_hover"));
+        }
+        if (category == chat::message_category::images)
+        {
+            const QRect tile = option.rect.adjusted(4, 4, -4, -28);
+            painter->fillRect(tile, themed("subtle"));
+            auto const image = images_ ? images_->image(index.data(preview_role::message).toLongLong()) : QPixmap{};
+            if (image.isNull())
+            {
+                painter->setPen(themed("text_secondary"));
+                painter->drawText(tile, Qt::AlignCenter, QStringLiteral("图片"));
+            }
+            else
+            {
+                QRect target(QPoint(), image.size().scaled(tile.size(), Qt::KeepAspectRatio));
+                target.moveCenter(tile.center());
+                painter->setRenderHint(QPainter::SmoothPixmapTransform);
+                painter->drawPixmap(target, image);
+            }
+            painter->setPen(themed("text_secondary"));
+            painter->drawText(option.rect.adjusted(5, tile.height() + 6, -4, -1), Qt::AlignVCenter, index.data(date_role).toString());
+        }
+        else if (category == chat::message_category::files)
+        {
+            auto const transfer =
+                downloads_ ? downloads_->transfer(
+                                 {index.data(preview_role::conversation).toLongLong(), index.data(preview_role::message).toLongLong(), 0, {}})
+                           : file_transfer{file_action::download, {}};
+            auto details = transfer.status.isEmpty() ? file_size(index.data(size_role).toLongLong()) : transfer.status;
+            details += QStringLiteral(" · ") + index.data(preview_role::sender).toString() + QStringLiteral(" · ") +
+                       index.data(preview_role::time).toString();
+            paint_file_row(*painter, option.rect.adjusted(10, 4, -10, -4), option.font, index.data(filename_role).toString(), details, transfer);
+        }
+        else
+        {
+            auto const url = index.data(link_role).toUrl();
+            auto font = option.font;
+            font.setBold(true);
+            painter->setFont(font);
+            auto const rect = option.rect.adjusted(10, 3, -10, -3);
+            painter->setPen(themed("text"));
+            const auto header = url.host() + QStringLiteral(" · ") + index.data(preview_role::sender).toString() + QStringLiteral(" · ") +
+                                index.data(preview_role::time).toString();
+            painter->drawText(QRect(rect.topLeft(), QSize(rect.width(), 19)),
+                              Qt::AlignVCenter,
+                              QFontMetrics(font).elidedText(header, Qt::ElideRight, rect.width()));
+            font.setBold(false);
+            painter->setFont(font);
+            painter->setPen(themed("link"));
+            painter->drawText(QRect(rect.topLeft() + QPoint(0, 19), QSize(rect.width(), 19)),
+                              Qt::AlignVCenter,
+                              QFontMetrics(font).elidedText(url.toDisplayString(), Qt::ElideMiddle, rect.width()));
+            painter->setPen(themed("text_secondary"));
+            painter->drawText(QRect(rect.topLeft() + QPoint(0, 38), QSize(rect.width(), 19)),
+                              Qt::AlignVCenter,
+                              QFontMetrics(font).elidedText(index.data().toString(), Qt::ElideRight, rect.width()));
+        }
+        painter->restore();
+    }
+
+   private:
+    QAbstractItemDelegate& previews_;
+    message_images* images_;
+    download_tasks* downloads_;
+};
 
 QString content_text(message_data const& message)
 {
@@ -44,24 +159,18 @@ QString content_text(message_data const& message)
     {
         auto const image = message.attachment->media_type.startsWith(QStringLiteral("image/"));
         return (image ? QStringLiteral("[图片] ") : QStringLiteral("[文件] ")) + message.attachment->filename +
-               (image ? QString{} : QStringLiteral(" · ") + size_text(message.attachment->size));
+               (image ? QString{} : QStringLiteral(" · ") + file_size(message.attachment->size));
     }
     return message.text.simplified();
-}
-
-void set_row(QListWidgetItem& item, message_data const& message, QString const& query)
-{
-    chat::message_search_hit const hit{message.conversation, message.id, message.from, message.timestamp, {}, message.username.toStdString(), {}};
-    auto summary = message.attachment ? content_text(message) : matched_message_excerpt(message.text, query);
-    set_message_preview(item, hit, std::move(summary));
 }
 
 bool supersedes(message_data const& change, message_data const& old) { return !old.deleted && (change.deleted || change.edited_at > old.edited_at); }
 
 }    // namespace
 
-chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& title, QWidget* parent, avatar_cache* avatars)
-    : QDialog(parent), conversation_(conversation)
+chat_history_dialog::chat_history_dialog(
+    qint64 conversation, QString const& title, QWidget* parent, avatar_cache* avatars, message_images* images, download_tasks* downloads)
+    : QDialog(parent), conversation_(conversation), images_(images), downloads_(downloads)
 {
     setObjectName(QStringLiteral("chatHistoryDialog"));
     setWindowTitle(QStringLiteral("聊天记录 · %1").arg(title));
@@ -93,6 +202,27 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     list_->setObjectName(QStringLiteral("historyList"));
     list_->setAccessibleName(QStringLiteral("聊天记录"));
     style_message_previews(*list_, *search, avatars);
+    auto* previews = list_->itemDelegate();
+    list_->setItemDelegate(new history_media_delegate(*list_, *previews, images_, downloads_));
+    list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    list_->viewport()->installEventFilter(this);
+    if (images_)
+    {
+        connect(images_, &message_images::changed, list_->viewport(), qOverload<>(&QWidget::update));
+    }
+    if (downloads_)
+    {
+        connect(downloads_,
+                &download_tasks::changed,
+                this,
+                [this](QList<download_source> const& sources)
+                {
+                    if (sources.isEmpty() || std::ranges::any_of(sources, [this](auto const& src) { return src.conversation == conversation_; }))
+                    {
+                        list_->viewport()->update();
+                    }
+                });
+    }
     list_->setFrameShape(QFrame::NoFrame);
     list_->setUniformItemSizes(true);
     connect(&theme_manager::instance(),
@@ -126,18 +256,107 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
             this,
             [this](int value)
             {
+                observe_visible_images();
                 if (value == list_->verticalScrollBar()->maximum() && value > 0)
                 {
                     request_more();
                 }
             });
-    connect(list_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) { emit message_activated(item->data(preview_role::message).toLongLong()); });
+    connect(list_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) { activate(*item); });
     connect(list_, &QListWidget::customContextMenuRequested, this, [this](QPoint position) { show_menu(position); });
     search->setFocus(Qt::OtherFocusReason);
     update_status();
 }
 
-void chat_history_dialog::start() { request_more(); }
+void chat_history_dialog::start(category initial)
+{
+    if (int(initial) == tabs_->currentIndex())
+    {
+        request_more();
+    }
+    else
+    {
+        tabs_->setCurrentIndex(int(initial));
+    }
+}
+
+bool chat_history_dialog::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == list_->viewport() && (event->type() == QEvent::Show || event->type() == QEvent::Resize))
+    {
+        QTimer::singleShot(0, this, &chat_history_dialog::observe_visible_images);
+    }
+    return QDialog::eventFilter(watched, event);
+}
+
+void chat_history_dialog::observe_visible_images()
+{
+    if (!images_ || tabs_->currentIndex() != int(category::images) || !list_->isVisible())
+    {
+        return;
+    }
+    for (int i = 0; i < list_->count(); ++i)
+    {
+        auto const* item = list_->item(i);
+        if (list_->viewport()->rect().intersects(list_->visualItemRect(item)))
+        {
+            images_->observe(conversation_, item->data(preview_role::message).toLongLong());
+        }
+    }
+}
+
+void chat_history_dialog::set_row(QListWidgetItem& item, message_data const& message, bool starts_day)
+{
+    chat::message_search_hit const hit{message.conversation, message.id, message.from, message.timestamp, {}, message.username.toStdString(), {}};
+    set_message_preview(item, hit, message.attachment ? content_text(message) : matched_message_excerpt(message.text, query_));
+    auto const kind = static_cast<category>(tabs_->currentIndex());
+    item.setData(category_role, int(kind));
+    if (message.attachment)
+    {
+        item.setData(filename_role, message.attachment->filename);
+        item.setData(size_role, message.attachment->size);
+        item.setToolTip(message.attachment->filename);
+    }
+    if (kind == category::images)
+    {
+        item.setData(date_role, starts_day ? QLocale().toString(sent_date(message), QStringLiteral("yyyy-MM-dd")) : QString{});
+    }
+    else if (kind == category::links)
+    {
+        item.setData(link_role, first_link(message.text));
+    }
+}
+
+void chat_history_dialog::activate(QListWidgetItem const& item)
+{
+    auto const id = item.data(preview_role::message).toLongLong();
+    auto const filename = item.data(filename_role).toString();
+    switch (static_cast<category>(item.data(category_role).toInt()))
+    {
+        case category::images:
+            emit image_requested(id, filename);
+            break;
+        case category::files:
+            if (downloads_ && !downloads_->activate({conversation_, id, 0, {}}, this))
+            {
+                downloads_->save({conversation_, id, 0, {}}, filename, this);
+            }
+            break;
+        case category::links:
+            if (auto const url = item.data(link_role).toUrl(); !url.isEmpty())
+            {
+                QDesktopServices::openUrl(url);
+            }
+            else
+            {
+                emit message_activated(id);
+            }
+            break;
+        default:
+            emit message_activated(id);
+            break;
+    }
+}
 
 void chat_history_dialog::interrupt_loading()
 {
@@ -161,6 +380,13 @@ void chat_history_dialog::restart_search(QString query)
     has_more_ = true;
     loading_ = false;
     list_->clear();
+    bool const images = tabs_->currentIndex() == int(category::images);
+    list_->setViewMode(images ? QListView::IconMode : QListView::ListMode);
+    list_->setMovement(QListView::Static);
+    list_->setResizeMode(QListView::Adjust);
+    list_->setFlow(images ? QListView::LeftToRight : QListView::TopToBottom);
+    list_->setWrapping(images);
+    list_->setGridSize(images ? QSize(110, 132) : QSize());
     request_more();
 }
 
@@ -221,11 +447,12 @@ void chat_history_dialog::add_messages(QList<message_data> messages, bool has_mo
             }
             message = *edited;
         }
-        set_row(*new QListWidgetItem(list_), message, query_);
+        set_row(*new QListWidgetItem(list_), message, messages_.isEmpty() || sent_date(messages_.last()) != sent_date(message));
         messages_.push_back(std::move(message));
     }
     page_updates_.clear();
     update_status();
+    QTimer::singleShot(0, this, &chat_history_dialog::observe_visible_images);
 }
 
 bool chat_history_dialog::matches(message_data const& message) const
@@ -286,13 +513,17 @@ void chat_history_dialog::update_message(qint64 conversation, message_data messa
     if (matches(message))
     {
         *found = std::move(message);
-        set_row(*list_->item(row), *found, query_);
+        set_row(*list_->item(row), *found, row == 0 || sent_date(messages_[row - 1]) != sent_date(*found));
     }
     else
     {
         messages_.erase(found);
         QSignalBlocker const blocker(list_->verticalScrollBar());
         delete list_->takeItem(row);
+        if (row < messages_.size() && tabs_->currentIndex() == int(category::images))
+        {
+            set_row(*list_->item(row), messages_[row], row == 0 || sent_date(messages_[row - 1]) != sent_date(messages_[row]));
+        }
         if (messages_.isEmpty())
         {
             update_status();
@@ -335,6 +566,17 @@ void chat_history_dialog::show_menu(QPoint position)
     auto const found = std::ranges::find(messages_, id, &message_data::id);
     QMenu menu(this);
     connect(this, &QDialog::finished, &menu, &QMenu::close);
+    auto const category = static_cast<chat_history_dialog::category>(item->data(category_role).toInt());
+    auto const url = item->data(link_role).toUrl();
+    auto* open = !url.isEmpty()                 ? menu.addAction(QStringLiteral("打开链接"))
+                 : category == category::images ? menu.addAction(QStringLiteral("查看图片"))
+                                                : nullptr;
+    auto* copy_link = !url.isEmpty() ? menu.addAction(QStringLiteral("复制链接")) : nullptr;
+    auto* save = (category == category::images || category == category::files) && downloads_ ? menu.addAction(QStringLiteral("另存为")) : nullptr;
+    if (save)
+    {
+        downloads_->add_actions(menu, {conversation_, id, 0, {}});
+    }
     auto* locate = menu.addAction(QStringLiteral("定位到聊天位置"));
     auto* copy = found != messages_.end() && !found->text.isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
     auto* chosen = menu.exec(list_->viewport()->mapToGlobal(position));
@@ -347,6 +589,18 @@ void chat_history_dialog::show_menu(QPoint position)
     if (chosen == locate)
     {
         emit message_activated(id);
+    }
+    else if (open && chosen == open)
+    {
+        activate(*list_->item(current - messages_.begin()));
+    }
+    else if (copy_link && chosen == copy_link)
+    {
+        QGuiApplication::clipboard()->setText(first_link(current->text).toString(QUrl::FullyEncoded));
+    }
+    else if (save && chosen == save && current->attachment)
+    {
+        downloads_->save({conversation_, id, 0, {}}, current->attachment->filename, this);
     }
     else if (copy && chosen == copy)
     {

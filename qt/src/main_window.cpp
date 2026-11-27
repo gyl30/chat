@@ -48,7 +48,6 @@
 #include "global_search_dialog.hpp"
 #include "bookmarks_dialog.hpp"
 #include "download_tasks.hpp"
-#include "group_files_page.hpp"
 #include "chat_widget.hpp"
 #include "attachment_dialog.hpp"
 #include "bundle_dialog.hpp"
@@ -1027,18 +1026,55 @@ void main_window::show_group_details(qint64 conversation, qint64 self_user, QStr
     {
         return;
     }
-    group_dialog dialog(*client_, conversation, self_user, title, snapshot->announcement, snapshot->join_approval, this, &chat_page_->avatars());
+    group_dialog dialog(*client_, conversation, self_user, title, snapshot->announcement, snapshot->join_approval, this, *chat_page_);
     dialog.open_requests_on_load(requests);
-    dialog.files().bind_uploads(*chat_page_);
     dialog.discard_history(conversation, chat_page_->history_floor(conversation));
     dialog.set_conversations({*snapshot}, {});
+    connect(&dialog,
+            &group_dialog::history_requested,
+            &dialog,
+            [this, conversation](int category)
+            {
+                if (auto const current = chat_page_->conversation(conversation))
+                {
+                    show_chat_history(conversation, current->username, category);
+                }
+            });
+    connect(&dialog,
+            &group_dialog::pinned_requested,
+            &dialog,
+            [this, conversation, &dialog](qint64 message)
+            {
+                dialog.accept();
+                chat_page_->locate_message(conversation, message);
+            });
+    connect(&dialog,
+            &group_dialog::notification_requested,
+            client_.get(),
+            [this, conversation](bool mute)
+            { client_->set_notification_level(conversation, mute ? chat::notification_level::muted : chat::notification_level::all, 0); });
+    connect(
+        client_.get(),
+        &client_bridge::notifications_changed,
+        &dialog,
+        [&dialog, conversation](qint64 id, chat::notification_level level, qint64 until)
+        {
+            if (id == conversation)
+            {
+                dialog.set_notification_muted(level == chat::notification_level::muted && (!until || until > QDateTime::currentMSecsSinceEpoch()));
+            }
+        });
     connect(chat_page_, &chat_widget::history_discarded, &dialog, &group_dialog::discard_history);
     connect(&dialog,
             &group_dialog::upload_requested,
             &dialog,
             [this, conversation, &dialog](bool group_only) { chat_page_->choose_attachment(conversation, group_only, &dialog); });
-    connect(
-        &dialog, &group_dialog::user_requested, chat_page_, [this](qint64 user, QString const& name) { chat_page_->show_user_details(user, name); });
+    connect(&dialog,
+            &group_dialog::user_requested,
+            chat_page_,
+            [this, &dialog](qint64 user, QString const& name) { chat_page_->show_user_details(user, name, &dialog); });
+    connect(client_.get(), &client_bridge::presences_received, &dialog, &group_dialog::refresh_member_status);
+    connect(client_.get(), &client_bridge::presence_changed, &dialog, &group_dialog::refresh_member_status);
     connect(client_.get(), &client_bridge::profile_changed, &dialog, [this, conversation] { client_->get_members(conversation); });
     connect(client_.get(), &client_bridge::members_received, &dialog, &group_dialog::set_members);
     connect(client_.get(), &client_bridge::group_action_finished, &dialog, &group_dialog::finish_action);
@@ -1192,9 +1228,79 @@ void main_window::show_message_search(qint64 conversation, qint64 self_user, boo
     }
 }
 
-void main_window::show_chat_history(qint64 conversation, QString const& title)
+void main_window::show_attachment(qint64 conversation, qint64 message, QString filename, bool preview, QWidget* parent)
 {
-    chat_history_dialog dialog(conversation, title, this, &chat_page_->avatars());
+    if (message <= chat_page_->history_floor(conversation))
+    {
+        return;
+    }
+    attachment_dialog dialog(client_->downloads(),
+                             conversation,
+                             message,
+                             filename,
+                             preview,
+                             parent ? parent : this,
+                             preview ? chat_page_->images().image(message) : QPixmap{});
+    connect(client_.get(), &client_bridge::attachment_received, &dialog, &attachment_dialog::download_finished, Qt::AutoConnection);
+    connect(chat_page_,
+            &chat_widget::history_discarded,
+            &dialog,
+            [&dialog, conversation, message](qint64 id, qint64 through)
+            {
+                if (id == conversation && message <= through)
+                {
+                    dialog.reject();
+                }
+            });
+    connect(&dialog,
+            &attachment_dialog::save_requested,
+            client_.get(),
+            [this, filename = std::move(filename)](qint64 conv, qint64 message_id, QString path)
+            { client_->get_attachment(conv, message_id, filename, std::move(path)); });
+    connect(client_.get(), &client_bridge::message_image_received, &dialog, &attachment_dialog::set_data);
+    connect(client_.get(),
+            &client_bridge::conversation_changed,
+            &dialog,
+            [&dialog, conversation](qint64 id, bool removed)
+            {
+                if (removed && id == conversation)
+                {
+                    dialog.reject();
+                }
+            });
+    connect(client_.get(), &client_bridge::disconnected, &dialog, &QDialog::reject);
+    connect(
+        client_.get(),
+        &client_bridge::message_updated,
+        &dialog,
+        [&dialog, message](qint64, message_data value, QString const&)
+        {
+            if (value.id == message && value.deleted)
+            {
+                dialog.reject();
+            }
+        },
+        Qt::AutoConnection);
+    auto const bytes = chat_page_->images().bytes(message);
+    if (!bytes.isEmpty())
+    {
+        dialog.set_data(conversation, message, bytes, {});
+    }
+    else if (preview)
+    {
+        client_->get_message_image(conversation, message);
+    }
+    dialog.exec();
+}
+
+void main_window::show_chat_history(qint64 conversation, QString const& title, int category)
+{
+    chat_history_dialog dialog(conversation,
+                               title,
+                               QApplication::activeModalWidget() ? QApplication::activeModalWidget() : this,
+                               &chat_page_->avatars(),
+                               &chat_page_->images(),
+                               &client_->downloads());
     connect(chat_page_,
             &chat_widget::history_discarded,
             &dialog,
@@ -1242,7 +1348,12 @@ void main_window::show_chat_history(qint64 conversation, QString const& title)
                 located = message;
                 dialog.accept();
             });
-    dialog.start();
+    connect(&dialog,
+            &chat_history_dialog::image_requested,
+            &dialog,
+            [this, conversation, &dialog](qint64 message, QString filename)
+            { show_attachment(conversation, message, std::move(filename), true, &dialog); });
+    dialog.start(static_cast<chat::message_category>(category));
     if (dialog.exec() == QDialog::Accepted && located > 0)
     {
         chat_page_->locate_message(conversation, located);
@@ -1534,64 +1645,7 @@ void main_window::connect_messages()
             &chat_widget::attachment_open_requested,
             this,
             [this](qint64 conversation, qint64 message, QString filename, bool preview)
-            {
-                if (message <= chat_page_->history_floor(conversation))
-                {
-                    return;
-                }
-                attachment_dialog dialog(
-                    client_->downloads(), conversation, message, filename, preview, this, preview ? chat_page_->images().image(message) : QPixmap{});
-                connect(client_.get(), &client_bridge::attachment_received, &dialog, &attachment_dialog::download_finished, Qt::AutoConnection);
-                connect(chat_page_,
-                        &chat_widget::history_discarded,
-                        &dialog,
-                        [&dialog, conversation, message](qint64 id, qint64 through)
-                        {
-                            if (id == conversation && message <= through)
-                            {
-                                dialog.reject();
-                            }
-                        });
-                connect(&dialog,
-                        &attachment_dialog::save_requested,
-                        client_.get(),
-                        [this, filename = std::move(filename)](qint64 conv, qint64 message_id, QString path)
-                        { client_->get_attachment(conv, message_id, filename, std::move(path)); });
-                connect(client_.get(), &client_bridge::message_image_received, &dialog, &attachment_dialog::set_data);
-                connect(client_.get(),
-                        &client_bridge::conversation_changed,
-                        &dialog,
-                        [&dialog, conversation](qint64 id, bool removed)
-                        {
-                            if (removed && id == conversation)
-                            {
-                                dialog.reject();
-                            }
-                        });
-                connect(client_.get(), &client_bridge::disconnected, &dialog, &QDialog::reject);
-                connect(
-                    client_.get(),
-                    &client_bridge::message_updated,
-                    &dialog,
-                    [&dialog, message](qint64, message_data value, QString const&)
-                    {
-                        if (value.id == message && value.deleted)
-                        {
-                            dialog.reject();
-                        }
-                    },
-                    Qt::AutoConnection);
-                auto const bytes = chat_page_->images().bytes(message);
-                if (!bytes.isEmpty())
-                {
-                    dialog.set_data(conversation, message, bytes, {});
-                }
-                else if (preview)
-                {
-                    client_->get_message_image(conversation, message);
-                }
-                dialog.exec();
-            });
+            { show_attachment(conversation, message, std::move(filename), preview, this); });
     connect(
         &chat_page_->images(), &message_images::requested, client_.get(), [this](qint64 room, qint64 id) { client_->get_message_image(room, id); });
     connect(client_.get(), &client_bridge::message_image_received, &chat_page_->images(), &message_images::receive, Qt::AutoConnection);

@@ -11,7 +11,8 @@ class QComboBox;
 class QLabel;
 class QLineEdit;
 class QPushButton;
-class QTreeWidget;
+class QListWidget;
+class QListWidgetItem;
 
 class group_files_page final : public QWidget
 {
@@ -27,28 +28,25 @@ class group_files_page final : public QWidget
    private:
     void request_page(bool older);
     void reset_files();
-    void update_selection();
-    void download(bool open);
+    void activate(QListWidgetItem const& item);
+    void show_menu(QPoint position);
+    void set_status(QString const& text);
+    QListWidgetItem* find_file(QString const& key) const;
+    void download(QListWidgetItem const& item, bool open);
 
     client_bridge& client_;
     qint64 conversation_;
     qint64 user_;
     chat_widget* chat_ = nullptr;
-    QToolButton* upload_actions_;
-    QToolButton* download_actions_;
+    QToolButton* upload_;
     void refresh_uploads();
     bool manager_ = false;
     quint64 request_ = 0;
     QTimer search_delay_;
     QComboBox* category_;
     QLineEdit* search_;
-    QTreeWidget* list_;
+    QListWidget* list_;
     QLabel* status_;
     QPushButton* more_;
-    QPushButton* upload_only_;
-    QPushButton* upload_send_;
-    QPushButton* save_;
-    QPushButton* open_;
-    QPushButton* remove_;
 };
 #endif

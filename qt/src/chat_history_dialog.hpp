@@ -10,6 +10,8 @@
 #include "message_data.hpp"
 
 class avatar_cache;
+class message_images;
+class download_tasks;
 class QLabel;
 class QListWidget;
 class QListWidgetItem;
@@ -25,16 +27,22 @@ class chat_history_dialog final : public QDialog
    public:
     using category = chat::message_category;
 
-    chat_history_dialog(qint64 conversation, QString const& title, QWidget* parent, avatar_cache* avatars = nullptr);
+    chat_history_dialog(qint64 conversation,
+                        QString const& title,
+                        QWidget* parent,
+                        avatar_cache* avatars = nullptr,
+                        message_images* images = nullptr,
+                        download_tasks* downloads = nullptr);
     void set_history(qint64 conversation, QList<message_data> messages, bool has_more, QString const& error);
     // Requests the newest page; call once the request signals are connected.
-    void start();
+    void start(category initial = category::all);
     void update_message(qint64 conversation, message_data message, QString const& error);
     void interrupt_loading();
 
    signals:
     void history_requested(chat::message_category category, QString query, qint64 before);
     void message_activated(qint64 message);
+    void image_requested(qint64 message, QString filename);
 
    private:
     void restart_search(QString query);
@@ -43,8 +51,14 @@ class chat_history_dialog final : public QDialog
     bool matches(message_data const& message) const;
     void add_messages(QList<message_data> messages, bool has_more);
     void show_menu(QPoint position);
+    void activate(QListWidgetItem const& item);
+    void set_row(QListWidgetItem& item, message_data const& message, bool starts_day);
+    bool eventFilter(QObject* watched, QEvent* event) override;
+    void observe_visible_images();
 
     qint64 conversation_;
+    message_images* images_;
+    download_tasks* downloads_;
     QTabBar* tabs_ = nullptr;
     QListWidget* list_ = nullptr;
     QLabel* status_ = nullptr;

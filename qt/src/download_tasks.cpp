@@ -5,6 +5,8 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
+#include <QFileDialog>
+#include <QStandardPaths>
 #include <QLocale>
 #include <QMenu>
 #include <QToolButton>
@@ -45,6 +47,90 @@ QString download_tasks::summary(download_source const& source) const
     }
     return result.join(QStringLiteral(" · "));
 }
+QMap<qint64, download_tasks::task>::const_iterator download_tasks::primary(download_source const& source) const
+{
+    auto last = tasks_.cend();
+    for (auto it = tasks_.cbegin(); it != tasks_.cend(); ++it)
+    {
+        if (it->source == source && it->status != state::replaced)
+        {
+            if (it->status == state::running)
+            {
+                return it;
+            }
+            last = it;
+        }
+    }
+    return last;
+}
+
+file_transfer download_tasks::transfer(download_source const& source) const
+{
+    auto const it = primary(source);
+    if (it != tasks_.cend())
+    {
+        switch (it->status)
+        {
+            case state::running:
+                return {file_action::cancel, it->progress.isEmpty() ? it->description() : it->progress, it->percent / 100.0};
+            case state::failed:
+                return {file_action::resume, QStringLiteral("下载失败")};
+            case state::completed:
+                if (!path_busy(it->path) && QFileInfo::exists(it->path))
+                {
+                    return {file_action::open, QStringLiteral("已下载")};
+                }
+                break;
+            default:
+                break;
+        }
+    }
+    return {file_action::download, {}};
+}
+
+bool download_tasks::activate(download_source const& source, QWidget* parent)
+{
+    auto const it = primary(source);
+    switch (transfer(source).action)
+    {
+        case file_action::cancel:
+            cancel(it.key());
+            return true;
+        case file_action::resume:
+            retry(it.key(), parent);
+            return true;
+        case file_action::open:
+            QDesktopServices::openUrl(QUrl::fromLocalFile(it->path));
+            return true;
+        default:
+            return false;
+    }
+}
+
+void download_tasks::save(download_source const& source, QString const& filename, QWidget* parent, bool open)
+{
+    auto* chooser = new QFileDialog(parent, QStringLiteral("保存文件"), QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
+    chooser->setAttribute(Qt::WA_DeleteOnClose);
+    chooser->setAcceptMode(QFileDialog::AcceptSave);
+    chooser->selectFile(filename);
+    connect(&client_, &client_bridge::disconnected, chooser, &QDialog::reject);
+    connect(chooser,
+            &QFileDialog::fileSelected,
+            this,
+            [this, source, filename, open](QString const& path)
+            {
+                if (source.message)
+                {
+                    client_.get_attachment(source.conversation, source.message, filename, path, source.item);
+                }
+                else
+                {
+                    client_.download_file(source.conversation, source.key, filename, path, open);
+                }
+            });
+    chooser->open();
+}
+
 QToolButton* download_tasks::source_button(QWidget* parent, std::function<download_source()> source)
 {
     auto* button = new QToolButton(parent);
@@ -149,6 +235,7 @@ void download_tasks::start(qint64 id, task& value)
     value.control = std::make_shared<chat::download_control>();
     value.status = state::running;
     value.progress.clear();
+    value.percent = 0;
     value.error.clear();
     const auto src = value.source;
     client_.start_download(id, ++value.attempt, src.conversation, src.message, src.key, value.path, value.control, value.replace, src.item);
@@ -202,9 +289,11 @@ void download_tasks::progress(qint64 id, quint64 attempt, qint64 bytes, qint64 t
     }
     const QLocale locale;
     auto progress = QStringLiteral("%1 / %2").arg(locale.formattedDataSize(bytes), locale.formattedDataSize(total));
-    if (it->progress != progress)
+    auto const percent = total ? 100 * bytes / total : 0;
+    if (it->progress != progress || it->percent != percent)
     {
         it->progress = std::move(progress);
+        it->percent = percent;
         emit changed({it->source});
     }
 }

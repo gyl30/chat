@@ -9,6 +9,7 @@
 
 class avatar_cache;
 class client_bridge;
+class chat_widget;
 class group_files_page;
 class QLabel;
 class QLineEdit;
@@ -16,7 +17,9 @@ class QPlainTextEdit;
 class QListWidget;
 class QPushButton;
 class QCheckBox;
-class QTabWidget;
+class QStackedWidget;
+class QToolButton;
+class QAction;
 class QTimer;
 class QScrollArea;
 
@@ -34,9 +37,8 @@ class group_dialog final : public QDialog
                  QString const& announcement,
                  bool join_approval,
                  QWidget* parent,
-                 avatar_cache* avatars = nullptr);
+                 chat_widget& chat);
     void open_requests_on_load(bool requests) { open_requests_ = requests; }
-    group_files_page& files() { return *files_; }
     void set_members(qint64 conversation, QList<member_data> members, QString const& error);
     void finish_action(qint64 conversation, bool left, QString const& error);
     void set_contacts(QList<user_data> contacts, QString const& error);
@@ -46,9 +48,14 @@ class group_dialog final : public QDialog
     void set_invite(qint64 conversation, QString const& token, QString const& error);
     void set_requests(qint64 conversation, QList<user_data> users, qint64 next, bool older, QString const& error);
     void refresh_requests();
+    void set_notification_muted(bool muted);
+    void refresh_member_status();
 
    signals:
     void upload_requested(bool group_only);
+    void history_requested(int category);
+    void pinned_requested(qint64 message);
+    void notification_requested(bool mute);
     void user_requested(qint64 user, QString username);
     void admin_requested(qint64 user, bool admin);
     void rename_requested(QString title);
@@ -73,7 +80,7 @@ class group_dialog final : public QDialog
    private:
     void setup_overview();
     void setup_management(bool join_approval);
-    void setup_members(QVBoxLayout* outer);
+    void setup_members(QVBoxLayout* overview);
     void setup_join_requests();
     void connect_member_actions();
     void connect_approval_actions();
@@ -82,9 +89,11 @@ class group_dialog final : public QDialog
     void filter_members();
     void refresh_speech();
     void update_actions();
+    void update_title();
 
     bool open_requests_ = false;
     group_files_page* files_;
+    chat_widget& chat_;
     avatar_cache* avatars_;
     qint64 conversation_;
     qint64 self_user_;
@@ -121,7 +130,15 @@ class group_dialog final : public QDialog
     QPushButton* copy_invite_button_;
     QPushButton* revoke_invite_button_;
     QCheckBox* approval_;
-    QTabWidget* tabs_;
+    QStackedWidget* pages_;
+    QScrollArea* overview_scroll_;
+    QWidget* requests_page_;
+    QToolButton* back_;
+    QPushButton* notification_;
+    QAction* management_action_;
+    QAction* requests_action_;
+    QLabel* description_heading_;
+    QLabel* announcement_heading_;
     QScrollArea* management_scroll_;
     QListWidget* requests_;
     QPushButton* accept_request_button_;
@@ -139,12 +156,10 @@ class group_dialog final : public QDialog
     QLineEdit* member_search_;
     QLabel* overview_announcement_;
     QPushButton* read_announcement_button_;
-    QLabel* overview_pin_;
+    QPushButton* overview_pin_;
     QLabel* overview_invite_;
     QPushButton* overview_copy_invite_ = nullptr;
     bool copy_after_create_ = false;
-    QListWidget* preview_;
-    QPushButton* manage_button_;
     QLabel* requests_status_;
 };
 

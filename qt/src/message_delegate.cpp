@@ -1,5 +1,6 @@
 #include "message_delegate.hpp"
 #include "message_card.hpp"
+#include "file_presentation.hpp"
 #include "theme_manager.hpp"
 #include "message_links.hpp"
 #include "message_markdown.hpp"
@@ -182,6 +183,10 @@ struct message_layout
     int reactions_height = 0;
     QPixmap image;
     QString image_status;
+    QString filename;
+    QString file_details;
+    file_transfer transfer;
+    int file_width = 0;
     int image_width = 0;
     int image_height = 0;
     std::unique_ptr<QTextLayout> text_layout;
@@ -299,16 +304,14 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     auto const bubble_max = maximum_bubble_width(option, result.gutter);
     auto const inner_max = std::max(80, bubble_max - chat_theme::message_padding_horizontal * 2);
 
-    if (!index.data(message_model::attachment_name_role).toString().isEmpty())
+    result.filename = index.data(message_model::attachment_name_role).toString();
+    if (!result.filename.isEmpty())
     {
-        // Keep the size on the next line and the extension visible in a narrow bubble.
-        auto const end = result.text.lastIndexOf(u'\n');
-        result.text.replace(0, end, QFontMetrics(option.font).elidedText(result.text.left(end), Qt::ElideMiddle, inner_max));
-    }
-    auto download_state = index.data(message_model::download_status_role).toString();
-    if (!download_state.isEmpty())
-    {
-        result.text += u'\n' + download_state;
+        result.transfer = index.data(message_model::transfer_role).value<file_transfer>();
+        result.file_details =
+            result.transfer.status.isEmpty() ? file_size(index.data(message_model::attachment_size_role).toLongLong()) : result.transfer.status;
+        result.file_width = std::min(330, inner_max);
+        result.text.clear();
     }
     auto const reply = index.data(message_model::reply_text_role).toString();
     if (!reply.isEmpty())
@@ -339,14 +342,6 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     }
     result.delivery = static_cast<message_model::send_state>(index.data(message_model::send_state_role).toInt());
     result.read = index.data(message_model::read_role).toBool();
-    if (result.delivery != message_model::sent && !index.data(message_model::attachment_name_role).toString().isEmpty())
-    {
-        auto status = index.data(message_model::send_error_role).toString();
-        if (!status.isEmpty())
-        {
-            result.text += u'\n' + status;
-        }
-    }
     result.day_start = starts_day(index);
     result.group_start = starts_group(index);
     result.group_end = ends_group(index);
@@ -442,7 +437,11 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         result.text_height = result.poll ? layout_poll_card(nullptr, option.font, result.text_width, result.text, *result.poll)
                                          : layout_bundle_card(nullptr, option.font, result.text_width, result.text);
     }
-    auto content_width = result.text_width;
+    auto content_width = std::max(result.text_width, result.file_width);
+    if (result.file_width)
+    {
+        result.text_height = file_row_height;
+    }
     auto content_height = result.text_height;
     auto const image_status = index.data(message_model::image_status_role);
     if (image_status.isValid() && index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/")))
@@ -470,7 +469,7 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
                 last_bottom = result.prefix_height + qCeil(rect.y() + line.y() + line.height());
             }
         }
-        else if (!result.bundle && !result.poll && result.text_layout->lineCount() > 0)
+        else if (!result.file_width && !result.bundle && !result.poll && result.text_layout->lineCount() > 0)
         {
             const auto line = result.text_layout->lineAt(result.text_layout->lineCount() - 1);
             last_right = qCeil(line.naturalTextRect().right());
@@ -887,7 +886,15 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     {
         selection.push_back({start, length, highlight});
     }
-    layout.text_layout->draw(painter, origin, selection);
+    if (layout.file_width)
+    {
+        paint_file_row(
+            *painter, QRect(origin, QSize(layout.file_width, file_row_height)), option.font, layout.filename, layout.file_details, layout.transfer);
+    }
+    else
+    {
+        layout.text_layout->draw(painter, origin, selection);
+    }
     if (layout.bundle || layout.poll)
     {
         painter->save();
@@ -1147,16 +1154,16 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QSt
         QDesktopServices::openUrl(url);
         return true;
     }
-    auto const bubble = layout.bubble_rect(option.rect);
-    auto const y = bubble.top();
-    auto const bubble_x = bubble.left();
-    auto const content_top =
-        y + chat_theme::message_padding_vertical + layout.sender_height + layout.forward_height + layout.reply_height + layout.image_height;
+    auto const origin = layout.text_origin(option.rect);
     if (layout.image_height > 0 &&
-        QRect(bubble_x + chat_theme::message_padding_horizontal, content_top - layout.image_height, layout.image_width, layout.image_height - 8)
-            .contains(mouse->position().toPoint()))
+        QRect(origin - QPoint(0, layout.image_height), QSize(layout.image_width, layout.image_height - 8)).contains(mouse->pos()))
     {
-        emit image_clicked(index);
+        emit attachment_clicked(index, layout.delivery == message_model::sent);
+        return true;
+    }
+    if (layout.file_width && QRect(origin, QSize(layout.file_width, file_row_height)).contains(mouse->pos()))
+    {
+        emit attachment_clicked(index, false);
         return true;
     }
     for (int i = 0; i < layout.reactions.size(); ++i)

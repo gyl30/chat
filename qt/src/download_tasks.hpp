@@ -1,4 +1,5 @@
 #pragma once
+#include "file_presentation.hpp"
 #include <QObject>
 #include <QMap>
 #include <QString>
@@ -26,6 +27,9 @@ class download_tasks final : public QObject
     explicit download_tasks(client_bridge& client);
     void clear_tasks();
     QString summary(download_source const& source) const;
+    file_transfer transfer(download_source const& source) const;
+    bool activate(download_source const& source, QWidget* parent);
+    void save(download_source const& source, QString const& filename, QWidget* parent, bool open = false);
     void add_actions(QMenu& menu, download_source const& source);
     QToolButton* source_button(QWidget* parent, std::function<download_source()> source);
    signals:
@@ -49,8 +53,10 @@ class download_tasks final : public QObject
         quint64 attempt = 0;
         state status = state::running;
         std::shared_ptr<chat::download_control> control;
+        int percent = 0;
         QString description() const;
     };
+    QMap<qint64, task>::const_iterator primary(download_source const& source) const;
     void enqueue(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open, qint64 item);
     void start(qint64 id, task& value);
     void finish(qint64 id, quint64 attempt, QString const& error);

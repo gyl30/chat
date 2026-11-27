@@ -70,7 +70,8 @@ class main_window final : public QMainWindow
     void connect_conversations_and_contacts();
     void show_group_details(qint64 conversation, qint64 self_user, QString const& title, bool requests);
     void show_message_search(qint64 conversation, qint64 self_user, bool group, QString const& title, QString const& query);
-    void show_chat_history(qint64 conversation, QString const& title);
+    void show_chat_history(qint64 conversation, QString const& title, int category);
+    void show_attachment(qint64 conversation, qint64 message, QString filename, bool preview, QWidget* parent);
     void connect_group_actions();
     void connect_messages();
     void finish_window_setup();

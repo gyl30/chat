@@ -9,6 +9,7 @@ add_executable(client
     src/avatar.cpp
     src/attachment_dialog.cpp
     src/download_tasks.cpp
+    src/file_presentation.cpp
     src/download_tasks.hpp
     src/attachment_dialog.hpp
     src/avatar.hpp

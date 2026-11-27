@@ -42,6 +42,7 @@
 #include <QLabel>
 #include <QKeyEvent>
 #include <QKeySequence>
+#include <QImageReader>
 #include <QLineEdit>
 #include <QListView>
 #include <QMessageBox>
@@ -53,6 +54,7 @@
 #include <QPlainTextEdit>
 #include <QScopedValueRollback>
 #include <QScrollBar>
+#include <QScrollArea>
 #include <QSize>
 #include <QSizePolicy>
 #include <QSignalBlocker>
@@ -90,6 +92,22 @@
 
 namespace
 {
+QPixmap upload_thumbnail(QString const& path)
+{
+    QImageReader reader(path);
+    reader.setAutoTransform(true);
+    auto const size = reader.size();
+    if (!size.isValid() || qint64(size.width()) * size.height() > 16 * 1024 * 1024)
+    {
+        return {};
+    }
+    auto const thumbnail = QSize(320, 240);
+    if (size.width() > thumbnail.width() || size.height() > thumbnail.height())
+    {
+        reader.setScaledSize(size.scaled(thumbnail, Qt::KeepAspectRatio));
+    }
+    return QPixmap::fromImage(reader.read());
+}
 
 QString local_file_path(QUrl url)
 {
@@ -1754,16 +1772,32 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
                     active_conversation_, ix.data(message_model::id_role).toLongLong(), ix.data(message_model::content_role).toString());
             });
     connect(messages_delegate,
-            &message_delegate::image_clicked,
+            &message_delegate::attachment_clicked,
             this,
-            [this](QModelIndex const& index)
+            [this](QModelIndex const& index, bool preview)
             {
-                if (connection_available_ && !index.data(message_model::deleted_role).toBool())
+                if (!connection_available_ || index.data(message_model::deleted_role).toBool())
                 {
-                    emit attachment_open_requested(active_conversation_,
-                                                   index.data(message_model::id_role).toLongLong(),
-                                                   index.data(message_model::attachment_name_role).toString(),
-                                                   true);
+                    return;
+                }
+                auto const id = index.data(message_model::id_role).toLongLong();
+                auto const filename = index.data(message_model::attachment_name_role).toString();
+                if (!id)
+                {
+                    activate_upload(index.data(message_model::client_id_role).toLongLong(),
+                                    index.data(message_model::transfer_role).value<file_transfer>().action);
+                }
+                else if (preview)
+                {
+                    emit attachment_open_requested(active_conversation_, id, filename, true);
+                }
+                else if (downloads_)
+                {
+                    download_source const source{active_conversation_, id, 0, {}};
+                    if (!downloads_->activate(source, this))
+                    {
+                        downloads_->save(source, filename, this);
+                    }
                 }
             });
     connect(messages_delegate,
@@ -3045,9 +3079,10 @@ void chat_widget::load_visible_images()
         {
             continue;
         }
-        if (index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/")))
+        const auto id = index.data(message_model::id_role).toLongLong();
+        if (id && index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/")))
         {
-            images_.observe(active_conversation_, index.data(message_model::id_role).toLongLong());
+            images_.observe(active_conversation_, id);
         }
     }
 }
@@ -3830,7 +3865,6 @@ void chat_widget::finish_send(qint64 conversation, qint64 client_id, message_dat
         return;
     }
     show_outgoing();
-    set_message_error(conversation, QStringLiteral("%1。可在对应文件上继续或取消上传。").arg(error));
 }
 
 void chat_widget::restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed, bool group_only)
@@ -3848,7 +3882,9 @@ void chat_widget::restore_attachment(qint64 conversation, qint64 id, QString pat
     item.reply.id = reply;
     item.group_only = group_only;
     item.failed = true;
-    item.error = QStringLiteral("已暂停，已确认 %1 / %2 字节").arg(confirmed).arg(size);
+    item.confirmed = confirmed;
+    item.error = QStringLiteral("已暂停");
+    item.thumbnail = upload_thumbnail(item.path);
     outgoing_.push_back(std::move(item));
     emit uploads_changed();
     if (active_conversation_ == conversation)
@@ -3856,24 +3892,24 @@ void chat_widget::restore_attachment(qint64 conversation, qint64 id, QString pat
         show_outgoing();
     }
 }
-void chat_widget::attachment_progress(qint64 id, qint64 bytes, qint64 total)
+void chat_widget::attachment_progress(qint64 id, qint64 bytes, qint64)
 {
     auto item = std::ranges::find(outgoing_, id, &outgoing::client_id);
     if (item == outgoing_.end() || item->failed)
     {
         return;
     }
-    auto label = QStringLiteral("正在上传 %1%").arg(total ? 100 * bytes / total : 100);
-    if (item->error != label)
+    if (item->confirmed != bytes)
     {
-        item->error = std::move(label);
-        if (item->group_only)
-        {
-            emit uploads_changed();
-        }
+        item->confirmed = bytes;
+        item->error.clear();
         if (item->conversation == active_conversation_)
         {
             show_outgoing();
+        }
+        else if (item->group_only)
+        {
+            emit uploads_changed();
         }
     }
 }
@@ -4826,6 +4862,21 @@ void chat_widget::choose_attachment(qint64 conversation, bool group_only, QWidge
         send_files(conversation, paths, 0, group_only);
     }
 }
+file_transfer chat_widget::outgoing::upload_transfer() const
+{
+    auto const progress = confirmed >= 0 && size > 0 ? double(confirmed) / size : -1;
+    auto const amount = confirmed < 0 ? file_size(size) : QStringLiteral("%1 / %2").arg(file_size(confirmed), file_size(size));
+    if (failed)
+    {
+        return {unavailable ? file_action::none : file_action::resume, QStringLiteral("已暂停 · ") + amount, progress};
+    }
+    if (confirmed < 0)
+    {
+        return {file_action::cancel, error + QStringLiteral(" · ") + amount};
+    }
+    return {file_action::pause, amount, progress};
+}
+
 QList<chat_widget::upload_row> chat_widget::group_uploads(qint64 room) const
 {
     QList<upload_row> result;
@@ -4833,10 +4884,36 @@ QList<chat_widget::upload_row> chat_widget::group_uploads(qint64 room) const
     {
         if (item.conversation == room && item.group_only)
         {
-            result.push_back({item.client_id, item.filename, item.size, item.error});
+            result.push_back({item.client_id, item.filename, item.size, item.upload_transfer(), item.error});
         }
     }
     return result;
+}
+
+void chat_widget::activate_upload(qint64 id, file_action action)
+{
+    auto item = std::ranges::find(outgoing_, id, &outgoing::client_id);
+    if (!connection_available_ || item == outgoing_.end() || item->path.isEmpty())
+    {
+        return;
+    }
+    if (action == file_action::cancel || (action == file_action::pause && !item->failed))
+    {
+        emit attachment_interrupt_requested(id, action == file_action::cancel, item->path);
+    }
+    else if (action == file_action::resume && item->failed)
+    {
+        auto const room = conversation(item->conversation);
+        if (!room || room->speech_blocked() || item->unavailable)
+        {
+            return;
+        }
+        item->failed = false;
+        item->confirmed = -1;
+        item->error = QStringLiteral("正在校验文件…");
+        show_outgoing();
+        submit(*item);
+    }
 }
 
 void chat_widget::add_upload_actions(QMenu& menu, qint64 id)
@@ -4850,44 +4927,10 @@ void chat_widget::add_upload_actions(QMenu& menu, qint64 id)
     auto paused = item->failed;
     auto* toggle = menu.addAction(paused ? QStringLiteral("继续上传") : QStringLiteral("暂停上传"));
     toggle->setEnabled(connection_available_ && (!paused || (!item->unavailable && room && !room->speech_blocked())));
-    connect(toggle,
-            &QAction::triggered,
-            this,
-            [this, id, paused]
-            {
-                auto item = std::ranges::find(outgoing_, id, &outgoing::client_id);
-                if (!connection_available_ || item == outgoing_.end() || item->failed != paused)
-                {
-                    return;
-                }
-                if (!paused)
-                {
-                    emit attachment_interrupt_requested(id, false, item->path);
-                    return;
-                }
-                auto room = conversation(item->conversation);
-                if (!room || room->speech_blocked() || item->unavailable)
-                {
-                    return;
-                }
-                item->failed = false;
-                item->error = QStringLiteral("正在校验文件…");
-                show_outgoing();
-                submit(*item);
-            });
+    connect(toggle, &QAction::triggered, this, [this, id, paused] { activate_upload(id, paused ? file_action::resume : file_action::pause); });
     auto* cancel = menu.addAction(QStringLiteral("取消上传"));
     cancel->setEnabled(connection_available_);
-    connect(cancel,
-            &QAction::triggered,
-            this,
-            [this, id]
-            {
-                auto item = std::ranges::find(outgoing_, id, &outgoing::client_id);
-                if (connection_available_ && item != outgoing_.end())
-                {
-                    emit attachment_interrupt_requested(id, true, item->path);
-                }
-            });
+    connect(cancel, &QAction::triggered, this, [this, id] { activate_upload(id, file_action::cancel); });
 }
 
 void chat_widget::finish_group_file(qint64 id, QString error, bool unavailable)
@@ -4948,6 +4991,7 @@ void chat_widget::send_files(qint64 target, QStringList const& paths, qint64 cli
         item.filename = file.fileName();
         item.path = file.absoluteFilePath();
         item.size = file.size();
+        item.thumbnail = upload_thumbnail(item.path);
         item.error = QStringLiteral("正在校验文件…");
         item.group_only = group_only;
         item.reply = reply;
@@ -5013,13 +5057,16 @@ void chat_widget::show_outgoing()
         message.client_id = item.client_id;
         if (!item.filename.isEmpty())
         {
-            message.attachment = attachment_data{item.filename, QStringLiteral("application/octet-stream"), item.size, {}};
+            message.attachment = attachment_data{
+                item.filename, item.thumbnail.isNull() ? QStringLiteral("application/octet-stream") : QStringLiteral("image/preview"), item.size, {}};
         }
         pending.push_back({
             .message = std::move(message),
             .failed = item.failed,
             .error = item.error,
             .waiting = item.waiting,
+            .transfer = item.path.isEmpty() ? file_transfer{} : item.upload_transfer(),
+            .thumbnail = item.thumbnail,
         });
     }
     preserve_reading([&] { messages_->set_pending(std::move(pending)); });
@@ -5147,6 +5194,12 @@ void chat_widget::show_outgoing_menu(QModelIndex const& index, QPoint position)
     submit(*item);
 }
 
+std::optional<presence_data> chat_widget::member_presence(qint64 user) const
+{
+    auto const found = presence_.constFind(user);
+    return found != presence_.cend() ? std::optional{*found} : std::nullopt;
+}
+
 void chat_widget::show_user_details(qint64 user, QString const& username, QWidget* profile_parent)
 {
     if (user <= 0 || username.isEmpty())
@@ -5160,35 +5213,30 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
                                                       : static_cast<QWidget*>(this));
     dialog.setObjectName(QStringLiteral("profileDialog"));
     dialog.setWindowTitle(username);
-    dialog.setWindowFlag(Qt::FramelessWindowHint);
-    round_window(dialog, chat_theme::dialog_radius);
     dialog.setModal(true);
-    dialog.setFixedWidth(520);
-
+    dialog.resize(460, 580);
     auto* layout = new QVBoxLayout(&dialog);
-    layout->setContentsMargins(0, 0, 0, 0);
+    frame_dialog(dialog);
+    layout->setContentsMargins(0, 0, 0, 8);
     layout->setSpacing(0);
+    dialog.findChild<QLabel*>(QStringLiteral("dialogTitle"))->clear();
 
-    auto* header = new QFrame(&dialog);
+    auto* scroll = new QScrollArea(&dialog);
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto* content = new QWidget(scroll);
+    auto* body = new QVBoxLayout(content);
+    body->setContentsMargins(16, 12, 16, 18);
+    body->setSpacing(8);
+    scroll->setWidget(content);
+    layout->addWidget(scroll, 1);
+
+    auto* header = new QFrame(content);
     header->setObjectName(QStringLiteral("profileHeaderSection"));
     auto* header_layout = new QVBoxLayout(header);
-    header_layout->setContentsMargins(24, 16, 24, 24);
-    header_layout->setSpacing(12);
-
-    auto* top = new QHBoxLayout;
-    top->setContentsMargins(0, 0, 0, 0);
-    top->addStretch();
-    auto* close_button = new QToolButton(header);
-    close_button->setObjectName(QStringLiteral("profileCloseButton"));
-    close_button->setAccessibleName(QStringLiteral("关闭资料"));
-    close_button->setToolTip(QStringLiteral("关闭资料"));
-    close_button->setIcon(svg_icon(u"close", themed("text_secondary"), chat_theme::action_icon));
-    close_button->setIconSize(chat_theme::action_icon);
-    close_button->setFixedSize(36, 36);
-    close_button->setFocusPolicy(Qt::TabFocus);
-    close_button->setCursor(Qt::PointingHandCursor);
-    top->addWidget(close_button);
-    header_layout->addLayout(top);
+    header_layout->setContentsMargins(0, 0, 0, 10);
+    header_layout->setSpacing(8);
 
     auto* avatar = new QLabel(header);
     avatar->setObjectName(QStringLiteral("profileDialogAvatar"));
@@ -5234,49 +5282,57 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
         button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         button->setIcon(svg_icon(icon, color, QSize(20, 20)));
         button->setIconSize(QSize(20, 20));
-        button->setFixedSize(160, 40);
+        button->setMinimumHeight(38);
         button->setCursor(Qt::PointingHandCursor);
         return button;
     };
     auto* message_button = make_action(QStringLiteral("消息"), QStringLiteral("chat"), themed("on_accent"));
     message_button->setProperty("primary", true);
-    auto* copy_username_button = make_action(QStringLiteral("复制用户名"), QStringLiteral("copy"), themed("accent"));
+    auto* mute = make_action(QStringLiteral("静音"), u"bell-off", themed("accent"));
+    auto* options = make_action(QStringLiteral("更多"), u"more", themed("accent"));
+    auto* more = new QMenu(options);
+    auto* copy_username = more->addAction(QStringLiteral("复制用户名"));
+    copy_username->setEnabled(false);
+    options->setMenu(more);
+    options->setPopupMode(QToolButton::InstantPopup);
     connect(&theme_manager::instance(),
             &theme_manager::changed,
             &dialog,
-            [this, close_button, message_button, copy_username_button, avatar, user, username]
+            [this, message_button, mute, options, avatar, user, username]
             {
-                close_button->setIcon(svg_icon(u"close", themed("text_secondary"), chat_theme::action_icon));
-                message_button->setIcon(svg_icon(u"chat", themed("on_accent"), QSize(20, 20)));
-                copy_username_button->setIcon(svg_icon(u"copy", themed("accent"), QSize(20, 20)));
+                message_button->setIcon(svg_icon(u"chat", themed("on_accent")));
+                mute->setIcon(svg_icon(u"bell-off", themed("accent")));
+                options->setIcon(svg_icon(u"more", themed("accent")));
                 avatar->setPixmap(avatar_icon(username, 104, avatars_.image(user)).pixmap(104, 104));
             });
     actions->addWidget(message_button);
-    actions->addWidget(copy_username_button);
+    actions->addWidget(mute);
+    actions->addWidget(options);
     actions->addStretch();
+    for (auto* action : {message_button, mute, options})
+    {
+        action->setMinimumWidth(96);
+        action->setMaximumWidth(QWIDGETSIZE_MAX);
+    }
     header_layout->addLayout(actions);
-    layout->addWidget(header);
+    body->addWidget(header);
 
-    auto* section_separator = new QFrame(&dialog);
-    section_separator->setObjectName(QStringLiteral("profileSectionSeparator"));
-    section_separator->setFixedHeight(1);
-    layout->addWidget(section_separator);
-
-    auto* info = new QFrame(&dialog);
+    auto* info = new QFrame(content);
     info->setObjectName(QStringLiteral("profileInfoSection"));
     auto* info_layout = new QVBoxLayout(info);
-    info_layout->setContentsMargins(24, 16, 24, 24);
-    info_layout->setSpacing(12);
+    info_layout->setContentsMargins(0, 0, 0, 0);
+    info_layout->setSpacing(6);
 
-    auto* account = new QLabel(header);
-    account->hide();
+    auto* account = new QLabel(info);
     account->setTextFormat(Qt::PlainText);
-    account->setAlignment(Qt::AlignCenter);
-    header_layout->insertWidget(header_layout->indexOf(name) + 1, account);
+    account->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    account->hide();
+    info_layout->addWidget(account);
     auto* signature = new QLabel(info);
     signature->setObjectName(QStringLiteral("profileSignatureText"));
     signature->setTextFormat(Qt::PlainText);
     signature->setWordWrap(true);
+    signature->hide();
     info_layout->addWidget(signature);
     auto* edit_profile = new QPushButton(QStringLiteral("编辑昵称与签名"), info);
     edit_profile->setObjectName(QStringLiteral("editUserProfile"));
@@ -5286,31 +5342,30 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     connect(this,
             &chat_widget::profile_received,
             &dialog,
-            [this, user, account, name, signature, edit_profile](qint64 id, QString login, QString nick, QString text)
+            [this, user, account, name, signature, edit_profile, copy_username](qint64 id, QString login, QString nick, QString text)
             {
                 if (id != user)
                 {
                     return;
                 }
-                account->setText(login);
                 name->setText(user_display_name(login, nick, friend_remark(id)));
+                copy_username->setData(login);
+                copy_username->setEnabled(!login.isEmpty());
+                auto info = QStringList{QStringLiteral("用户名 · ") + login};
+                if (!nick.isEmpty() && nick != name->text() && nick != login)
+                {
+                    info << QStringLiteral("昵称 · ") + nick;
+                }
+                account->setText(info.join(u'\n'));
                 account->setVisible(name->text() != login);
                 signature->setText(text);
+                signature->setVisible(!text.isEmpty());
                 edit_profile->setProperty("nickname", nick);
                 edit_profile->setEnabled(connection_available_);
             });
-    connect(contacts_,
-            &QAbstractItemModel::modelReset,
-            &dialog,
-            [this, name, account, edit_profile, user]
-            {
-                if (!account->text().isEmpty())
-                {
-                    name->setText(user_display_name(account->text(), edit_profile->property("nickname").toString(), friend_remark(user)));
-                    account->setVisible(name->text() != account->text());
-                }
-            });
-    connect(copy_username_button, &QToolButton::clicked, &dialog, [account] { QGuiApplication::clipboard()->setText(account->text()); });
+    connect(contacts_, &QAbstractItemModel::modelReset, &dialog, [this, user] { emit profile_requested(user); });
+    connect(
+        copy_username, &QAction::triggered, &dialog, [copy_username] { QGuiApplication::clipboard()->setText(copy_username->data().toString()); });
     connect(edit_profile,
             &QPushButton::clicked,
             &dialog,
@@ -5344,12 +5399,65 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
                 &dialog,
                 [this, user, signature]
                 {
-                    signature->clear();
+                    signature->hide();
                     emit profile_requested(user);
                 });
     }
     emit profile_requested(user);
-    setup_profile_friendship(dialog, info_layout, relationship, message_button, user, username);
+    setup_profile_friendship(dialog, info_layout, relationship, message_button, *more, user, username);
+
+    auto* shared = new QWidget(content);
+    auto* shared_layout = new QVBoxLayout(shared);
+    shared_layout->setContentsMargins(0, 0, 0, 0);
+    shared_layout->setSpacing(3);
+    auto* shared_title = new QLabel(QStringLiteral("共享内容"), shared);
+    shared_title->setObjectName(QStringLiteral("groupSectionHeading"));
+    shared_layout->addWidget(shared_title);
+    auto direct = [this, user]() -> std::optional<conversation_data>
+    {
+        auto const& rooms = conversations_->items();
+        auto const found = std::ranges::find_if(rooms, [user](auto const& room) { return !room.group && room.user == user; });
+        return found != rooms.end() && is_contact(user) ? std::optional{*found} : std::nullopt;
+    };
+    auto update_shared = [this, direct, mute, shared]
+    {
+        auto const room = direct();
+        shared->setVisible(room.has_value());
+        mute->setVisible(room.has_value());
+        mute->setEnabled(connection_available_);
+        mute->setText(room && room->muted() ? QStringLiteral("取消静音") : QStringLiteral("静音"));
+    };
+    connect(this, &chat_widget::friendship_updated, &dialog, update_shared);
+    connect(conversations_, &QAbstractItemModel::modelReset, &dialog, update_shared);
+    connect(conversations_, &QAbstractItemModel::dataChanged, &dialog, update_shared);
+    connect(mute,
+            &QToolButton::clicked,
+            &dialog,
+            [this, direct]
+            {
+                if (auto const room = direct(); connection_available_ && room)
+                {
+                    emit notification_level_requested(room->id, room->muted() ? chat::notification_level::all : chat::notification_level::muted, 0);
+                }
+            });
+    update_shared();
+    int category = 0;
+    for (auto const* title : {"聊天记录", "图片", "文件", "链接"})
+    {
+        auto* entry = new QPushButton(QString::fromUtf8(title), shared);
+        entry->setProperty("profileEntry", true);
+        shared_layout->addWidget(entry);
+        connect(entry,
+                &QPushButton::clicked,
+                &dialog,
+                [this, direct, kind = category++]
+                {
+                    if (auto const room = direct(); connection_available_ && room)
+                    {
+                        emit chat_history_requested(room->id, room->display_name(), kind);
+                    }
+                });
+    }
     if (user == self_user_)
     {
         setup_profile_avatar(dialog, info_layout, user);
@@ -5365,28 +5473,26 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
         info_layout->addWidget(logout);
         connect(logout, &QPushButton::clicked, &dialog, [this, &dialog] { emit logout_requested(&dialog); });
     }
-    layout->addWidget(info);
-
-    connect(close_button, &QToolButton::clicked, &dialog, &QDialog::reject);
+    body->addWidget(info);
+    body->addWidget(shared);
+    body->addStretch();
 
     dialog.setFocus(Qt::OtherFocusReason);
     dialog.exec();
 }
 
 void chat_widget::setup_profile_friendship(
-    QDialog& dialog, QVBoxLayout* info_layout, QLabel* relationship, QToolButton* message_button, qint64 user, QString const& username)
+    QDialog& dialog, QVBoxLayout* info_layout, QLabel* relationship, QToolButton* message_button, QMenu& menu, qint64 user, QString const& username)
 {
     auto* info = info_layout->parentWidget();
-    QPushButton* remove_contact_button = nullptr;
+    QAction* remove_contact_button = nullptr;
     if (user != self_user_)
     {
-        auto* remove_button = new QPushButton(QStringLiteral("删除好友"), info);
-        remove_contact_button = remove_button;
-        remove_button->setObjectName(QStringLiteral("removeContactButton"));
-        remove_button->setEnabled(connection_available_);
-        info_layout->addWidget(remove_button);
-        connect(remove_button,
-                &QPushButton::clicked,
+        auto* remove = menu.addAction(QStringLiteral("删除好友"));
+        remove_contact_button = remove;
+        remove->setObjectName(QStringLiteral("removeContactButton"));
+        connect(remove,
+                &QAction::triggered,
                 &dialog,
                 [this, &dialog, user, username]
                 {
@@ -5404,6 +5510,7 @@ void chat_widget::setup_profile_friendship(
     auto* contact_status = new QLabel(info);
     contact_status->setObjectName(QStringLiteral("profileContactStatus"));
     contact_status->setWordWrap(true);
+    contact_status->hide();
     info_layout->addWidget(contact_status);
     auto* reject_request = new QPushButton(QStringLiteral("拒绝申请"), info);
     reject_request->setObjectName(QStringLiteral("rejectFriendRequestButton"));
@@ -5486,6 +5593,7 @@ void chat_widget::setup_profile_friendship(
                     return;
                 }
                 contact_status->setText(error);
+                contact_status->setVisible(!error.isEmpty());
                 if (!error.isEmpty())
                 {
                     update_contact();
@@ -5515,7 +5623,7 @@ void chat_widget::setup_profile_friendship(
                 {
                     message_button->setEnabled(false);
                     message_button->setText(QStringLiteral("正在处理…"));
-                    contact_status->clear();
+                    contact_status->hide();
                     request_friend_action(user, username, static_cast<int>(friend_state(user)));
                 }
             });

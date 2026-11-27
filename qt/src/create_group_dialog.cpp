@@ -12,56 +12,83 @@
 #include <QSignalBlocker>
 #include <QHBoxLayout>
 #include <QStyle>
+#include <QShortcut>
 #include <QVBoxLayout>
 #include <algorithm>
 
-create_group_dialog::create_group_dialog(QWidget* parent) : QDialog(parent)
+create_group_dialog::create_group_dialog(QWidget* parent, bool invite) : QDialog(parent)
 {
-    setObjectName(QStringLiteral("createGroupDialog"));
-    setWindowTitle(QStringLiteral("创建群聊"));
-    resize(640, 500);
+    setObjectName(invite ? QStringLiteral("groupInviteDialog") : QStringLiteral("createGroupDialog"));
+    setWindowTitle(invite ? QStringLiteral("邀请好友") : QStringLiteral("创建群聊"));
+    resize(425, 520);
     auto* layout = new QVBoxLayout(this);
     frame_dialog(*this);
     layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
     layout->setSpacing(chat_theme::dialog_spacing);
-    layout->addWidget(new QLabel(QStringLiteral("群名称"), this));
-    title_ = new QLineEdit(this);
-    title_->setObjectName(QStringLiteral("newGroupTitleEdit"));
-    title_->setPlaceholderText(QStringLiteral("群名称"));
-    layout->addWidget(title_);
-    auto* columns = new QHBoxLayout;
-    auto* available = new QVBoxLayout;
-    auto* chosen = new QVBoxLayout;
-    columns->addLayout(available, 1);
-    columns->addLayout(chosen, 1);
-    layout->addLayout(columns, 1);
+    title_ = invite ? nullptr : new QLineEdit(this);
+    if (title_)
+    {
+        title_->setObjectName(QStringLiteral("newGroupTitleEdit"));
+        title_->setPlaceholderText(QStringLiteral("群名称"));
+        title_->setAccessibleName(title_->placeholderText());
+        layout->addWidget(title_);
+    }
     search_ = new QLineEdit(this);
     search_->setObjectName(QStringLiteral("groupContactSearch"));
     style_search_field(*search_);
     search_->setPlaceholderText(QStringLiteral("搜索好友"));
-    available->addWidget(search_);
-    list_ = new QListWidget(this);
-    list_->setObjectName(QStringLiteral("groupContactPicker"));
-    list_->setIconSize(QSize(32, 32));
-    list_->setAccessibleName(QStringLiteral("选择群成员"));
-    available->addWidget(list_, 1);
+    layout->addWidget(search_);
+
     selected_count_ = new QLabel(this);
-    chosen->addWidget(selected_count_);
+    layout->addWidget(selected_count_);
     selected_ = new QListWidget(this);
     selected_->setObjectName(QStringLiteral("groupSelectedContacts"));
     selected_->setTextElideMode(Qt::ElideRight);
     selected_->setAccessibleName(QStringLiteral("已选成员，点击移除"));
-    chosen->addWidget(selected_, 1);
+    selected_->setViewMode(QListView::IconMode);
+    selected_->setFlow(QListView::LeftToRight);
+    selected_->setWrapping(false);
+    selected_->setMovement(QListView::Static);
+    selected_->setIconSize({24, 24});
+    selected_->setGridSize({100, 52});
+    selected_->setFixedHeight(70);
+    selected_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    layout->addWidget(selected_);
+
+    list_ = new QListWidget(this);
+    list_->setObjectName(QStringLiteral("groupContactPicker"));
+    list_->setIconSize(QSize(32, 32));
+    list_->setAccessibleName(QStringLiteral("选择群成员"));
+    layout->addWidget(list_, 1);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     proceed_ = buttons->button(QDialogButtonBox::Ok);
-    proceed_->setObjectName(QStringLiteral("groupCreateButton"));
+    proceed_->setObjectName(invite ? QStringLiteral("groupInviteSubmitButton") : QStringLiteral("groupCreateButton"));
     proceed_->setProperty("primary", true);
-    proceed_->setText(QStringLiteral("创建群聊"));
+    proceed_->setText(invite ? QStringLiteral("邀请") : QStringLiteral("创建群聊"));
     buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    connect(title_, &QLineEdit::textChanged, this, &create_group_dialog::update_selection);
+    if (title_)
+    {
+        connect(title_, &QLineEdit::textChanged, this, &create_group_dialog::update_selection);
+    }
+    connect(list_,
+            &QListWidget::itemClicked,
+            this,
+            [this](QListWidgetItem* item) { item->setCheckState(item->checkState() == Qt::Checked ? Qt::Unchecked : Qt::Checked); });
+    auto* choose_by_keyboard = new QShortcut(QKeySequence(Qt::Key_Space), list_);
+    choose_by_keyboard->setContext(Qt::WidgetShortcut);
+    connect(choose_by_keyboard,
+            &QShortcut::activated,
+            list_,
+            [this]
+            {
+                if (auto* item = list_->currentItem())
+                {
+                    item->setCheckState(item->checkState() == Qt::Checked ? Qt::Unchecked : Qt::Checked);
+                }
+            });
     connect(list_, &QListWidget::itemChanged, this, &create_group_dialog::update_selection);
     connect(selected_,
             &QListWidget::itemClicked,
@@ -89,7 +116,7 @@ create_group_dialog::create_group_dialog(QWidget* parent) : QDialog(parent)
                     list_->item(row)->setHidden(!list_->item(row)->data(user_model::search_role).toString().contains(query, Qt::CaseInsensitive));
                 }
             });
-    title_->setFocus(Qt::OtherFocusReason);
+    (title_ ? title_ : search_)->setFocus(Qt::OtherFocusReason);
 }
 
 void create_group_dialog::update_selection()
@@ -107,34 +134,45 @@ void create_group_dialog::update_selection()
         auto* chip = new QListWidgetItem(item->icon(), item->text() + QStringLiteral(" ×"), selected_);
         chip->setData(Qt::UserRole, item->data(Qt::UserRole));
         chip->setToolTip(item->text());
-        chip->setSizeHint(QSize(0, 40));
+        chip->setSizeHint(QSize(100, 52));
         ++count;
     }
     selected_count_->setText(QStringLiteral("已选 %1 人").arg(count));
-    proceed_->setEnabled(count > 0 && chat::valid_group_title(title_->text().toUtf8().toStdString()));
+    selected_count_->setVisible(count > 0);
+    selected_->setVisible(count > 0);
+    proceed_->setEnabled(count > 0 && (!title_ || chat::valid_group_title(title_->text().toUtf8().toStdString())));
 }
 
 void create_group_dialog::set_contacts(user_model const& contacts, qint64 self, avatar_cache const& avatars)
 {
-    auto const ids = selected_members();
-    QSet<qint64> const chosen(ids.begin(), ids.end());
+    QList<user_data> candidates;
+    for (int row = 0; row < contacts.rowCount(); ++row)
     {
-        QSignalBlocker blocked(list_);
-        list_->clear();
-        for (int row = 0; row < contacts.rowCount(); ++row)
+        if (auto const* user = contacts.user_at(contacts.index(row, 0)); user && user->id != self)
         {
-            auto const* user = contacts.user_at(contacts.index(row, 0));
-            if (!user || user->id == self)
-            {
-                continue;
-            }
-            auto* item = new QListWidgetItem(avatar_icon(user->username, 32, avatars.image(user->id)), user->display_name(), list_);
-            item->setData(Qt::UserRole, user->id);
-            item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-            item->setCheckState(chosen.contains(user->id) ? Qt::Checked : Qt::Unchecked);
-            auto search = contacts.index(row, 0).data(user_model::search_role).toString();
+            candidates.push_back(*user);
+        }
+    }
+    set_candidates(candidates, &avatars);
+}
+
+void create_group_dialog::set_candidates(QList<user_data> const& candidates, avatar_cache const* avatars)
+{
+    const auto ids = selected_members();
+    const QSet<qint64> chosen(ids.begin(), ids.end());
+    {
+        const QSignalBlocker blocked(list_);
+        list_->clear();
+        for (auto const& user : candidates)
+        {
+            auto* item = new QListWidgetItem(
+                avatar_icon(user.username, 32, avatars ? avatars->image(user.id) : QPixmap{}, user.id), user.display_name(), list_);
+            item->setData(Qt::UserRole, user.id);
+            item->setFlags(item->flags() & ~Qt::ItemIsUserCheckable);
+            item->setCheckState(chosen.contains(user.id) ? Qt::Checked : Qt::Unchecked);
+            const auto search = QStringList{user.username, user.nickname, user.remark}.join(u'\n');
             item->setData(user_model::search_role, search);
-            item->setToolTip(user->username);
+            item->setToolTip(user.username);
             item->setSizeHint(QSize(0, 50));
             item->setHidden(!search.contains(search_->text(), Qt::CaseInsensitive));
         }

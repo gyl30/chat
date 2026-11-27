@@ -382,7 +382,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                     out["avatarPixel"] = image.pixelColor(image.width() / 2, image.height() / 2).name(QColor::HexArgb);
                 }
             }
-            auto* remove = profile->findChild<QPushButton*>("removeContactButton");
+            auto* remove = profile->findChild<QAction*>("removeContactButton");
             out["friend"] = remove && remove->isVisible();
             if (cmd["closeProfile"].toBool())
             {
@@ -510,9 +510,8 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 auto* list = dialog->findChild<QListWidget*>("groupMembersList");
                 if (cmd["showList"].toBool())
                 {
-                    dialog->findChild<QTabWidget*>("groupTabs")->setCurrentWidget(list->parentWidget());
-                    list->setFixedHeight(list->sizeHintForRow(0) + 2 * list->frameWidth());
-                    list->scrollToBottom();
+                    auto* scroll = dialog->findChild<QScrollArea*>("groupOverviewScroll")->verticalScrollBar();
+                    scroll->setValue(scroll->maximum());
                 }
                 auto describe = [](QListWidget* entries)
                 {
@@ -528,16 +527,9 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                     return rows;
                 };
                 out["list"] = describe(list);
-                out["preview"] = describe(dialog->findChild<QListWidget*>("groupMemberPreview"));
                 out["selected"] = list->currentItem() ? list->currentItem()->data(Qt::UserRole).toLongLong() : 0;
-                out["scroll"] = list->verticalScrollBar()->value();
-                for (auto* control : dialog->findChildren<QPushButton*>())
-                {
-                    if (control->text() == "只上传到群文件")
-                    {
-                        out["publish"] = control->isEnabled();
-                    }
-                }
+                out["scroll"] = dialog->findChild<QScrollArea*>("groupOverviewScroll")->verticalScrollBar()->value();
+                out["publish"] = !dialog->findChild<QToolButton*>("groupFileUpload")->isHidden();
             }
             if (cmd.contains("member"))
             {
@@ -634,7 +626,8 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         if (dialog)
         {
             out["error"] = dialog->findChild<QLabel*>("groupStatus")->text();
-            out["pin"] = dialog->findChild<QLabel*>("groupOverviewPinned")->text();
+            auto const* pin = dialog->findChild<QPushButton*>("groupOverviewPinned");
+            out["pin"] = pin->isVisible() ? pin->text() : QStringLiteral("暂无置顶消息");
             out["announcement"] = dialog->findChild<QLabel*>("groupOverviewAnnouncement")->text();
             if (cmd["close"].toBool())
             {
@@ -664,7 +657,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     }
     else if (op == "transfers")
     {
-        QJsonArray labels, resumable;
+        QJsonArray labels, resumable, confirmed;
         // Inspect the SDK-owned journal projection and invoke the actions shared by the
         // attachment bubble and the selected local group-file row.
         for (auto const& task : chat->outgoing_)
@@ -679,6 +672,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                          QStringLiteral(" · ") +
                          (room && room->speech_blocked() && !task.unavailable ? QStringLiteral("群聊禁言，上传已暂停") : task.error);
             labels << label;
+            confirmed << task.confirmed;
 
             QMenu menu(chat);
             chat->add_upload_actions(menu, task.client_id);
@@ -700,6 +694,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 }
             }
         }
+        out["confirmed"] = confirmed;
         out["resumable"] = resumable;
         out["labels"] = labels;
     }
@@ -777,11 +772,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             }
             else
             {
-                auto* list = dialog->findChild<QTreeWidget*>("groupFileList");
-                auto* tabs = dialog->findChild<QTabWidget*>();
-                if (tabs && list && tabs->indexOf(list->parentWidget()) >= 0)
+                auto* list = dialog->findChild<QListWidget*>("groupFileList");
+                if (list && !list->isVisible())
                 {
-                    tabs->setCurrentWidget(list->parentWidget());
+                    dialog->findChild<QPushButton*>("groupFilesEntry")->click();
                 }
                 if (list && cmd.contains("queries"))
                 {
@@ -808,24 +802,25 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                         }
                     }
                 }
-                out["count"] = list ? list->topLevelItemCount() : 0;
+                out["count"] = list ? list->count() : 0;
                 QJsonArray names;
-                for (int row = 0; list && row < list->topLevelItemCount(); ++row)
+                for (int row = 0; list && row < list->count(); ++row)
                 {
-                    names.append(list->topLevelItem(row)->text(0));
+                    names.append(list->item(row)->text());
                 }
                 out["names"] = names;
-                if (cmd["choose"].toBool() && list && list->topLevelItemCount())
+                if (cmd["choose"].toBool() && list && list->count())
                 {
-                    list->setCurrentItem(list->topLevelItem(0));
-                    for (auto* button : dialog->findChildren<QPushButton*>())
-                    {
-                        if (button->text() == "下载")
-                        {
-                            QTimer::singleShot(0, button, &QPushButton::click);
-                            break;
-                        }
-                    }
+                    list->setCurrentItem(list->item(0));
+                    QTimer::singleShot(0,
+                                       list,
+                                       [list]
+                                       {
+                                           if (auto const* selected = list->currentItem())
+                                           {
+                                               choose_menu_action(list, list->visualItemRect(selected).center(), QStringLiteral("另存为"));
+                                           }
+                                       });
                 }
                 if (cmd.contains("remove_key"))
                 {
@@ -841,9 +836,9 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                     }
                 }
 
-                if (list && list->topLevelItemCount() && cmd.contains("destination"))
+                if (list && list->count() && cmd.contains("destination"))
                 {
-                    list->setCurrentItem(list->topLevelItem(0));
+                    list->setCurrentItem(list->item(0));
                     auto const path = cmd["destination"].toString();
                     QTimer::singleShot(40,
                                        dialog,
@@ -855,14 +850,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                                                QMetaObject::invokeMethod(chooser, "accept");
                                            }
                                        });
-                    for (auto* button : dialog->findChildren<QPushButton*>())
-                    {
-                        if (button->text() == "下载")
-                        {
-                            button->click();
-                            break;
-                        }
-                    }
+                    choose_menu_action(list, list->visualItemRect(list->currentItem()).center(), QStringLiteral("另存为"));
                 }
             }
         }
@@ -977,7 +965,9 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             out["more"] = more->isVisible();
             if (cmd["activate"].toBool() && list->count())
             {
-                emit list->itemActivated(list->item(0));
+                auto* item = list->item(0);
+                list->scrollToItem(item);
+                choose_menu_action(list, list->visualItemRect(item).center(), QStringLiteral("定位到聊天位置"));
             }
         }
     }

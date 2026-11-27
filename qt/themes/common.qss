@@ -106,7 +106,7 @@ QMainWindow {
             font-weight: 600;
             color: ${text};
         }
-        QLabel#groupOverviewCount, QLabel#groupOverviewPinned, QLabel#groupOverviewInvite,
+        QLabel#groupOverviewCount, QLabel#groupOverviewInvite,
         QLabel#groupJoinRequestsStatus, QLabel#groupStatus,
         QLabel#messageSearchStatus, QLabel#messageSearchCount, QLabel#attachmentStatus {
             font-size: 13px;
@@ -386,10 +386,6 @@ QMainWindow {
         }
         QFrame#profileHeaderSection, QFrame#profileInfoSection {
             background: ${panel};
-            border: 0;
-        }
-        QFrame#profileSectionSeparator {
-            background: ${canvas_hover};
             border: 0;
         }
         QLabel#profileDialogAvatar {
@@ -710,7 +706,26 @@ QLineEdit, QPlainTextEdit, QTextEdit { placeholder-text-color: ${text_muted}; }
 
 /* Readable supporting identity and quiet, explicit contact guidance. */
 QLabel#groupOverviewCount { font-size: 14px; }
-QLabel#groupOverviewAnnouncement[empty="true"] { color: ${text_secondary}; font-size: 13px; }
+QDialog#groupDialog QLabel#dialogTitle { font-size: 15px; }
+QDialog QPushButton[profileEntry="true"] {
+    text-align: left;
+    background: transparent;
+    border-radius: 0;
+    border: 0;
+    padding: 3px 12px;
+    min-height: 25px;
+}
+QDialog QPushButton[profileEntry="true"]:hover { background: ${canvas_hover}; }
+QToolButton#groupFileUpload {
+    background: ${panel};
+    border: 1px solid ${input_border};
+    padding: 5px 8px;
+    border-radius: 8px;
+}
+QToolButton#groupFileUpload:hover { background: ${canvas_hover}; }
+QScrollArea#attachmentViewport, QScrollArea#attachmentViewport > QWidget > QWidget {
+    background: ${scrim};
+}
 
 
 /* Sidebar navigation uses the native menu beside search. */
@@ -725,10 +740,10 @@ QToolButton[navigationTool="true"]:hover { background: ${subtle}; }
 QToolButton[navigationTool="true"]:pressed, QToolButton[navigationTool="true"]:open { background: ${selected}; }
 QToolButton[navigationTool="true"]:focus { border-color: ${focus}; }
 QToolButton[navigationTool="true"]::menu-indicator { image: none; width: 0; }
-QToolButton#attachmentDownloadState, QToolButton#uploadRowActions {
+QToolButton#attachmentDownloadState {
     background: ${subtle}; color: ${text}; border: 1px solid ${border}; border-radius: 5px; padding: 3px 9px;
 }
-QToolButton#attachmentDownloadState:hover, QToolButton#uploadRowActions:hover { background: ${selected}; }
+QToolButton#attachmentDownloadState:hover { background: ${selected}; }
 QMenu#mainNavigationMenu { min-width: 184px; }
 QMenu#mainNavigationMenu::item { min-height: 28px; padding: 5px 24px 5px 12px; }
 QMenu#mainNavigationMenu::item:checked { background: ${subtle}; color: ${text}; }
@@ -845,17 +860,17 @@ QLabel#pollFeedback { color: ${text_secondary}; }
 QDialog[chatPopup="true"] {
     background: ${panel}; border: 1px solid ${border}; border-radius: 12px;
 }
-QToolButton#popupCloseButton, QToolButton#profileCloseButton, QToolButton#settingsCloseButton, QToolButton#settingsBackButton {
+QToolButton#popupCloseButton, QToolButton#settingsCloseButton, QToolButton#settingsBackButton {
     background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 0;
 }
-QToolButton#popupCloseButton:hover, QToolButton#profileCloseButton:hover, QToolButton#settingsCloseButton:hover, QToolButton#settingsBackButton:hover {
+QToolButton#popupCloseButton:hover, QToolButton#settingsCloseButton:hover, QToolButton#settingsBackButton:hover {
     background: ${canvas_hover};
 }
 QToolButton#popupCloseButton:pressed, QToolButton#profileCloseButton:pressed,
 QToolButton#settingsCloseButton:pressed, QToolButton#settingsBackButton:pressed {
     background: ${selected};
 }
-QToolButton#popupCloseButton:focus, QToolButton#profileCloseButton:focus, QToolButton#settingsCloseButton:focus, QToolButton#settingsBackButton:focus {
+QToolButton#popupCloseButton:focus, QToolButton#settingsCloseButton:focus, QToolButton#settingsBackButton:focus {
     border-color: ${focus};
 }
 

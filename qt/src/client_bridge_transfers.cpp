@@ -69,7 +69,10 @@ void client_bridge::send_attachment(qint64 conversation, QString path, qint64 re
                                 auto const unavailable =
                                     !r && r.error().kind == chat::error_kind::rpc && r.error().code == chat::conversation_unavailable;
                                 emit group_file_finished(client_id, error, unavailable);
-                                emit files_changed(conversation, error);
+                                if (r)
+                                {
+                                    emit files_changed(conversation, {});
+                                }
                             });
             },
             std::move(progress));

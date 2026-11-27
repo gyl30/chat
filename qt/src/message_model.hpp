@@ -4,6 +4,8 @@
 #include <limits>
 
 #include <QAbstractListModel>
+#include <QPixmap>
+#include "file_presentation.hpp"
 #include <QList>
 #include <QSet>
 #include <QString>
@@ -44,6 +46,8 @@ class message_model final : public QAbstractListModel
         deleted_role,
         attachment_name_role,
         attachment_key_role,
+        attachment_size_role,
+        transfer_role,
         download_status_role,
         attachment_type_role,
         reactions_role,
@@ -72,6 +76,8 @@ class message_model final : public QAbstractListModel
         bool failed = false;
         QString error;
         bool waiting = false;
+        file_transfer transfer;
+        QPixmap thumbnail;
     };
 
     explicit message_model(QObject* parent = nullptr, avatar_cache* avatars = nullptr, message_images* images = nullptr);
