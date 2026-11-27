@@ -26,12 +26,11 @@ struct theme_data
 };
 
 constexpr char const* required_roles[]{
-    "canvas",        "canvas_hover", "panel",          "surface",         "subtle",       "selected",     "bubble_in",      "bubble_out",
-    "reaction_own",  "border",       "border_strong",  "focus",           "accent_muted", "text",         "text_secondary", "text_muted",
-    "accent",        "accent_hover", "accent_pressed", "accent_disabled", "online",       "link",         "danger",         "danger_hover",
-    "danger_soft",   "nav",          "nav_text",       "on_accent",       "avatar_text",  "highlight",    "badge_text",     "message_sender",
-    "reaction_text", "day_pill",     "scrim",          "message_focus",  "message_muted", "read",         "nav_selected",   "nav_hover",      "nav_selected_text",
-    "input_border", "input_hover", "chat_title_bar", "chat_header", "chat_sidebar", "chat_sidebar_search", "chat_sidebar_selected",
+    "canvas",       "canvas_hover", "panel",           "surface",       "subtle",           "selected",    "bubble_in",       "bubble_out",
+    "reaction_own", "border",       "border_strong",    "focus",         "text",             "text_secondary", "text_muted",
+    "accent",       "accent_hover", "accent_pressed",  "accent_disabled", "online",         "link",        "danger",          "danger_hover",
+    "danger_soft",  "on_accent",    "avatar_text",     "highlight",     "badge_text",       "message_sender", "reaction_text", "day_pill",
+    "message_focus", "message_muted", "read",           "input_border",  "input_hover",      "chat_title_bar", "chat_sidebar",
     "composer_surface", "composer_border"};
 
 QString appearance_key(chat_appearance value)
@@ -122,16 +121,27 @@ bool load(QString const& key, bool overrides, theme_data& data, QString& error)
         static QRegularExpression const hex(QStringLiteral("^#[0-9A-Fa-f]{6}$"));
         return value.isString() && hex.match(value.toString()).hasMatch();
     };
+    for (auto it = colors.constBegin(); it != colors.constEnd(); ++it)
+    {
+        if (valid_color(it.value()))
+        {
+            data.colors.insert(it.key(), QColor(it.value().toString()));
+        }
+    }
     for (auto const* role : required_roles)
     {
         auto const name = QString::fromLatin1(role);
-        auto const value = colors.value(name);
-        if (!valid_color(value))
+        if (!data.colors.contains(name))
         {
             error = QStringLiteral("主题缺少有效的颜色 %1：%2").arg(name, path(key + QStringLiteral(".json")));
             return false;
         }
-        data.colors.insert(name, QColor(value.toString()));
+    }
+    // Older override palettes already provide a dark foreground for one of these two roles.
+    const auto scrim = QStringLiteral("scrim");
+    if (!data.colors.contains(scrim))
+    {
+        data.colors.insert(scrim, data.colors.value(key == QStringLiteral("daylight") ? QStringLiteral("text") : QStringLiteral("on_accent")));
     }
     auto const avatars = object.value(QStringLiteral("avatars")).toArray();
     if (avatars.isEmpty())
@@ -336,8 +346,8 @@ bool theme_manager::apply(chat_appearance appearance)
         set(QPalette::Text, "text");
         set(QPalette::Button, "surface");
         set(QPalette::ButtonText, "text");
-        set(QPalette::Highlight, "accent");
-        set(QPalette::HighlightedText, "on_accent");
+        set(QPalette::Highlight, "selected");
+        set(QPalette::HighlightedText, "text");
         set(QPalette::ToolTipBase, "surface");
         set(QPalette::ToolTipText, "text");
         set(QPalette::PlaceholderText, "text_muted");

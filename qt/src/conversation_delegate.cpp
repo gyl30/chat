@@ -67,7 +67,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
         auto const row = option.rect;
         if (option.state & (QStyle::State_MouseOver | QStyle::State_HasFocus))
         {
-            painter->fillRect(row, themed("chat_sidebar_search"));
+            painter->fillRect(row, themed("surface"));
         }
         QRect arrow(option.rect.left() + chat_theme::dialog_left + (chat_theme::dialog_avatar_size - 16) / 2, row.center().y() - 7, 16, 16);
         (index.data(conversation_model::collapsed_role).toBool() ? collapsed_ : expanded_).paint(painter, arrow);
@@ -90,8 +90,8 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
 
     auto const rect = option.rect;
     auto const state = option.state;
-    auto const background = state.testFlag(QStyle::State_Selected) ? "chat_sidebar_selected"
-                          : state.testFlag(QStyle::State_MouseOver)    ? "chat_sidebar_search"
+    auto const background = state.testFlag(QStyle::State_Selected) ? "selected"
+                          : state.testFlag(QStyle::State_MouseOver)    ? "surface"
                                                                      : "chat_sidebar";
     if (option.state & (QStyle::State_Selected | QStyle::State_MouseOver))
     {

@@ -13,6 +13,24 @@ QMainWindow {
         QDialog {
             background: ${panel};
         }
+        QToolTip {
+            background: ${panel};
+            color: ${text};
+            border: 1px solid ${border_strong};
+            padding: 4px 7px;
+        }
+        QAbstractItemView {
+            background: ${panel};
+            border: 0;
+            outline: 0;
+            alternate-background-color: ${canvas};
+            selection-background-color: ${selected};
+            selection-color: ${text};
+            show-decoration-selected: 1;
+        }
+        QListWidget::item:hover:enabled:!selected, QTreeWidget::item:hover:enabled:!selected {
+            background: ${canvas_hover};
+        }
         QHeaderView::section {
             background: ${subtle};
             color: ${text};
@@ -48,8 +66,8 @@ QMainWindow {
             border-radius: 4px;
         }
         QMenu::item:selected {
-            background: ${accent};
-            color: ${on_accent};
+            background: ${selected};
+            color: ${text};
         }
         QMenu::item:disabled {
             color: ${text_muted};
@@ -335,6 +353,7 @@ QMainWindow {
             border: 1px solid ${input_border};
             border-radius: 10px;
             selection-background-color: ${accent};
+            selection-color: ${on_accent};
         }
         QLineEdit:focus {
             border-color: ${focus};
@@ -433,7 +452,7 @@ QMainWindow {
             font-weight: 600;
         }
         QFrame#chatHeader, QWidget#messageSelectionBar {
-            background: ${chat_header};
+            background: ${panel};
             border-bottom: 1px solid ${border};
         }
         QPushButton#chatHeaderButton {
@@ -738,7 +757,7 @@ QMainWindow {
         QLineEdit[searchField="true"] {
             min-height: 36px;
             padding: 0 12px 0 6px;
-            background: ${chat_sidebar_search};
+            background: ${surface};
             border: 1px solid ${border};
             border-radius: 12px;
             font-size: 13px;
@@ -747,7 +766,7 @@ QMainWindow {
             border-color: ${input_hover};
         }
         QLineEdit[searchField="true"]:focus {
-            background: ${chat_sidebar_search};
+            background: ${surface};
             border-color: rgba(${focus.rgb}, 0.65);
         }
         QToolButton#sendAttachmentButton,
