@@ -200,16 +200,27 @@ async def run(root, probe):
                 await ui.wait("bundle_view", lambda r: r.get("count") == 3)
                 saved = []
                 for row, payload in [(1, PNG), (2, b"snapshot")]:
-                    await ui.call("bundle_view", attachment_row=row)
-                    await ui.wait(
-                        "dialogstate",
-                        lambda r: r["shown"] and (row != 1 or r.get("image")),
-                    )
                     gate.hold.add("get_attachment")
                     destination = root / f"saved-{row}"
-                    await ui.call(
-                        "dialogstate", save=True, destination=str(destination)
-                    )
+                    if row == 1:
+                        await ui.call("bundle_view", attachment_row=row)
+                        # The preview fetch is separate from the explicit save.
+                        await gate.caught("get_attachment")
+                        await gate.release("get_attachment")
+                        await ui.wait(
+                            "dialogstate", lambda r: r["shown"] and r.get("image")
+                        )
+                        gate.hold.add("get_attachment")
+                        await ui.call(
+                            "dialogstate", save=True, destination=str(destination)
+                        )
+                    else:
+                        await ui.call("bundle_view", attachment_row=row)
+                        direct = await ui.wait(
+                            "dialogstate", lambda r: r.get("chooser")
+                        )
+                        assert not direct["shown"], direct
+                        await ui.call("dialogstate", destination=str(destination))
                     await until(
                         lambda: len(gate.held) == row,
                         "independent bundle download grants",

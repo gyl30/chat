@@ -114,6 +114,10 @@ void download_tasks::save(download_source const& source, QString const& filename
     chooser->setAcceptMode(QFileDialog::AcceptSave);
     chooser->selectFile(filename);
     connect(&client_, &client_bridge::disconnected, chooser, &QDialog::reject);
+    if (auto* dialog = qobject_cast<QDialog*>(parent))
+    {
+        connect(dialog, &QDialog::finished, chooser, &QDialog::reject);
+    }
     connect(chooser,
             &QFileDialog::fileSelected,
             this,

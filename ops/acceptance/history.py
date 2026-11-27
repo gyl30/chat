@@ -83,6 +83,27 @@ async def main(root, probe, baseline):
                         -1
                     ]["id"]
                     await a.ok("mark_read", conversation=conv, message=tail)
+                    # The head of a category still includes old and archived matches
+                    # when newest timeline pages contain only text.
+                    for category, expected in [
+                        ("images", anchor),
+                        ("files", file_id),
+                        ("links", archived),
+                    ]:
+                        page = await a.ok(
+                            "get_messages",
+                            conversation=conv,
+                            category=category,
+                            limit=1,
+                        )
+                        assert [m["id"] for m in page["messages"]] == [expected]
+                    for invalid in (0, 51):
+                        assert "error" in await a.ask(
+                            "get_messages",
+                            conversation=conv,
+                            category="links",
+                            limit=invalid,
+                        )
                     older = dict(conversation=conv, category="links")
                     reverse = await a.ok("get_messages", **older)
                     assert [m["id"] for m in reverse["messages"]] == [archived]
@@ -165,9 +186,9 @@ async def main(root, probe, baseline):
                             for p in gate.messages
                             if p["method"] == "get_messages"
                         ]
-                        assert requests == [{"conversation": conv, "around": anchor}], (
-                            requests
-                        )
+                        assert requests == [
+                            {"conversation": conv, "around": anchor}
+                        ], requests
                         assert not any(
                             p["method"] == "mark_read" for p in gate.messages
                         )

@@ -795,6 +795,15 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 d->reject();
             }
         }
+        else if (auto* chooser = qobject_cast<QFileDialog*>(QApplication::activeModalWidget()))
+        {
+            out["chooser"] = chooser->isVisible();
+            if (auto const path = cmd["destination"].toString(); !path.isEmpty())
+            {
+                chooser->findChild<QLineEdit*>("fileNameEdit")->setText(path);
+                QMetaObject::invokeMethod(chooser, "accept");
+            }
+        }
     }
     else if (op == "group_download")
     {
@@ -984,7 +993,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             for (int i = 0; i < list->count(); ++i)
             {
                 auto* item = list->item(i);
-                rows.append(QJsonObject{{"id", item->data(Qt::UserRole).toLongLong()}, {"text", item->text()}});
+                if (auto const id = item->data(Qt::UserRole).toLongLong())
+                {
+                    rows.append(QJsonObject{{"id", id}, {"text", item->text()}});
+                }
             }
             out["rows"] = rows;
             out["selected"] = list->currentItem() ? list->currentItem()->data(Qt::UserRole).toLongLong() : 0;
@@ -994,13 +1006,20 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 dialog->reject();
             }
             out["status"] = dialog->findChild<QLabel*>("historyStatus")->text();
-            out["count"] = list->count();
+            out["count"] = rows.size();
             out["more"] = more->isVisible();
-            if (cmd["activate"].toBool() && list->count())
+            if (cmd["activate"].toBool())
             {
-                auto* item = list->item(0);
-                list->scrollToItem(item);
-                choose_menu_action(list, list->visualItemRect(item).center(), QStringLiteral("定位到聊天位置"));
+                for (int i = 0; i < list->count(); ++i)
+                {
+                    auto* item = list->item(i);
+                    if (item->flags().testFlag(Qt::ItemIsSelectable))
+                    {
+                        list->scrollToItem(item);
+                        choose_menu_action(list, list->visualItemRect(item).center(), QStringLiteral("定位到聊天位置"));
+                        break;
+                    }
+                }
             }
         }
     }

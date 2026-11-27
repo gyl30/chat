@@ -31,6 +31,7 @@
 #include "message_links.hpp"
 #include "theme.hpp"
 #include "theme_manager.hpp"
+#include "icons.hpp"
 
 namespace
 {
@@ -52,11 +53,19 @@ QUrl first_link(QString const& text)
 
 QDate sent_date(message_data const& message) { return QDateTime::fromMSecsSinceEpoch(message.timestamp).date(); }
 
+bool date_header(QListWidgetItem const& item) { return item.data(date_role).isValid(); }
+
+int tile_side(int width)
+{
+    auto const columns = std::max(1, (width + 24) / 126);
+    return std::max(1, width / columns);
+}
+
 class history_media_delegate final : public QStyledItemDelegate
 {
    public:
     history_media_delegate(QListWidget& list, QAbstractItemDelegate& previews, message_images* images, download_tasks* downloads)
-        : QStyledItemDelegate(&list), previews_(previews), images_(images), downloads_(downloads)
+        : QStyledItemDelegate(&list), list_(list), previews_(previews), images_(images), downloads_(downloads)
     {
     }
 
@@ -65,11 +74,16 @@ class history_media_delegate final : public QStyledItemDelegate
         switch (index.data(category_role).toInt())
         {
             case int(chat::message_category::images):
-                return {110, 132};
+            {
+                // The icon view can reserve a scrollbar while it lays out the next row.
+                auto const gutter = list_.style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, &list_) + 4;
+                auto const width = std::max(1, list_.viewport()->width() - gutter);
+                return index.data(date_role).isValid() ? QSize(width, 38) : QSize(tile_side(width), tile_side(width));
+            }
             case int(chat::message_category::files):
                 return {0, file_row_height + 8};
             case int(chat::message_category::links):
-                return {0, 66};
+                return {0, 72};
             default:
                 return previews_.sizeHint(option, index);
         }
@@ -92,23 +106,37 @@ class history_media_delegate final : public QStyledItemDelegate
         }
         if (category == chat::message_category::images)
         {
-            const QRect tile = option.rect.adjusted(4, 4, -4, -28);
+            if (const auto date = index.data(date_role); date.isValid())
+            {
+                auto font = option.font;
+                font.setWeight(QFont::DemiBold);
+                painter->setFont(font);
+                painter->setPen(themed("text_secondary"));
+                painter->drawText(option.rect.adjusted(6, 0, -6, 0), Qt::AlignVCenter, date.toString());
+                painter->restore();
+                return;
+            }
+            const QRect tile = option.rect.adjusted(2, 2, -2, -2);
             painter->fillRect(tile, themed("subtle"));
             auto const image = images_ ? images_->image(index.data(preview_role::message).toLongLong()) : QPixmap{};
             if (image.isNull())
             {
-                painter->setPen(themed("text_secondary"));
-                painter->drawText(tile, Qt::AlignCenter, QStringLiteral("图片"));
+                svg_icon(u"image", themed("text_muted"), {24, 24}).paint(painter, {tile.center() - QPoint(12, 12), QSize(24, 24)});
             }
             else
             {
-                QRect target(QPoint(), image.size().scaled(tile.size(), Qt::KeepAspectRatio));
-                target.moveCenter(tile.center());
+                auto const source = tile.size().scaled(image.size(), Qt::KeepAspectRatio);
+                QRect crop(QPoint{}, source);
+                crop.moveCenter(image.rect().center());
                 painter->setRenderHint(QPainter::SmoothPixmapTransform);
-                painter->drawPixmap(target, image);
+                painter->drawPixmap(tile, image, crop);
             }
-            painter->setPen(themed("text_secondary"));
-            painter->drawText(option.rect.adjusted(5, tile.height() + 6, -4, -1), Qt::AlignVCenter, index.data(date_role).toString());
+            if (selected || option.state.testFlag(QStyle::State_HasFocus))
+            {
+                painter->setPen(QPen(themed("focus"), 2));
+                painter->setBrush(Qt::NoBrush);
+                painter->drawRect(tile.adjusted(1, 1, -1, -1));
+            }
         }
         else if (category == chat::message_category::files)
         {
@@ -124,31 +152,37 @@ class history_media_delegate final : public QStyledItemDelegate
         else
         {
             auto const url = index.data(link_role).toUrl();
+            auto const icon = QRect(option.rect.left() + 10, option.rect.center().y() - 21, 42, 42);
+            painter->setRenderHint(QPainter::Antialiasing);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(themed("subtle"));
+            painter->drawRoundedRect(icon, 10, 10);
+            svg_icon(u"link", themed("text_secondary"), {22, 22}).paint(painter, {icon.center() - QPoint(11, 11), QSize(22, 22)});
+            auto const rect = option.rect.adjusted(62, 7, -10, -6);
             auto font = option.font;
-            font.setBold(true);
+            font.setWeight(QFont::DemiBold);
             painter->setFont(font);
-            auto const rect = option.rect.adjusted(10, 3, -10, -3);
             painter->setPen(themed("text"));
-            const auto header = url.host() + QStringLiteral(" · ") + index.data(preview_role::sender).toString() + QStringLiteral(" · ") +
-                                index.data(preview_role::time).toString();
-            painter->drawText(QRect(rect.topLeft(), QSize(rect.width(), 19)),
-                              Qt::AlignVCenter,
-                              QFontMetrics(font).elidedText(header, Qt::ElideRight, rect.width()));
-            font.setBold(false);
+            auto const host = url.host().isEmpty() ? QStringLiteral("链接") : url.host();
+            painter->drawText(
+                QRect(rect.topLeft(), QSize(rect.width(), 20)), Qt::AlignVCenter, QFontMetrics(font).elidedText(host, Qt::ElideRight, rect.width()));
+            font.setWeight(QFont::Normal);
             painter->setFont(font);
             painter->setPen(themed("link"));
-            painter->drawText(QRect(rect.topLeft() + QPoint(0, 19), QSize(rect.width(), 19)),
+            painter->drawText(QRect(rect.topLeft() + QPoint(0, 20), QSize(rect.width(), 18)),
                               Qt::AlignVCenter,
                               QFontMetrics(font).elidedText(url.toDisplayString(), Qt::ElideMiddle, rect.width()));
             painter->setPen(themed("text_secondary"));
-            painter->drawText(QRect(rect.topLeft() + QPoint(0, 38), QSize(rect.width(), 19)),
+            auto const source = index.data(preview_role::sender).toString() + QStringLiteral(" · ") + index.data(preview_role::time).toString();
+            painter->drawText(QRect(rect.topLeft() + QPoint(0, 39), QSize(rect.width(), 18)),
                               Qt::AlignVCenter,
-                              QFontMetrics(font).elidedText(index.data().toString(), Qt::ElideRight, rect.width()));
+                              QFontMetrics(font).elidedText(source, Qt::ElideRight, rect.width()));
         }
         painter->restore();
     }
 
    private:
+    QListWidget& list_;
     QAbstractItemDelegate& previews_;
     message_images* images_;
     download_tasks* downloads_;
@@ -226,10 +260,7 @@ chat_history_dialog::chat_history_dialog(
     }
     list_->setFrameShape(QFrame::NoFrame);
     list_->setUniformItemSizes(true);
-    connect(&theme_manager::instance(),
-            &theme_manager::changed,
-            this,
-            [this] { list_->viewport()->update(); });
+    connect(&theme_manager::instance(), &theme_manager::changed, this, [this] { list_->viewport()->update(); });
     list_->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(list_, 1);
     empty_ = new empty_state(*list_->viewport(), QStringLiteral("historyEmpty"));
@@ -297,7 +328,16 @@ bool chat_history_dialog::eventFilter(QObject* watched, QEvent* event)
 {
     if (watched == list_->viewport() && (event->type() == QEvent::Show || event->type() == QEvent::Resize))
     {
-        QTimer::singleShot(0, this, &chat_history_dialog::observe_visible_images);
+        QTimer::singleShot(0,
+                           this,
+                           [this]
+                           {
+                               if (tabs_->currentIndex() == int(category::images))
+                               {
+                                   list_->doItemsLayout();
+                                   observe_visible_images();
+                               }
+                           });
     }
     return QDialog::eventFilter(watched, event);
 }
@@ -311,14 +351,14 @@ void chat_history_dialog::observe_visible_images()
     for (int i = 0; i < list_->count(); ++i)
     {
         auto const* item = list_->item(i);
-        if (list_->viewport()->rect().intersects(list_->visualItemRect(item)))
+        if (!date_header(*item) && list_->viewport()->rect().intersects(list_->visualItemRect(item)))
         {
             images_->observe(conversation_, item->data(preview_role::message).toLongLong());
         }
     }
 }
 
-void chat_history_dialog::set_row(QListWidgetItem& item, message_data const& message, bool starts_day)
+void chat_history_dialog::set_row(QListWidgetItem& item, message_data const& message)
 {
     chat::message_search_hit const hit{message.conversation, message.id, message.from, message.timestamp, {}, message.username.toStdString(), {}};
     set_message_preview(item, hit, message.attachment ? content_text(message) : matched_message_excerpt(message.text, query_));
@@ -330,11 +370,7 @@ void chat_history_dialog::set_row(QListWidgetItem& item, message_data const& mes
         item.setData(size_role, message.attachment->size);
         item.setToolTip(message.attachment->filename);
     }
-    if (kind == category::images)
-    {
-        item.setData(date_role, starts_day ? QLocale().toString(sent_date(message), QStringLiteral("yyyy-MM-dd")) : QString{});
-    }
-    else if (kind == category::links)
+    if (kind == category::links)
     {
         item.setData(link_role, first_link(message.text));
     }
@@ -343,6 +379,10 @@ void chat_history_dialog::set_row(QListWidgetItem& item, message_data const& mes
 void chat_history_dialog::activate(QListWidgetItem const& item)
 {
     auto const id = item.data(preview_role::message).toLongLong();
+    if (!id)
+    {
+        return;
+    }
     auto const filename = item.data(filename_role).toString();
     switch (static_cast<category>(item.data(category_role).toInt()))
     {
@@ -400,7 +440,8 @@ void chat_history_dialog::restart_search(QString query)
     list_->setResizeMode(QListView::Adjust);
     list_->setFlow(images ? QListView::LeftToRight : QListView::TopToBottom);
     list_->setWrapping(images);
-    list_->setGridSize(images ? QSize(110, 132) : QSize());
+    list_->setUniformItemSizes(!images);
+    list_->setGridSize({});
     request_more();
 }
 
@@ -462,7 +503,17 @@ void chat_history_dialog::add_messages(QList<message_data> messages, bool has_mo
             }
             message = *edited;
         }
-        set_row(*new QListWidgetItem(list_), message, messages_.isEmpty() || sent_date(messages_.last()) != sent_date(message));
+        if (tabs_->currentIndex() == int(category::images) && (messages_.isEmpty() || sent_date(messages_.last()) != sent_date(message)))
+        {
+            auto* heading = new QListWidgetItem(list_);
+            heading->setFlags(Qt::NoItemFlags);
+            heading->setData(category_role, int(category::images));
+            auto const label = QLocale().toString(sent_date(message), QStringLiteral("yyyy-MM-dd"));
+            heading->setData(date_role, label);
+            heading->setText(label);
+            heading->setData(Qt::AccessibleTextRole, label);
+        }
+        set_row(*new QListWidgetItem(list_), message);
         messages_.push_back(std::move(message));
     }
     page_updates_.clear();
@@ -524,20 +575,25 @@ void chat_history_dialog::update_message(qint64 conversation, message_data messa
     {
         return;
     }
-    auto const row = static_cast<int>(found - messages_.begin());
+    auto* item = item_for_message(message.id);
     if (matches(message))
     {
         *found = std::move(message);
-        set_row(*list_->item(row), *found, row == 0 || sent_date(messages_[row - 1]) != sent_date(*found));
+        set_row(*item, *found);
     }
     else
     {
         messages_.erase(found);
         QSignalBlocker const blocker(list_->verticalScrollBar());
+        auto const row = list_->row(item);
         delete list_->takeItem(row);
-        if (row < messages_.size() && tabs_->currentIndex() == int(category::images))
+        if (auto const* heading = list_->item(row - 1); heading && date_header(*heading))
         {
-            set_row(*list_->item(row), messages_[row], row == 0 || sent_date(messages_[row - 1]) != sent_date(messages_[row]));
+            auto const* next = list_->item(row);
+            if (!next || date_header(*next))
+            {
+                delete list_->takeItem(row - 1);
+            }
         }
         if (messages_.isEmpty())
         {
@@ -570,10 +626,23 @@ void chat_history_dialog::update_status()
     more_->setVisible(has_more_ && !loading_);
 }
 
+QListWidgetItem* chat_history_dialog::item_for_message(qint64 id) const
+{
+    for (int row = 0; row < list_->count(); ++row)
+    {
+        auto* item = list_->item(row);
+        if (item->data(preview_role::message).toLongLong() == id)
+        {
+            return item;
+        }
+    }
+    return nullptr;
+}
+
 void chat_history_dialog::show_menu(QPoint position)
 {
     auto* item = list_->itemAt(position);
-    if (!item)
+    if (!item || date_header(*item))
     {
         return;
     }
@@ -608,7 +677,7 @@ void chat_history_dialog::show_menu(QPoint position)
     }
     else if (open && chosen == open)
     {
-        activate(*list_->item(current - messages_.begin()));
+        activate(*item_for_message(id));
     }
     else if (copy_link && chosen == copy_link)
     {

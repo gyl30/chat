@@ -2,6 +2,8 @@
 #include "bundle_dialog.hpp"
 #include "attachment_dialog.hpp"
 #include "download_tasks.hpp"
+#include "file_presentation.hpp"
+#include "theme_manager.hpp"
 #include <QToolButton>
 #include "chat_widget.hpp"
 #include "client_bridge.hpp"
@@ -39,9 +41,66 @@ class snapshot_body final : public QTextBrowser
     }
 };
 
-void show_attachment(client_bridge& client, QDialog& dialog, qint64 room, qint64 message, qint64 position, QString const& name, bool image)
+class snapshot_file_row final : public QPushButton
 {
-    attachment_dialog preview(client.downloads(), room, message, name, image, &dialog, {}, position);
+   public:
+    snapshot_file_row(download_tasks& downloads, download_source source, QString name, std::optional<qint64> size, bool image, QWidget* parent)
+        : QPushButton(std::move(name), parent), downloads_(downloads), source_(std::move(source)), size_(size), image_(image)
+    {
+        setObjectName(QStringLiteral("snapshotAttachment"));
+        setToolTip(text());
+        setAutoDefault(false);
+        setFixedHeight(file_row_height + 8);
+        setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+        connect(&downloads,
+                &download_tasks::changed,
+                this,
+                [this](QList<download_source> const& sources)
+                {
+                    if (sources.isEmpty() || sources.contains(source_))
+                    {
+                        update();
+                    }
+                });
+        connect(&theme_manager::instance(), &theme_manager::changed, this, qOverload<>(&QWidget::update));
+    }
+
+   protected:
+    void paintEvent(QPaintEvent*) override
+    {
+        auto transfer = downloads_.transfer(source_);
+        auto details = size_ ? file_size(*size_) : QString{};
+        if (!transfer.status.isEmpty())
+        {
+            details = details.isEmpty() ? transfer.status : details + QStringLiteral(" · ") + transfer.status;
+        }
+        if (image_ && transfer.action == file_action::download)
+        {
+            transfer.action = file_action::none;
+        }
+        QPainter painter(this);
+        if (underMouse() || hasFocus())
+        {
+            painter.fillRect(rect(), themed(isDown() ? "selected" : "canvas_hover"));
+        }
+        paint_file_row(painter, rect().adjusted(6, 4, -6, -4), font(), text(), details, transfer, image_ ? u"image" : u"file");
+        if (hasFocus())
+        {
+            painter.setPen(themed("focus"));
+            painter.drawRect(rect().adjusted(0, 0, -1, -1));
+        }
+    }
+
+   private:
+    download_tasks& downloads_;
+    download_source source_;
+    std::optional<qint64> size_;
+    bool image_;
+};
+
+void show_image(client_bridge& client, QDialog& dialog, qint64 room, qint64 message, qint64 position, QString const& name)
+{
+    attachment_dialog preview(client.downloads(), room, message, name, true, &dialog, {}, position);
     QObject::connect(&dialog, &QDialog::finished, &preview, &QDialog::reject);
     QObject::connect(&preview,
                      &attachment_dialog::save_requested,
@@ -59,10 +118,7 @@ void show_attachment(client_bridge& client, QDialog& dialog, qint64 room, qint64
                              preview.set_data(room, message, std::move(bytes), error);
                          }
                      });
-    if (image)
-    {
-        image_query = client.get_message_image(room, message, position);
-    }
+    image_query = client.get_message_image(room, message, position);
     preview.exec();
 }
 
@@ -87,20 +143,40 @@ void append_entry(QVBoxLayout& stream, chat::forwarded_item const& item, QDialog
     {
         auto const name = QString::fromStdString(item.filename);
         bool const image = item.media_type.starts_with("image/");
-        auto* filename = new QLabel(name);
-        filename->setTextFormat(Qt::PlainText);
-        filename->setWordWrap(true);
-        filename->setTextInteractionFlags(Qt::TextSelectableByMouse);
-        layout->addWidget(filename);
-        auto* file = new QPushButton(image ? QStringLiteral("查看图片") : QStringLiteral("查看文件"));
-        file->setObjectName(QStringLiteral("snapshotAttachment"));
-        layout->addWidget(file, 0, Qt::AlignLeft);
-        layout->addWidget(client.downloads().source_button(entry, [source = download_source{room, message, item.position, {}}] { return source; }));
+        download_source const source{room, message, item.position, {}};
+        auto& downloads = client.downloads();
+        auto* file = new snapshot_file_row(downloads, source, name, item.size, image, entry);
+        layout->addWidget(file);
         QObject::connect(file,
                          &QPushButton::clicked,
                          &dialog,
-                         [&, position = item.position, name, image, room, message]
-                         { show_attachment(client, dialog, room, message, position, name, image); });
+                         [&, source, name, image]
+                         {
+                             auto const action = downloads.transfer(source).action;
+                             if (image && action != file_action::cancel && action != file_action::resume)
+                             {
+                                 show_image(client, dialog, source.conversation, source.message, source.item, name);
+                             }
+                             else if (!downloads.activate(source, &dialog))
+                             {
+                                 downloads.save(source, name, &dialog);
+                             }
+                         });
+        file->setContextMenuPolicy(Qt::CustomContextMenu);
+        QObject::connect(file,
+                         &QWidget::customContextMenuRequested,
+                         &dialog,
+                         [&, file, source, name](QPoint position)
+                         {
+                             QMenu menu(file);
+                             QObject::connect(&dialog, &QDialog::finished, &menu, &QMenu::close);
+                             auto* save = menu.addAction(QStringLiteral("另存为"));
+                             downloads.add_actions(menu, source);
+                             if (menu.exec(file->mapToGlobal(position)) == save)
+                             {
+                                 downloads.save(source, name, &dialog);
+                             }
+                         });
     }
     else
     {

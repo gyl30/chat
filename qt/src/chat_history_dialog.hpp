@@ -53,7 +53,8 @@ class chat_history_dialog final : public QDialog
     void add_messages(QList<message_data> messages, bool has_more);
     void show_menu(QPoint position);
     void activate(QListWidgetItem const& item);
-    void set_row(QListWidgetItem& item, message_data const& message, bool starts_day);
+    void set_row(QListWidgetItem& item, message_data const& message);
+    QListWidgetItem* item_for_message(qint64 id) const;
     bool eventFilter(QObject* watched, QEvent* event) override;
     void observe_visible_images();
 
@@ -69,7 +70,7 @@ class chat_history_dialog final : public QDialog
     // Keep the server boundary even if the matching row disappears locally.
     qint64 before_ = 0;
     QHash<qint64, message_data> page_updates_;
-    // Newest first, with a corresponding row at each index.
+    // Newest first. The image gallery also includes section headings.
     QList<message_data> messages_;
     bool has_more_ = true;
     bool loading_ = false;

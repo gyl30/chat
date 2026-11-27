@@ -1,6 +1,8 @@
 #include "attachment_dialog.hpp"
 #include "theme.hpp"
 #include "download_tasks.hpp"
+#include "icons.hpp"
+#include "theme_manager.hpp"
 #include <QToolButton>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -14,10 +16,10 @@
 #include <utility>
 
 #include <QBuffer>
-#include <QDialogButtonBox>
 #include <QEvent>
 #include <QFileDialog>
 #include <QImageReader>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QPixmap>
@@ -73,10 +75,22 @@ attachment_dialog::attachment_dialog(
     image_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     image_->installEventFilter(this);
 
-    save_button_ = new QPushButton(QStringLiteral("保存文件"), this);
+    save_button_ = new QPushButton(preview ? QStringLiteral("保存") : QStringLiteral("保存文件"), this);
     save_button_->setObjectName(QStringLiteral("saveAttachmentButton"));
-    save_button_->setProperty("primary", true);
-    auto* buttons = new QDialogButtonBox(this);
+    save_button_->setProperty("primary", !preview);
+    auto* tools = new QHBoxLayout;
+    tools->setContentsMargins(0, 0, 0, 0);
+    tools->setSpacing(6);
+    layout->addLayout(tools);
+    auto decorate = [](QPushButton& button, QStringView icon)
+    {
+        button.setProperty("previewTool", true);
+        button.setAutoDefault(false);
+        button.setIconSize({18, 18});
+        auto refresh = [&button, name = icon.toString()] { button.setIcon(svg_icon(name, themed("text_secondary"), button.iconSize())); };
+        refresh();
+        QObject::connect(&theme_manager::instance(), &theme_manager::changed, &button, refresh);
+    };
     if (preview_)
     {
         scroll_ = new QScrollArea(this);
@@ -86,12 +100,19 @@ attachment_dialog::attachment_dialog(
         scroll_->setWidget(image_);
         scroll_->viewport()->installEventFilter(this);
         scroll_->setWidgetResizable(false);
-        layout->addWidget(scroll_, 1);
+        layout->insertWidget(1, scroll_, 1);
 
-        fit_button_ = buttons->addButton(QStringLiteral("实际尺寸"), QDialogButtonBox::ActionRole);
+        fit_button_ = new QPushButton(QStringLiteral("实际尺寸"), this);
+        decorate(*fit_button_, u"window-maximize");
+        tools->addWidget(fit_button_);
         fit_button_->setObjectName(QStringLiteral("attachmentFitButton"));
         fit_button_->setEnabled(false);
-        copy_button_ = buttons->addButton(QStringLiteral("复制图片"), QDialogButtonBox::ActionRole);
+        copy_button_ = new QPushButton(QStringLiteral("复制"), this);
+        copy_button_->setAccessibleName(QStringLiteral("复制图片"));
+        copy_button_->setToolTip(copy_button_->accessibleName());
+        decorate(*copy_button_, u"copy");
+        tools->addWidget(copy_button_);
+        decorate(*save_button_, u"file");
         copy_button_->setEnabled(false);
         connect(fit_button_,
                 &QPushButton::clicked,
@@ -108,9 +129,9 @@ attachment_dialog::attachment_dialog(
     {
         image_->hide();
     }
-    buttons->addButton(save_button_, QDialogButtonBox::ActionRole);
-    layout->addWidget(downloads.source_button(this, [=] { return download_source{conversation, message, item, {}}; }));
-    layout->addWidget(buttons);
+    tools->addStretch();
+    tools->addWidget(downloads.source_button(this, [=] { return download_source{conversation, message, item, {}}; }));
+    tools->addWidget(save_button_);
     connect(save_button_,
             &QPushButton::clicked,
             this,
