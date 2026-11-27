@@ -198,5 +198,20 @@ std::optional<T> read_payload(dom::element value)
     return read_payload(value, result) ? std::optional(std::move(result)) : std::nullopt;
 }
 
+inline error make_error(error_kind kind, std::string message, int code = 0)
+{
+    error value;
+    value.kind = kind;
+    value.code = code;
+    value.message = std::move(message);
+    return value;
+}
+
+std::optional<std::int64_t> integer_field(auto object, std::string_view key)
+{
+    auto value = find_field(object, key);
+    return value ? read_payload<std::int64_t>(*value) : std::nullopt;
+}
+
 }    // namespace chat::detail
 #endif

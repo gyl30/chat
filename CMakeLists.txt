@@ -88,6 +88,7 @@ add_library(sdk STATIC
     ${common_sources}
     client/src/attachment_files.cpp
     client/src/client.cpp
+    client/src/rpc_decode.cpp
     client/src/server_url.cpp
     client/src/websocket.cpp
 )
