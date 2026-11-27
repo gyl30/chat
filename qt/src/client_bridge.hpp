@@ -264,6 +264,8 @@ class client_bridge final : public QObject
 
    private:
     download_tasks* downloads_;
+    static QString display_error(chat::error const& value);
+    chat::client::message_result_handler message_update_result(qint64 conversation);
     chat::client::poll_handler poll_result(quint64 request, qint64 room, qint64 message, bool write);
     std::function<void(std::expected<bool, chat::error>)> settings_result();
     void publish_pending_text(chat::pending_text const& item);

@@ -28,6 +28,7 @@ add_executable(client
     src/create_group_dialog.hpp
     src/clipboard_image.cpp
     src/client_bridge.cpp
+    src/client_bridge_transfers.cpp
     src/client_bridge.hpp
     src/conversation_data.hpp
     src/conversation_delegate.cpp
