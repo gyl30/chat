@@ -282,7 +282,7 @@ QMainWindow {
                 stop: 0 ${selected}, stop: 0.42 ${canvas}, stop: 1 ${canvas});
         }
         QWidget#windowTitleBar {
-            background: ${canvas};
+            background: ${chat_title_bar};
             border-bottom: 1px solid ${border};
         }
         QWidget#windowTitleBar[login="true"] {
@@ -406,7 +406,11 @@ QMainWindow {
             border-color: ${focus};
         }
         QFrame#conversationPanel {
-            background: ${panel};
+            background: ${chat_sidebar};
+        }
+        QFrame#conversationHeader {
+            background: ${chat_sidebar};
+            border-bottom: 1px solid ${border};
         }
         QFrame#chatPanel {
             background: ${canvas};
@@ -429,8 +433,8 @@ QMainWindow {
         QLabel#friendRequestHeading {
             font-weight: 600;
         }
-        QFrame#chatHeader {
-            background: transparent;
+        QFrame#chatHeader, QWidget#messageSelectionBar {
+            background: ${chat_header};
         }
         QPushButton#chatHeaderButton {
             padding: 0;
@@ -705,32 +709,21 @@ QMainWindow {
             max-height: 1px;
         }
         QFrame#inputBar {
-            margin: 4px 14px 14px 14px;
-            background: ${surface};
-            border: 1px solid ${input_border};
-            border-radius: 14px;
+            margin: 8px 24px 16px 24px;
+            background: ${composer_surface};
+            border: 1px solid ${composer_border};
+            border-radius: 16px;
         }
         QFrame#inputBar[editorFocused="true"] {
             border-color: ${focus};
         }
         QPlainTextEdit#messageEdit, QPlainTextEdit#messageEdit:focus {
             font-family: "Noto Sans CJK SC", sans-serif;
-            min-height: 36px;
-            padding: 0 4px;
+            font-size: 16px;
+            padding: 0;
             background: transparent;
             border: 0;
             border-radius: 0;
-        }
-        QToolButton#sendButton {
-            border: 0;
-            border-radius: 20px;
-            background: transparent;
-        }
-        QToolButton#sendButton:hover:enabled {
-            background: ${subtle};
-        }
-        QToolButton#sendButton:disabled {
-            background: transparent;
         }
         QToolButton#cancelReplyButton {
             border: 1px solid transparent;
@@ -743,7 +736,7 @@ QMainWindow {
         QToolButton#cancelReplyButton:focus {
             border-color: ${focus};
         }
-            QLineEdit#conversationSearchEdit, QLineEdit#userSearchEdit[header="true"] {
+        QLineEdit#conversationSearchEdit, QLineEdit#userSearchEdit[header="true"] {
             margin: 0;
             min-height: 34px;
             padding: 0 10px 0 4px;
@@ -751,6 +744,13 @@ QMainWindow {
             border: 1px solid transparent;
             border-radius: 17px;
             font-size: 13px;
+        }
+        QLineEdit#conversationSearchEdit {
+            min-height: 36px;
+            padding: 0 12px 0 6px;
+            background: ${chat_sidebar_search};
+            border-color: ${border};
+            border-radius: 12px;
         }
         QLineEdit#conversationSearchEdit:focus, QLineEdit#userSearchEdit[header="true"]:focus {
             background: ${surface};
@@ -805,7 +805,7 @@ QMainWindow {
             background: ${canvas_hover};
         }
         QFrame QToolButton[composeText="true"] {
-            background: ${surface};
+            background: transparent;
             color: ${text};
             border: 1px solid transparent;
             border-radius: 6px;
@@ -841,9 +841,9 @@ QMainWindow {
             background: ${canvas_hover};
         }
         QToolButton#sendButton {
-            margin: 4px 2px;
-            border: 0;
-            border-radius: 10px;
+            margin-left: 3px;
+            border: 1px solid transparent;
+            border-radius: 13px;
             background: ${accent};
         }
         QToolButton#sendButton:hover:enabled {
@@ -853,7 +853,8 @@ QMainWindow {
             background: ${accent_pressed};
         }
         QToolButton#sendButton:disabled {
-            background: ${accent_disabled};
+            background: ${subtle};
+            border-color: ${border};
         }
         QLineEdit#historySearchEdit {
             min-height: 34px;

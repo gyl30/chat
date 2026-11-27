@@ -34,23 +34,23 @@ inline constexpr int dialog_spacing = 12;
 inline constexpr int dialog_small_width = 480;
 inline constexpr int dialog_normal_width = 520;
 
-inline constexpr int dialog_row_height = 62;
+inline constexpr int dialog_row_height = 66;
 inline constexpr int dialog_avatar_size = 46;
-inline constexpr int dialog_left = 10;
-inline constexpr int dialog_avatar_top = 8;
-inline constexpr int dialog_text_left = 68;
-inline constexpr int dialog_name_top = 10;
-inline constexpr int dialog_preview_top = 34;
-inline constexpr int dialog_right = 10;
+inline constexpr int dialog_left = 15;
+inline constexpr int dialog_avatar_top = (dialog_row_height - dialog_avatar_size) / 2;
+inline constexpr int dialog_text_left = 72;
+inline constexpr int dialog_name_top = 12;
+inline constexpr int dialog_preview_top = 36;
+inline constexpr int dialog_right = 15;
 inline constexpr int dialog_unread_height = 19;
 
 inline constexpr int message_max_width = 544;
 inline constexpr int message_avatar_size = 45;
 inline constexpr int message_avatar_skip = 53;
-inline constexpr int message_side_margin = 16;
+inline constexpr int message_side_margin = 24;
 inline constexpr int message_padding_horizontal = 14;
 inline constexpr int message_padding_vertical = 10;
-inline constexpr int message_margin_top = 8;
+inline constexpr int message_margin_top = 11;
 inline constexpr int message_margin_top_attached = 0;
 inline constexpr int message_margin_bottom = 3;
 inline constexpr int message_radius = 20;
@@ -60,14 +60,14 @@ inline constexpr int message_tail_height = 9;
 inline constexpr int message_time_gap = 8;
 inline constexpr int message_name_gap = 3;
 inline constexpr int message_date_height = 24;
-inline constexpr int message_date_margin_top = 10;
-inline constexpr int message_date_margin_bottom = 6;
+inline constexpr int message_date_margin_top = 14;
+inline constexpr int message_date_margin_bottom = 8;
 
 inline constexpr int compose_single_row_min_width = 760;
-inline constexpr int compose_height = 56;
-inline constexpr int compose_button_width = 44;
-inline constexpr int compose_button_height = 46;
-inline constexpr int compose_field_min_height = 36;
+inline constexpr int compose_height = 60;
+inline constexpr int compose_button_width = 40;
+inline constexpr int compose_button_height = 40;
+inline constexpr int compose_field_min_height = 44;
 
 }    // namespace chat_theme
 

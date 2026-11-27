@@ -93,18 +93,18 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
 
     auto const rect = option.rect;
     // Selection is an inset rounded card rather than a full-width band.
-    auto const card = QRectF(rect).adjusted(6, 2, -6, -2);
+    auto const card = QRectF(rect).adjusted(8, 3, -8, -3);
     if (option.state & (QStyle::State_Selected | QStyle::State_MouseOver))
     {
         painter->setPen(Qt::NoPen);
-        painter->setBrush(option.state & QStyle::State_Selected ? themed("selected") : themed("subtle"));
+        painter->setBrush(option.state & QStyle::State_Selected ? themed("chat_sidebar_selected") : themed("chat_sidebar_search"));
         painter->drawRoundedRect(card, 12, 12);
     }
     if (option.state & QStyle::State_Selected)
     {
         painter->setPen(Qt::NoPen);
         painter->setBrush(themed("accent"));
-        painter->drawRoundedRect(QRectF(card.left() + 1, card.top() + 12, 3, card.height() - 24), 1.5, 1.5);
+        painter->drawRoundedRect(QRectF(card.left() + 1, card.top() + 15, 2, card.height() - 30), 1, 1);
     }
 
     auto const username = index.data(Qt::DisplayRole).toString();
@@ -123,7 +123,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     paint_avatar(*painter, avatar_rect, group ? QStringLiteral("群") : username, 17, index.data(Qt::DecorationRole).value<QPixmap>());
     if (online)
     {
-        painter->setPen(QPen(themed("panel"), 2));
+        painter->setPen(QPen(themed(option.state & QStyle::State_Selected ? "chat_sidebar_selected" : "chat_sidebar"), 2));
         painter->setBrush(themed("online"));
         painter->drawEllipse(QPointF(avatar_rect.right() - 3, avatar_rect.bottom() - 3), 5, 5);
     }
@@ -132,7 +132,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     auto const content_right = rect.right() - chat_theme::dialog_right + 1;
 
     QFont date_font = option.font;
-    date_font.setPixelSize(13);
+    date_font.setPixelSize(12);
     painter->setFont(date_font);
     auto const date = timestamp_text(last_timestamp);
     auto const date_width = date.isEmpty() ? 0 : QFontMetrics(date_font).horizontalAdvance(date);
@@ -145,7 +145,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
 
     QFont username_font = option.font;
     username_font.setBold(true);
-    username_font.setPixelSize(14);
+    username_font.setPixelSize(15);
     painter->setFont(username_font);
     painter->setPen(themed("text"));
     auto name_right = content_right - (date_width > 0 ? date_width + 8 : 0);

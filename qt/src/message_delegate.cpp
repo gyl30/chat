@@ -766,7 +766,10 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
 
     if (layout.unread_height)
     {
-        QRect band(option.rect.left() + 16, y + layout.day_height, option.rect.width() - 32, layout.unread_height);
+        QRect band(option.rect.left() + chat_theme::message_side_margin,
+                   y + layout.day_height,
+                   option.rect.width() - 2 * chat_theme::message_side_margin,
+                   layout.unread_height);
         auto const label = QStringLiteral("未读消息");
         painter->setFont(date_font(option));
         int const gap = painter->fontMetrics().horizontalAdvance(label) / 2 + 10;

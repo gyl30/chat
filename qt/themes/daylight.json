@@ -41,7 +41,14 @@
     "nav_hover": "#DCE5F0",
     "nav_selected_text": "#FFFFFF",
     "input_border": "#6F8096",
-    "input_hover": "#667C99"
+    "input_hover": "#667C99",
+    "chat_title_bar": "#E3EBF5",
+    "chat_header": "#EFF4FA",
+    "chat_sidebar": "#E9EFF7",
+    "chat_sidebar_search": "#F3F7FC",
+    "chat_sidebar_selected": "#D6E4F7",
+    "composer_surface": "#F8FAFD",
+    "composer_border": "#B8C8DD"
   },
   "avatars": [
     "#D5E4F7",

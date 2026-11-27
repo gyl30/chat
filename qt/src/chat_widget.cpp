@@ -104,6 +104,14 @@ QString local_file_path(QUrl url)
     return url.host().isEmpty() ? url.toLocalFile() : QString{};
 }
 
+QIcon composer_send_icon()
+{
+    constexpr QSize size{20, 20};
+    auto icon = svg_icon(u"send", themed("on_accent"), size);
+    icon.addPixmap(svg_icon(u"send", themed("text_secondary"), size).pixmap(size), QIcon::Disabled);
+    return icon;
+}
+
 class conversation_list_view final : public QListView
 {
    public:
@@ -274,9 +282,10 @@ QWidget* chat_widget::create_sidebar()
     conversation_layout->setSpacing(0);
 
     auto* conversation_header = new QFrame(conversation_panel);
+    conversation_header->setObjectName(QStringLiteral("conversationHeader"));
     auto* conversation_header_layout = new QHBoxLayout(conversation_header);
-    conversation_header_layout->setContentsMargins(12, 16, 12, 8);
-    conversation_header_layout->setSpacing(6);
+    conversation_header_layout->setContentsMargins(12, 9, 13, 9);
+    conversation_header_layout->setSpacing(8);
     main_menu_button_ = new QToolButton(conversation_header);
     main_menu_button_->setObjectName(QStringLiteral("mainMenuButton"));
     main_menu_button_->setProperty("navigationTool", true);
@@ -1466,7 +1475,7 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
     auto* header = new QFrame(chat_panel);
     header->setObjectName(QStringLiteral("chatHeader"));
     auto* header_layout = new QHBoxLayout(header);
-    header_layout->setContentsMargins(16, 5, 12, 5);
+    header_layout->setContentsMargins(chat_theme::message_side_margin, 8, 16, 8);
     header_layout->setSpacing(8);
 
     chat_title_ = new QPushButton(header);
@@ -1631,7 +1640,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     selection_bar_ = new QWidget(chat_headers_);
     selection_bar_->setObjectName(QStringLiteral("messageSelectionBar"));
     auto* selection = new QHBoxLayout(selection_bar_);
-    selection->setContentsMargins(16, 5, 12, 5);
+    selection->setContentsMargins(chat_theme::message_side_margin, 8, 16, 8);
     auto action_button = [&](QString name, QString text, QString icon, bool danger = false)
     {
         auto* button = new QToolButton(selection_bar_);
@@ -1796,13 +1805,6 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
 void chat_widget::setup_composer(QVBoxLayout* chat_layout)
 {
     auto* chat_panel = chat_layout->parentWidget();
-    auto* input_separator = new QFrame(chat_panel);
-    input_separator->setFrameShape(QFrame::HLine);
-    input_separator->setObjectName(QStringLiteral("horizontalSeparator"));
-    chat_layout->addWidget(input_separator);
-    // The composer is drawn as a rounded card, which already separates it from the history.
-    input_separator->hide();
-
     speech_notice_ = new QLabel(chat_panel);
     speech_notice_->setObjectName(QStringLiteral("groupSpeechNotice"));
     speech_notice_->hide();
@@ -1818,17 +1820,17 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     input_bar->setObjectName(QStringLiteral("inputBar"));
     input_bar->setMinimumHeight(chat_theme::compose_height);
     auto* rows = new QBoxLayout(QBoxLayout::LeftToRight, input_bar);
-    rows->setContentsMargins(8, 5, 8, 5);
-    rows->setSpacing(4);
+    rows->setContentsMargins(12, 7, 10, 7);
+    rows->setSpacing(6);
     auto* input_layout = new QHBoxLayout;
-    input_layout->setSpacing(4);
+    input_layout->setSpacing(3);
     message_edit_ = new QPlainTextEdit(input_bar);
     message_edit_->setObjectName(QStringLiteral("messageEdit"));
     message_edit_->setPlaceholderText(QStringLiteral("输入消息…"));
     message_edit_->setAccessibleName(QStringLiteral("消息输入"));
     message_edit_->setToolTip(QStringLiteral("Enter 发送，Shift+Enter 换行"));
     message_edit_->setTabChangesFocus(true);
-    message_edit_->document()->setDocumentMargin(8);
+    message_edit_->document()->setDocumentMargin(10);
     message_edit_->setFixedHeight(chat_theme::compose_field_min_height);
     message_edit_->installEventFilter(this);
     message_edit_->viewport()->setAcceptDrops(true);
@@ -2007,6 +2009,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     markdown_button_->setText(QStringLiteral("MD"));
     markdown_button_->setToolTip(QStringLiteral("使用 Markdown 格式发送"));
     markdown_button_->setCheckable(true);
+    markdown_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
     input_layout->addWidget(markdown_button_, 0, Qt::AlignVCenter);
     connect(markdown_button_, &QToolButton::toggled, this, &chat_widget::draft_edited);
     emoji_button_ = make_composer_button(QStringLiteral("emojiButton"), u"emoji", QStringLiteral("表情"));
@@ -2027,11 +2030,11 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     connect(attachment_button_, &QToolButton::clicked, this, [this] { choose_attachment(active_conversation_, false, this); });
     send_button_ = new QToolButton(input_bar);
     send_button_->setObjectName(QStringLiteral("sendButton"));
-    send_button_->setIcon(svg_icon(QStringLiteral("send"), themed("on_accent"), QSize(20, 20)));
+    send_button_->setIcon(composer_send_icon());
     send_button_->setIconSize(QSize(20, 20));
     send_button_->setToolTip(QStringLiteral("发送消息（Enter）"));
     send_button_->setAccessibleName(QStringLiteral("发送消息"));
-    send_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
+    send_button_->setFixedSize(46, 42);
     send_button_->setEnabled(false);
     send_button_->setCursor(Qt::PointingHandCursor);
     input_layout->addWidget(send_button_, 0, Qt::AlignVCenter);
@@ -4102,7 +4105,7 @@ void chat_widget::refresh_theme()
     contacts_requests_icon_->setPixmap(svg_icon(u"user-plus", themed("text_secondary"), QSize(22, 22)).pixmap(22, 22));
     contacts_requests_arrow_->setPixmap(svg_icon(u"chevron-right", themed("text_secondary"), QSize(16, 16)).pixmap(16, 16));
     cancel_reply_button_->setIcon(svg_icon(QStringLiteral("close"), themed("text"), QSize(20, 20)));
-    send_button_->setIcon(svg_icon(QStringLiteral("send"), themed("on_accent"), QSize(20, 20)));
+    send_button_->setIcon(composer_send_icon());
     attachment_button_->setIcon(svg_icon(u"attach", themed("text"), QSize(22, 22)));
     screenshot_button_->setIcon(svg_icon(u"screenshot", themed("text"), QSize(22, 22)));
     emoji_button_->setIcon(svg_icon(u"emoji", themed("text"), QSize(22, 22)));
