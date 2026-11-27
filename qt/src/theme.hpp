@@ -78,7 +78,7 @@ inline constexpr int compose_field_min_height = 44;
 QString chat_style_sheet();
 QLabel* dialog_title(QDialog& dialog, QString title);
 void round_window(QWidget& window, int radius);
-void round_menus();
+void round_popups();
 void frame_dialog(QDialog& dialog, bool resizable = true);
 void style_search_field(QLineEdit& field);
 QString prompt_text(QWidget* parent, QString const& title, QString const& label, QString const& initial, bool& accepted, bool multiline = false);

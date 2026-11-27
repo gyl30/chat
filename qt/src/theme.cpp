@@ -134,7 +134,7 @@ class window_shape final : public QObject
     int radius_;
 };
 
-class menu_shapes final : public QObject
+class popup_shapes final : public QObject
 {
    public:
     using QObject::QObject;
@@ -144,9 +144,11 @@ class menu_shapes final : public QObject
     {
         if (event->type() == QEvent::Polish)
         {
-            if (auto* menu = qobject_cast<QMenu*>(object))
+            if (auto* popup = qobject_cast<QWidget*>(object);
+                popup && (popup->windowType() == Qt::Popup || popup->windowType() == Qt::ToolTip))
             {
-                round_window(*menu, chat_theme::menu_radius);
+                auto const compact = popup->windowType() == Qt::ToolTip || qobject_cast<QMenu*>(popup);
+                round_window(*popup, compact ? chat_theme::menu_radius : chat_theme::popup_radius);
             }
         }
         return false;
@@ -164,11 +166,11 @@ void round_window(QWidget& window, int radius)
     }
 }
 
-void round_menus()
+void round_popups()
 {
     if (supports_window_shape())
     {
-        qApp->installEventFilter(new menu_shapes(qApp));
+        qApp->installEventFilter(new popup_shapes(qApp));
     }
 }
 

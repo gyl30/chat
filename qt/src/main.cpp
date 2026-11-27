@@ -17,7 +17,7 @@ int main(int argc, char* argv[])
 #if defined(Q_OS_LINUX)
     QApplication::setDesktopFileName(QStringLiteral("io.github.gyl30.Chat"));
 #endif
-    round_menus();
+    round_popups();
     auto& themes = theme_manager::instance();
     themes.load_settings();
     if (!themes.valid())

@@ -17,6 +17,7 @@ QMainWindow {
             background: ${panel};
             color: ${text};
             border: 1px solid ${border_strong};
+            border-radius: 8px;
             padding: 4px 7px;
         }
         QAbstractItemView {
