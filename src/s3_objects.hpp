@@ -22,6 +22,8 @@ class s3_objects
 {
    public:
     explicit s3_objects(s3_settings settings);
+    // Blocking startup check, before the server starts its executor.
+    object_result<bool> ensure_bucket();
     boost::capy::task<object_result<std::string>> initiate(multipart_upload const& task);
     boost::capy::task<object_result<std::string>> signed_url(std::string key, std::string multipart = {}, int part = 0);
     boost::capy::task<object_result<std::optional<std::pair<std::int64_t, std::string>>>> uploaded_part(multipart_upload const& task, int number);

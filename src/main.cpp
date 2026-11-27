@@ -235,8 +235,17 @@ int main(int argc, char* argv[])
         spdlog::error("SQLite startup failed: {}", storage.error().message);
         return EXIT_FAILURE;
     }
-    spdlog::info("SQLite ready; Silo bucket {} configured ({})", settings.bucket, settings.https ? "HTTPS" : "HTTP");
-    s3_objects objects(std::move(settings));
+    spdlog::info("SQLite ready");
+    s3_objects objects(settings);
+    auto const bucket = objects.ensure_bucket();
+    if (bucket)
+    {
+        spdlog::info("Silo bucket {} {} ({})", settings.bucket, *bucket ? "created and ready" : "ready", settings.https ? "HTTPS" : "HTTP");
+    }
+    else
+    {
+        spdlog::warn("Silo bucket {} startup check failed (HTTP {}): {}", settings.bucket, bucket.error().status, bucket.error().reason);
+    }
     boost::corosio::io_context io_context;
     boost::capy::run_async(io_context.get_executor())(recover_objects(**storage, objects));
     io_context.run();

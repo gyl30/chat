@@ -41,6 +41,8 @@ def proxy(storage, tls=None):
                 kind += " uploads"
             elif "uploadId" in query:
                 kind += " multipart"
+            elif kind == "PUT" and urlsplit(self.path).path.count("/") == 1:
+                kind += " bucket"
             seen[kind] += 1
             headers = {
                 k: v for k, v in self.headers.items() if k.lower() != "connection"
@@ -148,7 +150,24 @@ def upload_row(db, cid):
 async def missing_bucket(root, store, api, storage):
     db = root / "missing-bucket.sqlite3"
     body = b"resume the original zero-byte task"
+    with proxy(storage) as (env, _, seen, *_):
+        with chat(db, env):
+            assert store.bucket in {bucket["Name"] for bucket in api.list_buckets()["Buckets"]}
+            assert seen["PUT bucket"] == 1 and seen["GET uploads"] == 2
+        api.put_object(Bucket=store.bucket, Key="existing.txt", Body=b"keep")
+        with chat(db, env):
+            assert seen["PUT bucket"] == 1 and seen["GET uploads"] == 3
+            assert api.get_object(Bucket=store.bucket, Key="existing.txt")["Body"].read() == b"keep"
+        bad = dict(env, CHAT_S3_SECRET_KEY="wrong-secret-for-isolated-test")
+        with chat(db, bad):
+            assert seen["PUT bucket"] == 1
+        api.delete_object(Bucket=store.bucket, Key="existing.txt")
+    print("PASS startup creates missing bucket, restart preserves it, auth failure never creates a bucket")
+
     with chat(db, storage) as url:
+        # Storage can disappear after startup. Keep exercising real recovery of
+        # the previously paused task in the isolated, still empty bucket.
+        api.delete_bucket(Bucket=store.bucket)
         async with AsyncExitStack() as stack:
             sender, conv = await direct(stack, url)
             response = await sender.ask(

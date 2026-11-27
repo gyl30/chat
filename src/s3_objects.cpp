@@ -18,7 +18,7 @@ std::string_view s3_error_reason(std::string_view body)
     if (parsed && parsed->root == "Error")
     {
         // Log only known S3 codes. Error messages and other fields may contain credentials or object names.
-        for (std::string_view code : {"NoSuchBucket", "AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch",
+        for (std::string_view code : {"NoSuchBucket", "BucketAlreadyOwnedByYou", "BucketAlreadyExists", "AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch",
                                       "AuthorizationHeaderMalformed", "RequestTimeTooSkewed", "InvalidRequest", "InvalidArgument",
                                       "InternalError", "SlowDown", "ServiceUnavailable"})
         {
@@ -96,10 +96,14 @@ struct bucket_client
         {
             curl_easy_setopt(curl.get(), CURLOPT_NOBODY, 1L);
         }
-        else if (method == "POST")
+        else if (method == "POST" || method == "PUT")
         {
             curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, body.empty() ? "" : body.data());
             curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(body.size()));
+            if (method == "PUT")
+            {
+                curl_easy_setopt(curl.get(), CURLOPT_CUSTOMREQUEST, "PUT");
+            }
         }
         else if (method == "DELETE")
         {
@@ -189,6 +193,55 @@ struct active_object_write
 };
 }    // namespace
 s3_objects::s3_objects(s3_settings settings) : settings_(std::move(settings)) {}
+object_result<bool> s3_objects::ensure_bucket()
+{
+    bucket_client const client{settings_};
+    auto check = [&client]() -> object_result<void>
+    {
+        // Multipart uploads already require this permission. A HEAD response has no
+        // S3 error document, so a generic HTTP 404 cannot prove the bucket is absent.
+        auto response = client.request("GET", "", {{"uploads", ""}, {"max-uploads", "1"}});
+        if (!response)
+        {
+            return std::unexpected(response.error());
+        }
+        auto list = s3::read_multipart_xml(response->body);
+        if (!list || list->root != "ListMultipartUploadsResult")
+        {
+            return std::unexpected(s3_error{0, "invalid S3 upload list"});
+        }
+        return {};
+    };
+
+    auto const existing = check();
+    if (existing)
+    {
+        return false;
+    }
+    if (existing.error().status != 404 || existing.error().reason != "NoSuchBucket")
+    {
+        return std::unexpected(existing.error());
+    }
+
+    std::string configuration;
+    if (settings_.region != "us-east-1")
+    {
+        configuration = "<CreateBucketConfiguration xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><LocationConstraint>" +
+                        s3::xml_text(settings_.region) + "</LocationConstraint></CreateBucketConfiguration>";
+    }
+    auto const created = client.request("PUT", "", {}, configuration, {"Content-Type: application/xml"});
+    if (!created && (created.error().status != 409 || created.error().reason != "BucketAlreadyOwnedByYou"))
+    {
+        return std::unexpected(created.error());
+    }
+    auto const ready = check();
+    if (!ready)
+    {
+        return std::unexpected(ready.error());
+    }
+    return created.has_value();
+}
+
 boost::capy::task<object_result<std::string>> s3_objects::initiate(multipart_upload const& task)
 {
     active_object_write const pending{active_writes_, task.key};
