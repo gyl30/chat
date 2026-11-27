@@ -1,4 +1,3 @@
-#include "empty_state.hpp"
 #include "chat_history_dialog.hpp"
 
 #include <algorithm>
@@ -142,7 +141,7 @@ class history_media_delegate final : public QStyledItemDelegate
         {
             auto const transfer =
                 downloads_ ? downloads_->transfer(
-                                 {index.data(preview_role::conversation).toLongLong(), index.data(preview_role::message).toLongLong(), 0, {}})
+                                 {index.data(preview_role::conversation).toLongLong(), index.data(preview_role::message).toLongLong()})
                            : file_transfer{file_action::download, {}};
             auto details = transfer.status.isEmpty() ? file_size(index.data(size_role).toLongLong()) : transfer.status;
             details += QStringLiteral(" · ") + index.data(preview_role::sender).toString() + QStringLiteral(" · ") +
@@ -231,8 +230,9 @@ chat_history_dialog::chat_history_dialog(
     layout->addWidget(tabs_);
     status_ = new QLabel(this);
     status_->setObjectName(QStringLiteral("historyStatus"));
-    status_->setAlignment(Qt::AlignCenter);
+    status_->setWordWrap(true);
     status_->hide();
+    layout->addWidget(status_);
     list_ = new QListWidget(this);
     list_->setObjectName(QStringLiteral("historyList"));
     list_->setAccessibleName(QStringLiteral("聊天记录"));
@@ -263,8 +263,6 @@ chat_history_dialog::chat_history_dialog(
     connect(&theme_manager::instance(), &theme_manager::changed, this, [this] { list_->viewport()->update(); });
     list_->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(list_, 1);
-    empty_ = new empty_state(*list_->viewport(), QStringLiteral("historyEmpty"));
-    layout->addWidget(status_);
     more_ = new QPushButton(QStringLiteral("加载更早的记录"), this);
     more_->setObjectName(QStringLiteral("historyMoreButton"));
     more_->hide();
@@ -390,9 +388,9 @@ void chat_history_dialog::activate(QListWidgetItem const& item)
             emit image_requested(id, filename);
             break;
         case category::files:
-            if (downloads_ && !downloads_->activate({conversation_, id, 0, {}}, this))
+            if (downloads_ && !downloads_->activate({conversation_, id}, this))
             {
-                downloads_->save({conversation_, id, 0, {}}, filename, this);
+                downloads_->save({conversation_, id}, filename, this);
             }
             break;
         case category::links:
@@ -419,7 +417,6 @@ void chat_history_dialog::interrupt_loading()
     }
     loading_ = false;
     page_updates_.clear();
-    empty_->set_message();
     status_->setText(QStringLiteral("连接已断开，恢复后可重新加载。"));
     status_->show();
     more_->setText(QStringLiteral("重新加载"));
@@ -468,7 +465,6 @@ void chat_history_dialog::set_history(qint64 conversation, QList<message_data> m
     if (!error.isEmpty())
     {
         page_updates_.clear();
-        empty_->set_message();
         status_->setText(error);
         status_->show();
         more_->setText(QStringLiteral("重新加载"));
@@ -595,7 +591,7 @@ void chat_history_dialog::update_message(qint64 conversation, message_data messa
                 delete list_->takeItem(row - 1);
             }
         }
-        if (messages_.isEmpty())
+        if (loading_)
         {
             update_status();
         }
@@ -604,25 +600,9 @@ void chat_history_dialog::update_message(qint64 conversation, message_data messa
 
 void chat_history_dialog::update_status()
 {
-    auto const kind = static_cast<category>(tabs_->currentIndex());
-    auto const no_rows = list_->count() == 0;
-    if (no_rows)
-    {
-        static const QStringView icons[]{u"history", u"image", u"file", u"link"};
-        static const QStringView empty[]{u"暂无聊天记录", u"暂无图片", u"暂无文件", u"暂无链接"};
-        static const QStringView no_match[]{u"未找到相关消息", u"未找到相关图片", u"未找到相关文件", u"未找到相关链接"};
-        auto const i = int(kind);
-        auto const message = loading_ ? QStringLiteral("正在加载…") : (query_.isEmpty() ? empty[i] : no_match[i]).toString();
-        status_->setText(message);
-        status_->hide();
-        empty_->set_message(message, loading_ ? QStringView{} : icons[i]);
-    }
-    else
-    {
-        empty_->set_message();
-        status_->clear();
-        status_->hide();
-    }
+    auto const loading = loading_ && list_->count() == 0;
+    status_->setText(loading ? QStringLiteral("正在加载…") : QString{});
+    status_->setVisible(loading);
     more_->setVisible(has_more_ && !loading_);
 }
 
@@ -658,9 +638,10 @@ void chat_history_dialog::show_menu(QPoint position)
                                                 : nullptr;
     auto* copy_link = !url.isEmpty() ? menu.addAction(QStringLiteral("复制链接")) : nullptr;
     auto* save = (category == category::images || category == category::files) && downloads_ ? menu.addAction(QStringLiteral("另存为")) : nullptr;
+    auto* save_open = category == category::files && downloads_ ? menu.addAction(QStringLiteral("保存并打开")) : nullptr;
     if (save)
     {
-        downloads_->add_actions(menu, {conversation_, id, 0, {}});
+        downloads_->add_actions(menu, {conversation_, id});
     }
     auto* locate = menu.addAction(QStringLiteral("定位到聊天位置"));
     auto* copy = found != messages_.end() && !found->text.isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
@@ -677,15 +658,18 @@ void chat_history_dialog::show_menu(QPoint position)
     }
     else if (open && chosen == open)
     {
-        activate(*item_for_message(id));
+        if (auto* current_item = item_for_message(id))
+        {
+            activate(*current_item);
+        }
     }
     else if (copy_link && chosen == copy_link)
     {
         QGuiApplication::clipboard()->setText(first_link(current->text).toString(QUrl::FullyEncoded));
     }
-    else if (save && chosen == save && current->attachment)
+    else if (chosen && (chosen == save || chosen == save_open) && current->attachment)
     {
-        downloads_->save({conversation_, id, 0, {}}, current->attachment->filename, this);
+        downloads_->save({conversation_, id}, current->attachment->filename, this, chosen == save_open);
     }
     else if (copy && chosen == copy)
     {

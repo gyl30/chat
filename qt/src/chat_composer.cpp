@@ -190,7 +190,7 @@ void chat_widget::setup_attachment_menu()
                                              {
                                                  if (can_send())
                                                  {
-                                                     choose_attachment(active_conversation_, false, this);
+                                                     choose_attachment(active_conversation_);
                                                  }
                                              });
     auto* poll = attachment_menu_->addAction(QStringLiteral("投票"), this,
@@ -219,7 +219,7 @@ void chat_widget::setup_attachment_menu()
                 }
                 else if (can_send())
                 {
-                    choose_attachment(active_conversation_, false, this);
+                    choose_attachment(active_conversation_);
                 }
             });
 }

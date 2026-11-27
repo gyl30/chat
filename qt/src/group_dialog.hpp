@@ -11,7 +11,6 @@
 class avatar_cache;
 class client_bridge;
 class chat_widget;
-class group_files_page;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
@@ -53,7 +52,6 @@ class group_dialog final : public QDialog
     void refresh_member_status();
 
    signals:
-    void upload_requested(bool group_only);
     void history_requested(int category);
     void pinned_requested(qint64 message);
     void notification_requested(bool mute);
@@ -94,7 +92,6 @@ class group_dialog final : public QDialog
     void show_page(QWidget* page);
 
     bool open_requests_ = false;
-    group_files_page* files_;
     chat_widget& chat_;
     avatar_cache* avatars_;
     qint64 conversation_;
@@ -109,7 +106,6 @@ class group_dialog final : public QDialog
     bool pending_ = false;
     bool available_ = false;
     bool group_muted_ = false;
-    qint64 own_speech_until_ = 0;
     QTimer* speech_expiry_;
     qint64 server_clock_delta_ = 0;
     QListWidget* list_;

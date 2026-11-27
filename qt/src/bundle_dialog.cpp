@@ -182,7 +182,7 @@ void append_entry(QVBoxLayout& stream, chat::forwarded_item const& item, QDialog
     {
         auto const name = QString::fromStdString(item.filename);
         bool const image = item.media_type.starts_with("image/");
-        download_source const source{room, message, item.position, {}};
+        download_source const source{room, message, item.position};
         auto& downloads = client.downloads();
         auto* file = new snapshot_file_row(downloads, source, name, item.size, image, entry);
         layout->addWidget(file);

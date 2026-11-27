@@ -130,16 +130,7 @@ void download_tasks::save(download_source const& source, QString const& filename
             &QFileDialog::fileSelected,
             this,
             [this, source, filename, open](QString const& path)
-            {
-                if (source.message)
-                {
-                    client_.get_attachment(source.conversation, source.message, filename, path, source.item);
-                }
-                else
-                {
-                    client_.download_file(source.conversation, source.key, filename, path, open);
-                }
-            });
+            { client_.get_attachment(source.conversation, source.message, filename, path, source.item, open); });
     chooser->open();
 }
 
@@ -221,25 +212,18 @@ void download_tasks::add_actions(QMenu& menu, download_source const& source)
         }
     }
 }
-void download_tasks::enqueue(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open, qint64 item)
+void download_tasks::enqueue(qint64 conversation, qint64 message, QString filename, QString path, bool open, qint64 item)
 {
     path = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
     if (path_busy(path))
     {
         auto error = QStringLiteral("已有下载正在使用此保存位置");
-        if (message)
-        {
-            emit client_.attachment_received(conversation, message, path, error, item);
-        }
-        else
-        {
-            emit client_.file_downloaded(conversation, key, path, error);
-        }
+        emit client_.attachment_received(conversation, message, path, error, item);
         return;
     }
     auto id = ++next_id_;
     auto it = tasks_.insert(
-        id, {{conversation, message, item, std::move(key)}, std::move(filename), path, {}, {}, open, QFileInfo::exists(path), 0, state::running, {}});
+        id, {{conversation, message, item}, std::move(filename), path, {}, {}, open, QFileInfo::exists(path), 0, state::running, {}});
     start(id, *it);
 }
 void download_tasks::start(qint64 id, task& value)
@@ -250,7 +234,7 @@ void download_tasks::start(qint64 id, task& value)
     value.percent = 0;
     value.error.clear();
     const auto src = value.source;
-    client_.start_download(id, ++value.attempt, src.conversation, src.message, src.key, value.path, value.control, value.replace, src.item);
+    client_.start_download(id, ++value.attempt, src.conversation, src.message, value.path, value.control, value.replace, src.item);
     emit changed({src});
 }
 void download_tasks::finish(qint64 id, quint64 attempt, QString const& error)
@@ -277,19 +261,12 @@ void download_tasks::finish(qint64 id, quint64 attempt, QString const& error)
             }
         }
     }
-    if (it->source.message)
+    auto result = error;
+    if (result.isEmpty() && it->open && !QDesktopServices::openUrl(QUrl::fromLocalFile(it->path)))
     {
-        emit client_.attachment_received(it->source.conversation, it->source.message, it->path, error, it->source.item);
+        result = QStringLiteral("文件已保存，系统未能打开它");
     }
-    else
-    {
-        auto result = error;
-        if (result.isEmpty() && it->open && !QDesktopServices::openUrl(QUrl::fromLocalFile(it->path)))
-        {
-            result = QStringLiteral("文件已保存，系统未能打开它");
-        }
-        emit client_.file_downloaded(it->source.conversation, it->source.key, it->path, result);
-    }
+    emit client_.attachment_received(it->source.conversation, it->source.message, it->path, result, it->source.item);
     emit changed(affected);
 }
 void download_tasks::progress(qint64 id, quint64 attempt, qint64 bytes, qint64 total)
@@ -322,15 +299,7 @@ void download_tasks::cancel(qint64 id)
     }
     it->status = state::cancelled;
     const auto source = it->source;
-    auto status = it->description();
-    if (it->source.message)
-    {
-        emit client_.attachment_received(it->source.conversation, it->source.message, it->path, status, it->source.item);
-    }
-    else
-    {
-        emit client_.file_downloaded(it->source.conversation, it->source.key, it->path, status);
-    }
+    emit client_.attachment_received(source.conversation, source.message, it->path, it->description(), source.item);
     emit changed({source});
 }
 void download_tasks::retry(qint64 id, QWidget* parent)

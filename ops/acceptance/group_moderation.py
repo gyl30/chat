@@ -192,60 +192,53 @@ async def publication_race(root, storage, api, bucket):
                     await owner.ok("create_group", title="Silo 完成屏障", members=[2])
                 )["conversation"]
                 payload = b"real Silo completed before Chat publication"
-                for cid, method in ((901, "finish_attachment"), (902, "complete_file")):
-                    part = await begin(member, conv, cid, payload)
-                    await member.ok(
-                        "confirm_attachment",
-                        upload=cid,
-                        number=1,
-                        etag=await asyncio.to_thread(put, part["url"], payload),
+                cid = 901
+                part = await begin(member, conv, cid, payload)
+                await member.ok(
+                    "confirm_attachment",
+                    upload=cid,
+                    number=1,
+                    etag=await asyncio.to_thread(put, part["url"], payload),
+                )
+                [(key,)] = read(
+                    db,
+                    "SELECT object_key FROM attachment_uploads WHERE client_id=?",
+                    cid,
+                )
+                armed.set()
+                completed.clear()
+                release.clear()
+                pending = asyncio.create_task(member.ask("finish_attachment", upload=cid))
+                try:
+                    await until(
+                        completed.is_set,
+                        "Silo succeeded; Chat has not received completion",
                     )
-                    [(key,)] = read(
-                        db,
-                        "SELECT object_key FROM attachment_uploads WHERE client_id=?",
-                        cid,
-                    )
-                    armed.set()
-                    completed.clear()
-                    release.clear()
-                    pending = asyncio.create_task(member.ask(method, upload=cid))
-                    try:
-                        await until(
-                            completed.is_set,
-                            "Silo succeeded; Chat has not received completion",
-                        )
-                        assert api.head_object(Bucket=bucket, Key=key)[
-                            "ContentLength"
-                        ] == len(payload)
-                        await muted(owner, conv, 2, -1)
-                    finally:
-                        release.set()
-                    result = await pending
-                    assert result["error"]["code"] == MUTED, result
-                    assert not read(
-                        db, "SELECT id FROM messages WHERE client_id=?", cid
-                    )
-                    assert not read(db, "SELECT 1 FROM files WHERE object_key=?", key)
-                    assert read(
-                        db,
-                        "SELECT object_key FROM attachment_uploads WHERE client_id=?",
-                        cid,
-                    ) == [(key,)]
-                    await muted(owner, conv, 2, 0)
-                    resumed = await member.ok("resume_attachment", upload=cid)
-                    assert resumed["number"] == 0
-                    published = await member.ok(method, upload=cid)
-                    if method == "complete_file":
-                        assert published["object_key"] == key
-                        await member.ok(
-                            "add_conversation_file",
-                            conversation_id=conv,
-                            object_key=key,
-                        )
-                    else:
-                        assert published["attachment"]["object_key"] == key
+                    assert api.head_object(Bucket=bucket, Key=key)[
+                        "ContentLength"
+                    ] == len(payload)
+                    await muted(owner, conv, 2, -1)
+                finally:
+                    release.set()
+                result = await pending
+                assert result["error"]["code"] == MUTED, result
+                assert not read(
+                    db, "SELECT id FROM messages WHERE client_id=?", cid
+                )
+                assert not read(db, "SELECT 1 FROM files WHERE object_key=?", key)
+                assert read(
+                    db,
+                    "SELECT object_key FROM attachment_uploads WHERE client_id=?",
+                    cid,
+                ) == [(key,)]
+                await muted(owner, conv, 2, 0)
+                resumed = await member.ok("resume_attachment", upload=cid)
+                assert resumed["number"] == 0
+                published = await member.ok("finish_attachment", upload=cid)
+                assert published["attachment"]["object_key"] == key
+                assert (await member.ok("finish_attachment", upload=cid))["id"] == published["id"]
                 print(
-                    "PASS actual Silo Complete was held after success; both final Chat write transactions rejected a concurrent mute and resumed safely",
+                    "PASS actual Silo Complete was held after success; the message publication transaction rejected a concurrent mute and resumed safely",
                     flush=True,
                 )
 
@@ -291,8 +284,6 @@ async def restrictions(a, b, c, conv, direct, db):
     peer = (await send(a, conv, 802, "普通成员可以阅读"))["id"]
     await c.ok("set_message_reaction", conversation=conv, message=peer, emoji="👍")
     file = await create_file(c, conv, 803, b"shared attachment")
-    key = file["attachment"]["object_key"]
-    await c.ok("add_conversation_file", conversation_id=conv, object_key=key)
     await error(c, "set_group_mute", -32009, conversation=conv, muted=True)
     await error(
         b, "set_group_member_mute", -32009, conversation=conv, user=1, seconds=-1
@@ -341,10 +332,8 @@ async def restrictions(a, b, c, conv, direct, db):
         size=1,
         checksum=hashlib.sha256(b"x").hexdigest(),
     )
-    await error(c, "add_conversation_file", MUTED, conversation_id=conv, object_key=key)
     await c.ok("set_message_reaction", conversation=conv, message=peer, emoji="")
     await c.ok("delete_message", conversation=conv, message=own)
-    await c.ok("remove_conversation_file", conversation_id=conv, object_key=key)
     assert (await c.ok("get_messages", conversation=conv, around=peer))["messages"]
     assert "url" in await c.ok("get_attachment", conversation=conv, message=file["id"])
     assert (await c.ok("search_all_messages", query="普通成员"))["messages"]
@@ -435,11 +424,12 @@ async def dissolve(a, b, c, b2, conv, direct, db, api, bucket, token):
         c, conv, 811, b"retained by a forward in another conversation"
     )
     key = uploaded["attachment"]["object_key"]
-    await c.ok("add_conversation_file", conversation_id=conv, object_key=key)
-    other_group = (await a.ok("create_group", title="独立群文件引用", members=[3]))[
+    other_group = (await a.ok("create_group", title="跨群消息附件引用", members=[3]))[
         "conversation"
     ]
-    await c.ok("add_conversation_file", conversation_id=other_group, object_key=key)
+    other_forward = await c.ok(
+        "send_message", conversation=other_group, client_id=816, forward=uploaded["id"]
+    )
     forward = await c.ok(
         "send_message", conversation=direct, client_id=812, forward=uploaded["id"]
     )
@@ -470,11 +460,7 @@ async def dissolve(a, b, c, b2, conv, direct, db, api, bucket, token):
     for params in ({}, {"around": mid}, {"category": "all"}):
         await error(c, "get_messages", -32006, conversation=conv, **params)
     await error(c, "get_members", -32006, conversation=conv)
-    await error(c, "list_conversation_files", -32006, conversation_id=conv)
     await error(c, "get_attachment", -32007, conversation=conv, message=uploaded["id"])
-    await error(
-        c, "get_conversation_file", -32007, conversation_id=conv, object_key=key
-    )
     await error(
         c,
         "send_message",
@@ -486,7 +472,7 @@ async def dissolve(a, b, c, b2, conv, direct, db, api, bucket, token):
     await error(c, "join_group", -32014, token=token)
     await error(a, "invite_group_members", -32006, conversation=conv, members=[2])
     assert "url" in await c.ok(
-        "get_conversation_file", conversation_id=other_group, object_key=key
+        "get_attachment", conversation=other_group, message=other_forward["id"]
     )
     scopes = await c.ok("message_search_scopes")
     assert conv not in {g["id"] for g in scopes}
@@ -518,7 +504,7 @@ async def dissolve(a, b, c, b2, conv, direct, db, api, bucket, token):
         "PASS real dissolution invalidation, original devices, idempotent terminal reply, retained MPU metadata and shared forward",
         flush=True,
     )
-    return pending_key, multipart, key, forward["id"], other_group
+    return pending_key, multipart, key, forward["id"], other_group, other_forward["id"]
 
 
 async def qt_search_rejoin(root, probe, url, owner, member):
@@ -959,7 +945,6 @@ async def qt_scenarios(root, probe, url, owner, member, db):
                     "upload",
                     conv=destination,
                     path=str(lost),
-                    group=mode == "remove_group_member",
                 )
                 await gate.caught("confirm_attachment")
                 [(pending,)] = read(
@@ -993,11 +978,6 @@ async def qt_scenarios(root, probe, url, owner, member, db):
                 ).get("triggered")
                 assert not read(
                     db, "SELECT id FROM messages WHERE client_id=?", pending
-                )
-                assert not read(
-                    db,
-                    "SELECT object_key FROM conversation_files WHERE conversation_id=?",
-                    destination,
                 )
             await choose()
             await ui.wait("state", lambda r: any(m["id"] == anchor for m in r["rows"]))
@@ -1170,7 +1150,7 @@ async def run(root, probe):
                 ]
                 await a.ok("set_group_admin", conversation=conv, user=2, admin=True)
                 token = await restrictions(a, b, c, conv, direct, db)
-                pending_key, multipart, key, forward, other_group = await dissolve(
+                pending_key, multipart, key, forward, other_group, other_forward = await dissolve(
                     a, b, c, b2, conv, direct, db, api, store.bucket, token
                 )
                 if probe and "--rejoin-only" in sys.argv:
@@ -1208,9 +1188,9 @@ async def run(root, probe):
                 await c.ok("delete_message", conversation=direct, message=forward)
                 assert api.head_object(Bucket=store.bucket, Key=key)
                 await c.ok(
-                    "remove_conversation_file",
-                    conversation_id=other_group,
-                    object_key=key,
+                    "delete_message",
+                    conversation=other_group,
+                    message=other_forward,
                 )
         assert not read(db, "SELECT object_key FROM files WHERE object_key=?", key)
         assert all(

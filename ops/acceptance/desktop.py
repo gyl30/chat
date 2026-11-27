@@ -362,7 +362,7 @@ async def pin_cases(ui, gate, a, b, g):
 
 
 async def other_views(ui, gate, a, b, g, d):
-    # A real PNG, shared between an ordinary message and a group-file reference.
+    # A real PNG whose message visibility differs for each member.
     import base64
 
     png = base64.b64decode(
@@ -371,8 +371,6 @@ async def other_views(ui, gate, a, b, g, d):
     p = await begin(a, g, 951, png, "inspect.png", "image/png")
     await a.ok("confirm_attachment", upload=951, number=1, etag=put(p["url"], png))
     image = await a.ok("finish_attachment", upload=951)
-    key = image["attachment"]["object_key"]
-    await a.ok("add_conversation_file", conversation_id=g, object_key=key)
     await ui.call("preview", conv=g, id=image["id"])
     await ui.wait("dialogstate", lambda r: r.get("image"))
     await ui.call("dialogstate", save=True)
@@ -380,7 +378,8 @@ async def other_views(ui, gate, a, b, g, d):
     await a.ok("clear_history", conversation=g, through=image["id"])
     await ui.wait("dialogstate", lambda r: not r["shown"])
     assert "url" in await b.ok("get_attachment", conversation=g, message=image["id"])
-    assert "url" in await a.ok("get_conversation_file", conversation_id=g, object_key=key)
+    denied = await a.ask("get_attachment", conversation=g, message=image["id"])
+    assert denied.get("error", {}).get("code") == -32007
     late = await begin(a, g, 952, png, "late.png", "image/png")
     await a.ok("confirm_attachment", upload=952, number=1, etag=put(late["url"], png))
     late = (await a.ok("finish_attachment", upload=952))["id"]
@@ -485,57 +484,53 @@ async def outbox_queue(ui, gate, direct, group, root, db, binary, entry):
 
 
 async def file_search(ui, gate, b):
-    group = (await b.ok("create_group", title="群文件搜索", members=[1]))["conversation"]
+    group = (await b.ok("create_group", title="共享文件搜索", members=[1]))["conversation"]
     names = ["Résumé%_文件.TXT", "Réglage.zip"]
 
     async def publish(client, filename):
         data = filename.encode()
         part = await begin(b, group, client, data, filename)
         await b.ok("confirm_attachment", upload=client, number=1, etag=put(part["url"], data))
-        item = (await b.ok("finish_attachment", upload=client))["attachment"]
-        await b.ok("add_conversation_file", conversation_id=group, object_key=item["object_key"])
+        return (await b.ok("finish_attachment", upload=client))["id"]
 
-    for client, filename in enumerate(names, 9001):
-        await publish(client, filename)
+    first_id, second_id = [await publish(client, name) for client, name in enumerate(names, 9001)]
     await ui.wait("select", lambda r: r["ok"], conv=group)
-    method = "list_conversation_files"
+    await ui.call("history", open=True, conv=group)
+    await ui.wait("history", lambda r: r.get("count") == 2)
+    await ui.call("history", tab=2)
+    await ui.wait("history", lambda r: r.get("count") == 2)
+    method = "get_messages"
     gate.hold.add(method)
-    await ui.call("group", id=group)
-    await ui.wait("group_download", lambda r: "names" in r)
+    await ui.call("history", query="RÉ")
     await gate.caught(method)
-    start = len(gate.messages)
-
-    def queries():
-        return [r["params"] for r in gate.messages[start:] if r["method"] == method]
-
-    await ui.call("group_download", queries=["R", "RÉ", "RÉSUMÉ%_"])
+    await ui.call("history", query="RÉSUMÉ%_")
+    await until(lambda: len(gate.held) == 2, "two file search replies")
+    gate.held.reverse()
     await gate.release(method)
-    waiting = await ui.call("group_download")
-    in_burst = queries()
-    print(f"group file search: burst RPCs={len(in_burst)}, rows before settled query={waiting['names']}", flush=True)
-    assert not in_burst and not waiting["names"]
-    await ui.wait("group_download", lambda r: r["names"] == names[:1])
-    settled = queries()
-    assert len(settled) == 1 and settled[0]["search"] == "RÉSUMÉ%_"
-    await ui.call("group_download", queries=["RÉ"], category=3)
-    await ui.wait("group_download", lambda r: r["names"] == names[1:])
-    await ui.call("group_download", queries=[""], category=0)
-    await ui.wait("group_download", lambda r: set(r["names"]) == set(names))
-    pages = [f"分页{number}.txt" for number in range(51)]
-    for client, filename in enumerate(pages, 9100):
-        await publish(client, filename)
-    await ui.call("group_download", queries=["分页"], reload=True)
-    first = (await ui.wait("group_download", lambda r: len(r["names"]) == 50))["names"]
-    assert set(first) <= set(pages)
-    assert (await ui.call("group_download", more=True))["triggered"]
-    all_names = (await ui.wait("group_download", lambda r: len(r["names"]) == 51))["names"]
-    assert all_names[:50] == first and set(all_names) == set(pages)
-    assert not (await ui.call("group_download", more=True)).get("triggered")
-    await ui.call("group_download", queries=["RÉSUMÉ"])
-    await b.ok("remove_group_member", conversation=group, user=1)
-    await ui.wait("group_download", lambda r: not r.get("names"))
-    await ui.call("group_download", close=True)
-    print("PASS group-file debounce 3 inputs to 1 RPC, stale response ignored, Unicode, category, reload, 50/51 pages and membership loss", flush=True)
+    await ui.wait("history", lambda r: [v["id"] for v in r["rows"]] == [first_id])
+
+    await ui.call("history", query="不存在的文件")
+    await ui.wait(
+        "history",
+        lambda r: r.get("widgetRows") == 0 and r.get("status") == "" and not r["statusVisible"] and not r["more"],
+    )
+    await ui.call("history", tab=1)
+    await ui.wait("history", lambda r: r.get("widgetRows") == 0 and r.get("status") == "" and not r["more"])
+    await ui.call("history", tab=2)
+
+    pages = [await publish(client, f"分页{index}.txt") for index, client in enumerate(range(9100, 9151))]
+    await ui.call("history", query="分页")
+    first = (await ui.wait("history", lambda r: r.get("count") == 50 and r["more"]))["rows"]
+    assert [v["id"] for v in first] == pages[:0:-1]
+    await ui.call("history", more=True)
+    rows = (await ui.wait("history", lambda r: r.get("count") == 51 and not r["more"]))["rows"]
+    assert [v["id"] for v in rows] == pages[::-1]
+    await ui.call("history", query="RÉ")
+    await ui.wait("history", lambda r: [v["id"] for v in r["rows"]] == [second_id, first_id])
+    assert (await b.ok("remove_group_member", conversation=group, user=1))["changed"]
+    await ui.wait("state", lambda r: r["conv"] != group)
+    await ui.wait("history", lambda r: not r["open"])
+    print("PASS shared files: Unicode literal names, delayed replies, empty tabs, 50/51 pages and membership loss", flush=True)
 
 
 async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
@@ -548,11 +543,18 @@ async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
         await a.ok("set_friend_remark", user=2, remark="备注乙")
         await ui.wait("select", lambda r: r["ok"], conv=second)
         await ui.wait("select", lambda r: r["ok"], conv=d)
-        path = root / "同名.bin"
-        path.write_bytes(b"x" * (16 * 1024 * 1024) + b"menu destination verification")
+        part_size = 16 * 1024 * 1024
+        sources = {}
+        for target, size in ((d, part_size + 1), (second, part_size - 1), (g, part_size)):
+            folder = root / str(target)
+            folder.mkdir()
+            source = folder / "同名.bin"
+            source.write_bytes(b"x" * size)
+            sources[target] = source
+        path = sources[d]
         gate.hold.add("confirm_attachment")
-        for target in (d, second, g):
-            await ui.call("upload", conv=target, path=str(path), group=target == g)
+        for target, source in sources.items():
+            await ui.call("upload", conv=target, path=str(source))
 
         def tasks():
             with sqlite3.connect(db) as conn:
@@ -587,7 +589,7 @@ async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
                 return {c for (c,) in conn.execute("select conversation from attachment_uploads where state='paused'")}
 
         expected = set()
-        for target, prefix in ((d, "备注乙"), (second, "c"), (g, "资料 · 群文件")):
+        for target, prefix in ((d, "备注乙"), (second, "c"), (g, "资料")):
             await action(prefix, "暂停上传")
             expected.add(target)
             await until(lambda: paused() == expected, "only selected task paused")
@@ -602,8 +604,8 @@ async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
         await ui.start(binary, root, entry)
         await action(f"会话 #{second}", "继续上传")
         await until(lambda: tasks() == {d: ids[d], g: ids[g]}, "resume only hidden direct")
-        await action(f"会话 #{g} · 群文件", "继续上传")
-        await until(lambda: tasks() == {d: ids[d]}, "resume only hidden group file")
+        await action(f"会话 #{g}", "继续上传")
+        await until(lambda: tasks() == {d: ids[d]}, "resume only hidden group attachment")
         await action("备注乙", "继续上传")
         await until(lambda: not tasks(), "finish visible direct")
         resumed = [rpc["params"]["upload"] for rpc in gate.messages if rpc["method"] == "resume_attachment"]
@@ -613,8 +615,8 @@ async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
                 "SELECT conversation_id,count(*) FROM messages WHERE sender_id=1 AND client_id=? GROUP BY conversation_id",
                 (ids[second],),
             ).fetchall() == [(second, 1)]
-        files = (await a.ok("list_conversation_files", conversation_id=g))["files"]
-        assert any(f["filename"] == path.name for f in files)
+        files = (await a.ok("get_messages", conversation=g, category="files"))["messages"]
+        assert [f["client_id"] for f in files if f["attachment"]["filename"] == path.name] == [ids[g]]
         with sqlite3.connect(db) as conn:
             (message,) = conn.execute(
                 "SELECT m.id FROM messages m JOIN message_attachments a ON a.message_id=m.id "
@@ -629,7 +631,7 @@ async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
         await ui.call("dialogstate", close=True)
         assert path.exists()
         print(
-            "PASS same-name independent transfers, group file, hidden direct and group destinations, restart and original-ID resume and SDK download",
+            "PASS same-name group and direct attachments at 16 MiB +/- 1 byte, hidden destinations, same-device restart and SDK download",
             flush=True,
         )
 

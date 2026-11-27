@@ -138,7 +138,7 @@ struct probe_controls
 QJsonArray profile_media_rows(QWidget const& dialog)
 {
     QJsonArray rows;
-    for (auto const* name : {"profileMediaImages", "profileMediaFiles", "profileMediaLinks", "groupFilesEntry"})
+    for (auto const* name : {"profileMediaImages", "profileMediaFiles", "profileMediaLinks"})
     {
         auto const* entry = dialog.findChild<QPushButton*>(name);
         if (entry && entry->isVisible())
@@ -564,7 +564,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 out["list"] = describe(list);
                 out["selected"] = list->currentItem() ? list->currentItem()->data(Qt::UserRole).toLongLong() : 0;
                 out["scroll"] = dialog->findChild<QScrollArea*>("groupOverviewScroll")->verticalScrollBar()->value();
-                out["publish"] = !dialog->findChild<QToolButton*>("groupFileUpload")->isHidden();
+                out["publish"] = chat->attachment_button_->isEnabled();
             }
             if (cmd.contains("member"))
             {
@@ -688,13 +688,13 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                                    QMetaObject::invokeMethod(f, "accept");
                                }
                            });
-        chat->choose_attachment(cmd["conv"].toInteger(), cmd["group"].toBool(), chat);
+        chat->choose_attachment(cmd["conv"].toInteger());
     }
     else if (op == "transfers")
     {
         QJsonArray labels, resumable, confirmed;
         // Inspect the SDK-owned journal projection and invoke the actions shared by the
-        // attachment bubble and the selected local group-file row.
+        // attachment bubble for every chat.
         for (auto const& task : chat->outgoing_)
         {
             if (task.path.isEmpty())
@@ -703,7 +703,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             }
             auto const room = chat->conversation(task.conversation);
             auto const name = room && !room->hidden ? room->display_name() : QStringLiteral("会话 #%1").arg(task.conversation);
-            auto label = name + QStringLiteral(" · ") + (task.group_only ? QStringLiteral("群文件 · ") : QString{}) + task.filename +
+            auto label = name + QStringLiteral(" · ") + task.filename +
                          QStringLiteral(" · ") +
                          (room && room->speech_blocked() && !task.unavailable ? QStringLiteral("群聊禁言，上传已暂停") : task.error);
             labels << label;
@@ -805,98 +805,6 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             }
         }
     }
-    else if (op == "group_download")
-    {
-        auto* dialog = window.findChild<QDialog*>("groupDialog");
-        if (dialog)
-        {
-            if (cmd["close"].toBool())
-            {
-                dialog->reject();
-            }
-            else
-            {
-                auto* list = dialog->findChild<QListWidget*>("groupFileList");
-                if (list && !list->isVisible())
-                {
-                    dialog->findChild<QPushButton*>("groupFilesEntry")->click();
-                }
-                if (list && cmd.contains("queries"))
-                {
-                    auto* search = list->parentWidget()->findChild<QLineEdit*>();
-                    for (auto const& query : cmd["queries"].toArray())
-                    {
-                        search->setText(query.toString());
-                    }
-                }
-                if (list && cmd.contains("category"))
-                {
-                    dialog->findChild<QTabBar*>("groupFileCategories")->setCurrentIndex(cmd["category"].toInt());
-                }
-                if (list && (cmd["reload"].toBool() || cmd["more"].toBool()))
-                {
-                    QAbstractButton* action = cmd["reload"].toBool()
-                                                  ? static_cast<QAbstractButton*>(dialog->findChild<QToolButton*>("groupFileReload"))
-                                                  : list->parentWidget()->findChild<QPushButton*>("groupFilesMore");
-                    if (action && action->isEnabled())
-                    {
-                        action->click();
-                        out["triggered"] = true;
-                    }
-                }
-                out["count"] = list ? list->count() : 0;
-                QJsonArray names;
-                for (int row = 0; list && row < list->count(); ++row)
-                {
-                    names.append(list->item(row)->text());
-                }
-                out["names"] = names;
-                if (cmd["choose"].toBool() && list && list->count())
-                {
-                    list->setCurrentItem(list->item(0));
-                    QTimer::singleShot(0,
-                                       list,
-                                       [list]
-                                       {
-                                           if (auto const* selected = list->currentItem())
-                                           {
-                                               choose_menu_action(list, list->visualItemRect(selected).center(), QStringLiteral("另存为"));
-                                           }
-                                       });
-                }
-                if (cmd.contains("remove_key"))
-                {
-                    window.client_->change_file(cmd["group"].toInteger(), cmd["remove_key"].toString(), false);
-                }
-                if (auto* chooser = qobject_cast<QFileDialog*>(QApplication::activeModalWidget()))
-                {
-                    out["choosing"] = true;
-                    if (cmd.contains("accept_path"))
-                    {
-                        chooser->findChild<QLineEdit*>("fileNameEdit")->setText(cmd["accept_path"].toString());
-                        QTimer::singleShot(0, chooser, [chooser] { QMetaObject::invokeMethod(chooser, "accept"); });
-                    }
-                }
-
-                if (list && list->count() && cmd.contains("destination"))
-                {
-                    list->setCurrentItem(list->item(0));
-                    auto const path = cmd["destination"].toString();
-                    QTimer::singleShot(40,
-                                       dialog,
-                                       [path]
-                                       {
-                                           if (auto* chooser = qobject_cast<QFileDialog*>(QApplication::activeModalWidget()))
-                                           {
-                                               chooser->findChild<QLineEdit*>("fileNameEdit")->setText(path);
-                                               QMetaObject::invokeMethod(chooser, "accept");
-                                           }
-                                       });
-                    choose_menu_action(list, list->visualItemRect(list->currentItem()).center(), QStringLiteral("另存为"));
-                }
-            }
-        }
-    }
     else if (op == "downloads")
     {
         auto& downloads = window.client_->downloads();
@@ -931,9 +839,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             rows.append(QJsonObject{{"id", QString::number(it.key())},
                                     {"filename", task.filename},
                                     {"source",
-                                     QStringLiteral("%1 · %2")
-                                         .arg(task.source.conversation)
-                                         .arg(task.source.message ? QStringLiteral("消息") : QStringLiteral("群文件"))},
+                                     QStringLiteral("%1 · 消息 %2").arg(task.source.conversation).arg(task.source.message)},
                                     {"path", task.path},
                                     {"progress", task.progress},
                                     {"status", task.description()}});
@@ -947,6 +853,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     else if (op == "history")
     {
         auto* dialog = window.findChild<QDialog*>("chatHistoryDialog");
+        out["open"] = dialog != nullptr;
         if (!dialog && cmd["open"].toBool())
         {
             auto const conversation = cmd["conv"].toInteger();
@@ -979,6 +886,29 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             {
                 list->verticalScrollBar()->setValue(cmd["scroll"].toInt());
             }
+            if (cmd.contains("save"))
+            {
+                if (auto* item = list->item(cmd["save"].toInt()))
+                {
+                    list->scrollToItem(item);
+                    QTimer::singleShot(0, list, [list, row = cmd["save"].toInt()]
+                    {
+                        if (auto* row_item = list->item(row))
+                        {
+                            choose_menu_action(list, list->visualItemRect(row_item).center(), QStringLiteral("另存为"));
+                        }
+                    });
+                }
+            }
+            if (auto* chooser = qobject_cast<QFileDialog*>(QApplication::activeModalWidget()))
+            {
+                out["choosing"] = true;
+                if (cmd.contains("destination"))
+                {
+                    chooser->findChild<QLineEdit*>("fileNameEdit")->setText(cmd["destination"].toString());
+                    QMetaObject::invokeMethod(chooser, "accept");
+                }
+            }
             if (cmd.contains("copy"))
             {
                 if (auto* item = list->item(cmd["copy"].toInt()))
@@ -1005,7 +935,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             {
                 dialog->reject();
             }
-            out["status"] = dialog->findChild<QLabel*>("historyStatus")->text();
+            auto const* status = dialog->findChild<QLabel*>("historyStatus");
+            out["status"] = status->text();
+            out["statusVisible"] = status->isVisible();
+            out["widgetRows"] = list->count();
             out["count"] = rows.size();
             out["more"] = more->isVisible();
             if (cmd["activate"].toBool())

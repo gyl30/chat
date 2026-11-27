@@ -62,9 +62,9 @@ aws --endpoint-url "$S3_ENDPOINT" s3api head-object \
   --bucket "$S3_BUCKET" --key "$OBJECT_KEY"
 ```
 
-`ListParts` 查看未完成上传的分片；`HEAD` 检查已完成对象。`NoSuchUpload` 也可能来自正常完成或终止。结合 `files`、`message_attachments`、`conversation_files`、`bundle_items.object_key` 及 `attachment_cleanup` 中同一键的预留或回收状态判断。权限、证书或连接错误须单独排查。不要据空列表修改任务或终止上传。
+`ListParts` 查看未完成上传的分片；`HEAD` 检查已完成对象。`NoSuchUpload` 也可能来自正常完成或终止。结合 `files`、`message_attachments`、`bundle_items.object_key` 及 `attachment_cleanup` 中同一键的预留或回收状态判断。权限、证书或连接错误须单独排查。不要据空列表修改任务或终止上传。
 
-服务启动、运行期间和退出时会处理回收队列。撤回消息或移除群文件后仍有其他引用的对象继续保留。确认最后引用消失后由服务端删除对象；15 天未继续的上传先终止 multipart，再清理预留。检查未完成分片时，应结合数据库的上传状态、最后活动时间以及 Silo 的响应。Silo 不可达时，先检查 endpoint、证书、私有桶权限和凭据，恢复后观察队列是否下降。
+服务启动、运行期间和退出时会处理回收队列。撤回消息或群解散后仍有其他引用的对象继续保留。确认最后引用消失后由服务端删除对象；15 天未继续的上传先终止 multipart，再清理预留。检查未完成分片时，应结合数据库的上传状态、最后活动时间以及 Silo 的响应。Silo 不可达时，先检查 endpoint、证书、私有桶权限和凭据，恢复后观察队列是否下降。
 
 ## 候选：由 Chat 管理未完成上传的保留
 
@@ -86,7 +86,7 @@ CGO_ENABLED=0 go build -trimpath -tags kqueue --ldflags "$(go run buildscripts/g
 SILO_BIN=/path/to/candidate/silo CHAT_TEST_SERVER=/path/to/candidate/server     ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/silo_retention.py
 ```
 
-测试停写后将临时实例的 Silo 上传创建标识回拨 17 天，副本不设置过期覆盖，使用默认 24h 创建阈值和 1s 扫描周期，确证两个分片不可再列；另一份使用 `off`，等待多轮扫描仍保有相同分片。再把 Chat 活动时间分别设为 14/16 天前，确认只有后者被 Chat 终止，原设备用保留的同一 ID 从第二片续传，其他设备不能接管，仍被群文件引用的完整对象不变。另设旧、新普通临时目录，确认启用 `off` 后只清扫旧目录原路径；这不验证垃圾目录空间回收，也不是实际等待 15 天。
+测试停写后将临时实例的 Silo 上传创建标识回拨 17 天，副本不设置过期覆盖，使用默认 24h 创建阈值和 1s 扫描周期，确证两个分片不可再列；另一份使用 `off`，等待多轮扫描仍保有相同分片。再把 Chat 活动时间分别设为 14/16 天前，确认只有后者被 Chat 终止，原设备用保留的同一 ID 从第二片续传，其他设备不能接管，仍被转发消息引用的完整对象不变。另设旧、新普通临时目录，确认启用 `off` 后只清扫旧目录原路径；这不验证垃圾目录空间回收，也不是实际等待 15 天。
 
 切换使用[发布切换与回滚手册](release-cutover.md)。不得在未核实实例独占性、写入入口与在途任务时恢复原 24h 清扫。
 
@@ -102,3 +102,19 @@ exec ./build-server/server 8080 4 "$DB" \
 ```
 
 轮换保留 5 个约 10 MiB 文件。归档、备份、复核命令使用非零退出状态报告失败；定时任务应记录退出状态及标准输出。请勿把 S3 密钥、登录凭据、预签名 URL 或消息正文写入诊断日志。
+
+
+## 取消独立群文件后的离线升级
+
+新安装会直接创建当前结构。旧库可离线升级，保留聊天历史、转发附件、设备标识、普通暂停上传、登录凭证、草稿和 Outbox。
+
+1. 使用旧客户端另存需要保留的独立群文件。仅有旧群文件引用的对象在升级后会进入回收队列；需要继续分享的文件可另行作为新消息发送。
+2. 停止相应的旧服务端及客户端，备份 SQLite 数据（包括一致的 WAL 快照）、月档和 S3 桶。用与服务端版本相容的 SQLite CLI 对备份副本演练，再处理正式文件：
+
+   ```bash
+   sqlite3 -bail /path/to/chat.sqlite3 < ops/retire_group_files_server.sql
+   sqlite3 -bail /path/to/tasks.sqlite3 < ops/retire_group_files_client.sql
+   ```
+
+   服务端脚本只对存在 `conversation_files` 的旧库运行一次。每个客户端只对含 `group_file_tasks` 的旧 `tasks.sqlite3` 运行一次。文件位于应用数据目录的 `transfers/<服务标识>/`。客户端脚本只移除标记为独立群文件的任务，不删除本地原文件。旧任务在服务端仍按 15 天规则过期。
+3. 使用新服务端启动迁移后的库，重新建立消息及合并转发的回收触发器，再启动新客户端。验证正常附件和暂停任务可用，观察回收队列。若需回退，应恢复迁移前的数据库和对象备份，并使用相应旧版本。

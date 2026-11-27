@@ -138,8 +138,7 @@ message_data client_bridge::to_message_data(chat::message const& value)
     {
         message.attachment = attachment_data{from_utf8(value.attachment->filename),
                                              from_utf8(value.attachment->media_type),
-                                             value.attachment->size,
-                                             from_utf8(value.attachment->object_key)};
+                                             value.attachment->size};
     }
     return message;
 }

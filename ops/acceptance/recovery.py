@@ -18,6 +18,7 @@ import urllib.request
 from websockets.asyncio.server import serve
 from desktop import Desktop, Gate, until
 from isolated import Store, begin, chat, login, put
+from retire_group_files import migrate
 
 
 def admin(*args, env=None):
@@ -64,7 +65,7 @@ async def drill(root, gate, entry, probe, *, source_probe=None, source_server=No
                 await a.ok("confirm_attachment", upload=100, number=1, etag=put(part["url"], payload))
                 f = await a.ok("finish_attachment", upload=100)
                 key = f["attachment"]["object_key"]
-                await a.ok("add_conversation_file", conversation_id=g, object_key=key)
+                forwarded = await a.ok("send_message", conversation=g, client_id=101, forward=f["id"])
                 gate.upstream = url
                 gate.hold.add("confirm_attachment")
                 await ui.start(source_probe or probe, root, entry)
@@ -117,6 +118,15 @@ async def drill(root, gate, entry, probe, *, source_probe=None, source_server=No
     db = root / "restored/chat.sqlite3"
     admin("--db", db, "check")
     admin("--db", db, "archive-check")
+    if source_server:
+        for candidate, table, component in (
+            (db, "conversation_files", "server"),
+            (journal, "group_file_tasks", "client"),
+        ):
+            with sqlite3.connect(candidate) as conn:
+                legacy = conn.execute("SELECT 1 FROM sqlite_schema WHERE name=?", (table,)).fetchone()
+            if legacy:
+                migrate(candidate, component)
     shutil.copytree(root / "silo-backup", root / "restored-silo")
     with store.node(root / "restored-silo") as (s3, env):
         assert parts(s3) == [(1, length)]
@@ -182,8 +192,13 @@ async def drill(root, gate, entry, probe, *, source_probe=None, source_server=No
                 assert download(await a.ok("get_attachment", conversation=g, message=mid)) == large
                 assert download(await a.ok("get_attachment", conversation=g, message=f["id"])) == payload
                 await a.ok("delete_message", conversation=g, message=f["id"])
-                assert download(await c.ok("get_conversation_file", conversation_id=g, object_key=key)) == payload
-                await a.ok("remove_conversation_file", conversation_id=g, object_key=key)
+                assert download(await b.ok("get_attachment", conversation=g, message=forwarded["id"])) == payload
+                denied = await c.ask("get_attachment", conversation=g, message=forwarded["id"])
+                assert denied.get("error", {}).get("code") == -32007
+                new_copy = await b.ok("send_message", conversation=g, client_id=102, forward=forwarded["id"])
+                assert download(await c.ok("get_attachment", conversation=g, message=new_copy["id"])) == payload
+                await b.ok("delete_message", conversation=g, message=new_copy["id"])
+                await a.ok("delete_message", conversation=g, message=forwarded["id"])
         with chat(db, env):
             keys = {o["Key"] for o in s3.list_objects_v2(Bucket=store.bucket).get("Contents", [])}
             assert key not in keys and object_key in keys

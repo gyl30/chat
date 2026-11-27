@@ -15,7 +15,6 @@ struct download_source
     qint64 conversation = 0;
     qint64 message = 0;
     qint64 item = 0;
-    QString key;
     bool operator==(download_source const&) const = default;
 };
 
@@ -59,7 +58,7 @@ class download_tasks final : public QObject
     };
     QMap<qint64, task>::const_iterator primary(download_source const& source) const;
     bool available_file(task const& value) const;
-    void enqueue(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open, qint64 item);
+    void enqueue(qint64 conversation, qint64 message, QString filename, QString path, bool open, qint64 item);
     void start(qint64 id, task& value);
     void finish(qint64 id, quint64 attempt, QString const& error);
     void progress(qint64 id, quint64 attempt, qint64 bytes, qint64 total);

@@ -138,14 +138,28 @@ file_result<sqlite_database> open_transfer_journal(std::string const& directory,
         return failed("无法保护本地任务凭证");
     }
 #endif
+    {
+        auto retired = db->prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='group_file_tasks'");
+        if (!retired)
+        {
+            return failed("无法检查本地上传记录");
+        }
+        auto found = retired->step();
+        if (!found)
+        {
+            return failed("无法检查本地上传记录");
+        }
+        if (*found)
+        {
+            return std::unexpected(error{error_kind::local_storage, 0, "请先迁移旧版上传记录（ops/retire_group_files_client.sql）"});
+        }
+    }
     if (db->exec(R"SQL(CREATE TABLE IF NOT EXISTS login_credentials(username TEXT PRIMARY KEY,token TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS installation(id INTEGER PRIMARY KEY CHECK(id=1),secret TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS tasks(user INTEGER NOT NULL,client INTEGER NOT NULL,conversation INTEGER NOT NULL,path TEXT NOT NULL,
         size INTEGER NOT NULL,stamp INTEGER NOT NULL,reply INTEGER NOT NULL,checksum TEXT NOT NULL,part_size INTEGER NOT NULL DEFAULT 0,
         count INTEGER NOT NULL DEFAULT 0,number INTEGER NOT NULL DEFAULT 0,confirmed INTEGER NOT NULL DEFAULT 0,length INTEGER NOT NULL DEFAULT 0,
         touched INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER)), PRIMARY KEY(user,client));
-    CREATE TABLE IF NOT EXISTS group_file_tasks(user INTEGER NOT NULL,client INTEGER NOT NULL,PRIMARY KEY(user,client),
-        FOREIGN KEY(user,client) REFERENCES tasks(user,client) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS text_outbox(
         user INTEGER NOT NULL,client INTEGER NOT NULL,conversation INTEGER NOT NULL,body TEXT NOT NULL,
         reply INTEGER,created INTEGER NOT NULL,rejection INTEGER NOT NULL DEFAULT 0,markdown INTEGER NOT NULL DEFAULT 0,mention_all INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(user,client));

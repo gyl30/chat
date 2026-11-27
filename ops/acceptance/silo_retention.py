@@ -73,14 +73,10 @@ async def run(root):
                 )
                 complete = await owner.ok("finish_attachment", upload=10)
                 shared_key = complete["attachment"]["object_key"]
-                await owner.ok(
-                    "add_conversation_file",
-                    conversation_id=group,
-                    object_key=shared_key,
+                forwarded = await owner.ok(
+                    "send_message", conversation=group, client_id=13, forward=complete["id"]
                 )
-                await owner.ok(
-                    "delete_message", conversation=group, message=complete["id"]
-                )
+                await owner.ok("delete_message", conversation=group, message=complete["id"])
 
                 lengths, handles = {}, {}
                 for ident in (11, 12):
@@ -189,9 +185,9 @@ async def run(root):
                 )
                 assert (
                     await owner.ok(
-                        "get_conversation_file",
-                        conversation_id=group,
-                        object_key=shared_key,
+                        "get_attachment",
+                        conversation=group,
+                        message=forwarded["id"],
                     )
                 )["url"]
     print(

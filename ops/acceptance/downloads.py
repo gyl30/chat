@@ -86,17 +86,12 @@ async def run(root, probe, stalls=False, baseline=False):
                             etag=put(grant["url"], payload),
                         )
                         originals.append(await b.ok("finish_attachment", upload=ident))
-                    await b.ok(
-                        "add_conversation_file",
-                        conversation_id=group,
-                        object_key=originals[1]["attachment"]["object_key"],
-                    )
                     actual = Counter()
                     gate = Gate(upstream)
 
                     def transform(method, result):
                         if (
-                            method not in ("get_attachment", "get_conversation_file")
+                            method != "get_attachment"
                             or "result" not in result
                         ):
                             return
@@ -104,15 +99,15 @@ async def run(root, probe, stalls=False, baseline=False):
                         if (
                             not stalls
                             and method == "get_attachment"
-                            and actual[method] == 7
+                            and actual[method] == 8
                         ):
                             return  # Overwrite from the real Silo URL.
                         suffix = (
                             "fail"
                             if method == "get_attachment"
-                            and actual[method] in (2, 4, 5)
+                            and actual[method] in (2, 5, 6)
                             else "stall"
-                            if method == "get_attachment" and actual[method] == 6
+                            if method == "get_attachment" and actual[method] == 7
                             else "ok"
                         )
                         if stalls:
@@ -166,14 +161,14 @@ async def run(root, probe, stalls=False, baseline=False):
                                     destination=str(root / path),
                                 )
                                 await ui.call("dialogstate", close=True)
-                            await ui.call("group", id=group)
-                            await ui.wait(
-                                "group_download", lambda r: r.get("count", 0) == 1
-                            )
-                            await ui.call(
-                                "group_download", destination=str(root / "c.bin")
-                            )
-                            await ui.call("group_download", close=True)
+                            await ui.call("history", open=True, conv=group)
+                            await ui.wait("history", lambda r: r.get("count") == 1)
+                            await ui.call("history", tab=2)
+                            await ui.wait("history", lambda r: r.get("count") == 1)
+                            await ui.call("history", save=0)
+                            await ui.wait("history", lambda r: r.get("choosing"))
+                            await ui.call("history", destination=str(root / "c.bin"))
+                            await ui.call("history", close=True)
                             await ui.call("downloads", open=True)
                             rows = (
                                 await ui.wait(
@@ -183,7 +178,7 @@ async def run(root, probe, stalls=False, baseline=False):
                             assert len({v["id"] for v in rows}) == 3
                             assert {v["filename"] for v in rows} == {"同名.bin"}
                             assert (
-                                "群文件" in rows[2]["source"]
+                                rows[2]["source"] == rows[1]["source"]
                                 and rows[0]["source"] != rows[1]["source"]
                             )
                             await until(
@@ -209,7 +204,7 @@ async def run(root, probe, stalls=False, baseline=False):
                                 )
                             )["rows"]
                             assert rows[1]["id"] and rows[2]["progress"]
-                            assert actual["get_attachment"] == 3
+                            assert actual["get_attachment"] == 4
                             assert not (root / "a.bin").exists()
                             assert (
                                 (root / "b.bin").read_bytes()
@@ -252,13 +247,8 @@ async def run(root, probe, stalls=False, baseline=False):
                                 lambda r: r["rows"][3]["status"].startswith("失败"),
                             )
                             assert (
-                                actual["get_attachment"] == 4
+                                actual["get_attachment"] == 5
                                 and not (root / "denied.bin").exists()
-                            )
-                            assert "url" in await a.ok(
-                                "get_conversation_file",
-                                conversation_id=group,
-                                object_key=originals[1]["attachment"]["object_key"],
                             )
                             replacement = b"x" * len(
                                 payload
@@ -310,7 +300,7 @@ async def run(root, probe, stalls=False, baseline=False):
                             await assert_original()
                             await replace()
                             await until(
-                                lambda: "/get_attachment/6/stall" in requests
+                                lambda: "/get_attachment/7/stall" in requests
                                 and any(
                                     p.stat().st_size for p in root.glob("b.bin.part-*")
                                 ),
@@ -323,7 +313,7 @@ async def run(root, probe, stalls=False, baseline=False):
                                 "triggered"
                             ]
                             await until(
-                                lambda: "/get_attachment/6/stall" in disconnected
+                                lambda: "/get_attachment/7/stall" in disconnected
                                 and not list(root.glob("b.bin.part-*")),
                                 "replacement cancellation closed the stream and cleaned its temporary file",
                             )
@@ -362,41 +352,28 @@ async def run(root, probe, stalls=False, baseline=False):
                                 flush=True,
                             )
 
-                            await b.ok(
-                                "set_group_admin",
-                                conversation=group,
-                                user=1,
-                                admin=True,
-                            )
-                            await ui.call("group", id=group)
+                            await ui.call("history", open=True, conv=group)
+                            await ui.wait("history", lambda r: r.get("count") == 1)
+                            await ui.call("history", tab=2)
+                            await ui.wait("history", lambda r: r.get("count") == 1)
+                            await ui.call("history", save=0)
+                            await ui.wait("history", lambda r: r.get("choosing"))
+                            await b.ok("delete_message", conversation=group, message=new["id"])
                             await ui.wait(
-                                "group_download", lambda r: r.get("count") == 1
+                                "history", lambda r: r.get("choosing") and r["count"] == 0
+                                and not r["statusVisible"],
                             )
-                            await ui.call("group_download", choose=True)
-                            await ui.wait("group_download", lambda r: r.get("choosing"))
-                            key = originals[1]["attachment"]["object_key"]
-                            await ui.call("group_download", group=group, remove_key=key)
+                            await ui.call("history", destination=str(root / "removed.bin"))
+                            await ui.wait("history", lambda r: not r.get("choosing"))
+                            await ui.call("history", close=True)
                             await ui.wait(
-                                "group_download",
-                                lambda r: r.get("choosing") and r["count"] == 0,
+                                "downloads", lambda r: len(r["rows"]) == 8
+                                and r["rows"][7]["status"].startswith("失败"),
                             )
-                            start = len(gate.messages)
-                            await ui.call(
-                                "group_download", accept_path=str(root / "removed.bin")
-                            )
-                            await ui.wait(
-                                "group_download", lambda r: not r.get("choosing")
-                            )
-                            await ui.call("group_download", close=True)
-                            tasks = await ui.call("downloads")
-                            assert len(tasks["rows"]) == 7, tasks
-                            assert not any(
-                                m["method"] == "get_conversation_file"
-                                for m in gate.messages[start:]
-                            )
+                            assert actual["get_attachment"] == 8
                             assert not (root / "removed.bin").exists()
                             print(
-                                "PASS the selected group file disappeared while the save dialog was open; no stale task",
+                                "PASS recalled file disappeared from shared history during save; authorization rejected stale selection",
                                 flush=True,
                             )
                         finally:

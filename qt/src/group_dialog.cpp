@@ -2,7 +2,6 @@
 #include "profile_media.hpp"
 #include "empty_state.hpp"
 #include "group_dialog.hpp"
-#include "group_files_page.hpp"
 #include "create_group_dialog.hpp"
 #include "chat_widget.hpp"
 #include "presence.hpp"
@@ -89,24 +88,8 @@ group_dialog::group_dialog(client_bridge& client,
     setup_overview(client);
     setup_management(join_approval);
     pages_->addWidget(management_scroll_);
-    files_ = new group_files_page(client, conversation, self_user, pages_);
-    pages_->addWidget(files_);
-    title_row->insertWidget(title_row->count() - 1, files_->header_actions());
-    files_->bind_uploads(chat_);
-    connect(files_, &group_files_page::upload_requested, this, &group_dialog::upload_requested);
     connect(back_, &QToolButton::clicked, this, [this] { show_page(overview_scroll_); });
-    connect(pages_,
-            &QStackedWidget::currentChanged,
-            this,
-            [this]
-            {
-                update_title();
-                files_->header_actions()->setVisible(pages_->currentWidget() == files_);
-                if (pages_->currentWidget() == files_)
-                {
-                    files_->show_files();
-                }
-            });
+    connect(pages_, &QStackedWidget::currentChanged, this, &group_dialog::update_title);
     connect(overview_scroll_->verticalScrollBar(), &QScrollBar::valueChanged, this, &group_dialog::update_title);
     status_ = new QLabel(this);
     status_->setObjectName(QStringLiteral("groupStatus"));
@@ -166,9 +149,7 @@ void group_dialog::update_title()
     }
     else
     {
-        label->setText(current == files_               ? QStringLiteral("群文件")
-                       : current == management_scroll_ ? QStringLiteral("群管理")
-                                                       : QStringLiteral("入群申请"));
+        label->setText(current == management_scroll_ ? QStringLiteral("群管理") : QStringLiteral("入群申请"));
     }
 }
 
@@ -336,21 +317,14 @@ void group_dialog::setup_overview(client_bridge& client)
     invite_overview_row->addStretch();
     details_layout->addLayout(invite_overview_row);
 
-    auto* media = new QVBoxLayout;
-    media->setSpacing(0);
     auto* history = new profile_media(client, chat_, body);
-    media->addWidget(history);
+    overview_layout->addWidget(history);
     connect(history, &profile_media::history_requested, this, &group_dialog::history_requested);
     history->set_conversation(conversation_);
-    auto* group_files = profile_entry(body, QStringLiteral("群文件"), u"folder");
-    group_files->setObjectName(QStringLiteral("groupFilesEntry"));
-    media->addWidget(group_files);
-    connect(group_files, &QPushButton::clicked, this, [this] { show_page(files_); });
     requests_button_ = profile_entry(body, QStringLiteral("入群申请"), u"user-plus");
     requests_button_->setObjectName(QStringLiteral("groupRequestsEntry"));
-    media->addWidget(requests_button_);
+    overview_layout->addWidget(requests_button_);
     connect(requests_button_, &QPushButton::clicked, this, [this] { show_page(requests_page_); });
-    overview_layout->addLayout(media);
     setup_members(overview_layout);
     overview_layout->addStretch();
     pages_->insertWidget(0, overview_scroll);
@@ -893,7 +867,7 @@ void group_dialog::connect_member_actions()
             {
                 if (confirm_action(this,
                                    QStringLiteral("解散群聊"),
-                                   QStringLiteral("解散后所有成员将无法通过 Chat 访问这个群的历史和群文件，且不能再加入。确定解散？"),
+                                   QStringLiteral("解散后所有成员将无法通过 Chat 访问这个群的聊天记录，且不能再加入。确定解散？"),
                                    QStringLiteral("解散群聊")) &&
                     available_)
                 {
@@ -909,7 +883,7 @@ void group_dialog::connect_member_actions()
             {
                 if (confirm_action(this,
                                    QStringLiteral("退出群聊"),
-                                   QStringLiteral("退出后将无法访问本群的聊天记录和群文件。确定退出群聊？"),
+                                   QStringLiteral("退出后将无法访问本群的聊天记录。确定退出群聊？"),
                                    QStringLiteral("退出群聊")))
                 {
                     pending_ = true;
@@ -1257,7 +1231,6 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
     overview_pin_->setVisible(has_pin);
     approval_->setChecked(found->join_approval);
     group_muted_ = found->group_muted;
-    own_speech_until_ = found->speech_until;
     server_clock_delta_ = found->server_clock_delta;
     refresh_speech();
     all_mute_->setChecked(group_muted_);
@@ -1390,10 +1363,6 @@ void group_dialog::refresh_speech()
 {
     auto const now = QDateTime::currentMSecsSinceEpoch() + server_clock_delta_;
     auto next = std::numeric_limits<qint64>::max();
-    if (own_speech_until_ > now)
-    {
-        next = own_speech_until_;
-    }
     for (int row = 0; row < list_->count(); ++row)
     {
         auto const& member = members_[row];
@@ -1452,9 +1421,6 @@ void group_dialog::update_actions()
     auto const self = std::find_if(members_.begin(), members_.end(), [this](auto const& member) { return member.id == self_user_; });
     auto const owner = self != members_.end() && self->role == chat::member_role::owner;
     auto const manager = self != members_.end() && self->role != chat::member_role::member;
-    auto const delay = own_speech_until_ - (QDateTime::currentMSecsSinceEpoch() + server_clock_delta_);
-    auto const blocked = !manager && (group_muted_ || own_speech_until_ == -1 || delay > 0);
-    files_->set_access(available_ && self != members_.end(), manager, !blocked);
     auto const can_manage = available_ && manager;
     auto const enabled = available_ && !pending_;
     all_mute_->setEnabled(enabled && manager);

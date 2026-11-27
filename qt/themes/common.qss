@@ -664,7 +664,6 @@ QDialog QPushButton[profileEntry="true"]:hover:enabled { background: ${canvas_ho
 QDialog QPushButton[profileEntry="true"]:pressed:enabled { background: ${selected}; }
 QDialog QPushButton[profileEntry="true"]:focus { border-color: ${focus}; }
 QListWidget#groupMembersList { background: transparent; }
-QTabBar#groupFileCategories::tab { padding: 7px 10px; }
 QDialog QPushButton[previewTool="true"] {
     background: transparent;
     border: 1px solid transparent;

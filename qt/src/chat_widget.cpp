@@ -1802,7 +1802,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
                 }
                 else if (downloads_)
                 {
-                    download_source const source{active_conversation_, id, 0, {}};
+                    download_source const source{active_conversation_, id};
                     if (!downloads_->activate(source, this))
                     {
                         downloads_->save(source, filename, this);
@@ -2231,7 +2231,7 @@ void chat_widget::show_message_menu(QPoint position)
     auto* download = !filename.isEmpty() ? menu.addAction(QStringLiteral("下载文件")) : nullptr;
     if (download && downloads_)
     {
-        downloads_->add_actions(menu, {conversation, message_id, 0, {}});
+        downloads_->add_actions(menu, {conversation, message_id});
     }
     auto* preview = index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/"))
                         ? menu.addAction(QStringLiteral("查看图片"))
@@ -2277,29 +2277,6 @@ void chat_widget::show_message_menu(QPoint position)
     auto* group_pin = messages_->can_manage_group() ? menu.addAction(unpin ? QStringLiteral("取消置顶消息") : QStringLiteral("置顶消息")) : nullptr;
     auto* multi = menu.addAction(QStringLiteral("选择消息"));
     auto* readers = index.data(message_model::read_members_role).isValid() ? menu.addAction(QStringLiteral("已读成员")) : nullptr;
-    auto const key = index.data(message_model::attachment_key_role).toString();
-    if (!key.isEmpty() && index.data(message_model::outgoing_role).toBool() && connection_available_)
-    {
-        auto* groups = menu.addMenu(QStringLiteral("加入群文件"));
-        for (int row = 0; row < conversations_->rowCount(); ++row)
-        {
-            auto const* group = conversations_->conversation_at(conversations_->index(row, 0));
-            if (group && group->group && !group->speech_blocked())
-            {
-                groups->addAction(group->username,
-                                  &menu,
-                                  [this, &valid_target, key, id = group->id]
-                                  {
-                                      auto const target = this->conversation(id);
-                                      if (connection_available_ && valid_target() && target && !target->speech_blocked())
-                                      {
-                                          emit add_file_requested(id, key);
-                                      }
-                                  });
-            }
-        }
-        groups->menuAction()->setVisible(!groups->isEmpty());
-    }
     menu.addSeparator();
     auto* edit = ordinary && can_send() && filename.isEmpty() && index.data(message_model::forwarded_from_role).toString().isEmpty() &&
                          index.data(message_model::outgoing_role).toBool()
@@ -3875,7 +3852,7 @@ void chat_widget::finish_send(qint64 conversation, qint64 client_id, message_dat
     show_outgoing();
 }
 
-void chat_widget::restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed, bool group_only)
+void chat_widget::restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed)
 {
     if (std::ranges::find(outgoing_, id, &outgoing::client_id) != outgoing_.end())
     {
@@ -3888,13 +3865,11 @@ void chat_widget::restore_attachment(qint64 conversation, qint64 id, QString pat
     item.path = std::move(path);
     item.size = size;
     item.reply.id = reply;
-    item.group_only = group_only;
     item.failed = true;
     item.confirmed = confirmed;
     item.error = QStringLiteral("已暂停");
     item.thumbnail = upload_thumbnail(item.path);
     outgoing_.push_back(std::move(item));
-    emit uploads_changed();
     if (active_conversation_ == conversation)
     {
         show_outgoing();
@@ -3914,10 +3889,6 @@ void chat_widget::attachment_progress(qint64 id, qint64 bytes, qint64)
         if (item->conversation == active_conversation_)
         {
             show_outgoing();
-        }
-        else if (item->group_only)
-        {
-            emit uploads_changed();
         }
     }
 }
@@ -4873,14 +4844,6 @@ void chat_widget::reconcile_pending_texts(QList<qint64> client_ids)
     }
 }
 
-void chat_widget::choose_attachment(qint64 conversation, bool group_only, QWidget* parent)
-{
-    auto paths = QFileDialog::getOpenFileNames(parent, group_only ? QStringLiteral("只上传到群文件") : QStringLiteral("发送文件或图片"));
-    if (!paths.isEmpty())
-    {
-        send_files(conversation, paths, 0, group_only);
-    }
-}
 file_transfer chat_widget::outgoing::upload_transfer() const
 {
     auto const progress = confirmed >= 0 && size > 0 ? double(confirmed) / size : -1;
@@ -4894,19 +4857,6 @@ file_transfer chat_widget::outgoing::upload_transfer() const
         return {file_action::cancel, error + QStringLiteral(" · ") + amount};
     }
     return {file_action::pause, amount, progress};
-}
-
-QList<chat_widget::upload_row> chat_widget::group_uploads(qint64 room) const
-{
-    QList<upload_row> result;
-    for (auto const& item : outgoing_)
-    {
-        if (item.conversation == room && item.group_only)
-        {
-            result.push_back({item.client_id, item.filename, item.size, item.upload_transfer(), item.error});
-        }
-    }
-    return result;
 }
 
 void chat_widget::activate_upload(qint64 id, file_action action)
@@ -4952,35 +4902,25 @@ void chat_widget::add_upload_actions(QMenu& menu, qint64 id)
     connect(cancel, &QAction::triggered, this, [this, id] { activate_upload(id, file_action::cancel); });
 }
 
-void chat_widget::finish_group_file(qint64 id, QString error, bool unavailable)
+void chat_widget::choose_attachment(qint64 target)
 {
-    if (error.isEmpty())
+    auto const paths = QFileDialog::getOpenFileNames(this, QStringLiteral("发送文件或图片"));
+    if (!paths.isEmpty())
     {
-        attachment_cancelled(id);
-        return;
-    }
-    auto item = std::ranges::find(outgoing_, id, &outgoing::client_id);
-    if (item != outgoing_.end())
-    {
-        item->failed = true;
-        if (!item->unavailable)
-        {
-            item->unavailable = unavailable;
-            item->error = error;
-        }
-        emit uploads_changed();
+        send_files(target, paths);
     }
 }
-void chat_widget::send_files(qint64 target, QStringList const& paths, qint64 clipboard_id, bool group_only)
+
+void chat_widget::send_files(qint64 target, QStringList const& paths, qint64 clipboard_id)
 {
     auto const room = conversation(target);
     if (!connection_available_ || !room || room->speech_blocked())
     {
-        set_message_status(room && room->speech_blocked() ? QStringLiteral("群聊禁言，暂时无法发布文件")
+        set_message_status(room && room->speech_blocked() ? QStringLiteral("群聊禁言，暂时无法发送文件")
                                                           : QStringLiteral("当前会话暂时无法发送文件"));
         return;
     }
-    bool const use_reply = !group_only && target == active_conversation_;
+    bool const use_reply = target == active_conversation_;
     auto const reply = use_reply ? quote(reply_to_) : quoted_message_data{};
     QStringList errors;
     for (auto const& path : paths)
@@ -5012,7 +4952,6 @@ void chat_widget::send_files(qint64 target, QStringList const& paths, qint64 cli
         item.size = file.size();
         item.thumbnail = upload_thumbnail(item.path);
         item.error = QStringLiteral("正在校验文件…");
-        item.group_only = group_only;
         item.reply = reply;
         queue_outgoing(std::move(item));
     }
@@ -5031,9 +4970,8 @@ void chat_widget::queue_outgoing(outgoing item)
 {
     item.created = QDateTime::currentMSecsSinceEpoch();
     outgoing_.push_back(std::move(item));
-    if (outgoing_.back().group_only || outgoing_.back().conversation != active_conversation_)
+    if (outgoing_.back().conversation != active_conversation_)
     {
-        emit uploads_changed();
         submit(outgoing_.back());
         return;
     }
@@ -5046,12 +4984,11 @@ void chat_widget::queue_outgoing(outgoing item)
 
 void chat_widget::submit(outgoing const& item)
 {
-    emit attachment_send_requested(item.conversation, item.path, item.reply.id, item.client_id, item.group_only);
+    emit attachment_send_requested(item.conversation, item.path, item.reply.id, item.client_id);
 }
 
 void chat_widget::show_outgoing()
 {
-    emit uploads_changed();
     if (!tail_loaded_)
     {
         messages_->set_pending({});
@@ -5060,7 +4997,7 @@ void chat_widget::show_outgoing()
     QList<message_model::pending_message> pending;
     for (auto const& item : outgoing_)
     {
-        if (item.group_only || item.conversation != active_conversation_)
+        if (item.conversation != active_conversation_)
         {
             continue;
         }
@@ -5077,7 +5014,7 @@ void chat_widget::show_outgoing()
         if (!item.filename.isEmpty())
         {
             message.attachment = attachment_data{
-                item.filename, item.thumbnail.isNull() ? QStringLiteral("application/octet-stream") : QStringLiteral("image/preview"), item.size, {}};
+                item.filename, item.thumbnail.isNull() ? QStringLiteral("application/octet-stream") : QStringLiteral("image/preview"), item.size};
         }
         pending.push_back({
             .message = std::move(message),

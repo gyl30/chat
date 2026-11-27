@@ -16,6 +16,7 @@ trap 'rm -rf -- "$work"' EXIT
 python3 ops/acceptance/build_probe.py "$build" "$work/probe"
 python3 ops/acceptance/login_sessions.py "$work/probe"
 python3 ops/acceptance/group_moderation.py "$work/probe"
+python3 ops/acceptance/retire_group_files.py "$work/probe"
 python3 ops/acceptance/clear.py
 python3 ops/acceptance/search_filters.py
 python3 ops/acceptance/reading_navigation.py "$work/probe"

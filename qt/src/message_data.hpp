@@ -33,7 +33,6 @@ struct attachment_data
     QString filename;
     QString media_type;
     qint64 size = 0;
-    QString object_key;
 };
 
 struct quoted_message_data

@@ -30,7 +30,6 @@ struct[[= simdjson::deny_unknown_fields]] send_message_params
     std::int64_t conversation = 0;
     std::optional<std::string> text;
     std::optional<std::int64_t> reply_to;
-    std::optional<std::string> object_key;
     std::optional<std::int64_t> forward;
     std::optional<std::vector<std::int64_t>> bundle;
     std::optional<std::vector<std::string>> poll_options;
@@ -75,7 +74,7 @@ bool read_send_params(json_rpc_params& params, send_message_params& value, bool 
             return !s.contains('\0') && !chat::text_is_blank(s) &&
                    std::ranges::count_if(s, [](unsigned char c) { return (c & 0xc0) != 0x80; }) <= static_cast<std::ptrdiff_t>(max);
         };
-        if (!value.text || !valid(*value.text, 256) || value.bundle || value.forward || value.object_key || value.markdown || value.mention_all ||
+        if (!value.text || !valid(*value.text, 256) || value.bundle || value.forward || value.markdown || value.mention_all ||
             value.reply_to)
         {
             return false;
@@ -100,7 +99,7 @@ bool read_send_params(json_rpc_params& params, send_message_params& value, bool 
     if (value.bundle)
     {
         auto& ids = *value.bundle;
-        if (ids.size() < 2 || ids.size() > 50 || value.text || value.forward || value.object_key || value.reply_to || value.markdown ||
+        if (ids.size() < 2 || ids.size() > 50 || value.text || value.forward || value.reply_to || value.markdown ||
             value.mention_all)
         {
             return false;
@@ -115,11 +114,7 @@ bool read_send_params(json_rpc_params& params, send_message_params& value, bool 
     }
     if (value.forward)
     {
-        return *value.forward > 0 && !value.text && !value.object_key && !value.reply_to && !value.markdown && !value.mention_all;
-    }
-    if (value.object_key)
-    {
-        return !value.text && !value.object_key->empty() && !value.markdown && !value.mention_all;
+        return *value.forward > 0 && !value.text && !value.reply_to && !value.markdown && !value.mention_all;
     }
     return value.text && !value.text->empty() && !value.text->contains('\0');
 }
@@ -335,8 +330,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
                                          params.bundle ? std::span<const std::int64_t>(*params.bundle) : std::span<const std::int64_t>{},
                                          params.poll_options ? std::span<const std::string>(*params.poll_options) : std::span<const std::string>{},
                                          params.poll_settings.value_or(chat::poll_settings{})},
-                                        request.id,
-                                        params.object_key.value_or(""));
+                                        request.id);
             });
     }
     if (!delivered)

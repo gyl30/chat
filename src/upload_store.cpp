@@ -138,8 +138,8 @@ upload_lookup begin_upload(sqlite_database& db, std::int64_t user, std::string c
 std::expected<bool, sqlite_error> register_uploaded_file(sqlite_database& db, std::int64_t upload)
 {
     auto now = epoch_milliseconds();
-    if (auto e = db.exec(R"SQL(INSERT INTO files(object_key,uploader_id,device,upload_client_id,filename,media_type,size,checksum,created_at)
-        SELECT u.object_key,u.user_id,u.device,u.client_id,u.filename,u.media_type,u.size,u.checksum,?2 FROM attachment_uploads u
+    if (auto e = db.exec(R"SQL(INSERT INTO files(object_key,uploader_id,upload_client_id,filename,media_type,size,checksum,created_at)
+        SELECT u.object_key,u.user_id,u.client_id,u.filename,u.media_type,u.size,u.checksum,?2 FROM attachment_uploads u
         JOIN attachment_cleanup c ON c.object_key=u.object_key AND c.reserved_at>0 WHERE u.id=?1 AND u.state='active')SQL",
                          upload,
                          now);
@@ -151,38 +151,9 @@ std::expected<bool, sqlite_error> register_uploaded_file(sqlite_database& db, st
     {
         return false;
     }
-    // Start the unpublished object's protection period at completion, even after a long upload.
-    if (auto e = db.exec(
-            "UPDATE attachment_cleanup SET reserved_at=? WHERE object_key=(SELECT object_key FROM attachment_uploads WHERE id=?)", now, upload);
-        e)
-    {
-        return std::unexpected(e);
-    }
     if (auto e = db.exec("DELETE FROM attachment_uploads WHERE id=?", upload); e)
     {
         return std::unexpected(e);
     }
     return true;
-}
-
-std::expected<std::string, sqlite_error> completed_upload_key(sqlite_database& db,
-                                                              std::int64_t user,
-                                                              std::string const& device,
-                                                              std::int64_t client_id)
-{
-    auto q = db.prepare(R"SQL(SELECT object_key FROM files WHERE uploader_id=? AND device=? AND upload_client_id=?
-           AND NOT EXISTS(SELECT 1 FROM attachment_cleanup WHERE object_key=files.object_key AND reserved_at=0))SQL",
-                        user,
-                        device,
-                        client_id);
-    if (!q)
-    {
-        return std::unexpected(q.error());
-    }
-    auto row = q->step();
-    if (!row)
-    {
-        return std::unexpected(row.error());
-    }
-    return *row ? std::string(q->column_text(0)) : std::string{};
 }

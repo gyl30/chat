@@ -28,7 +28,8 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 | `clear.py` | 重试相同 H 后，后续未读消息与手工标记保留，实际已读位置保持，已提交任务得到无正文确认 |
 | `login_sessions.py [Qt 驱动]` | 真实登录凭证及安装绑定、同会话多连接、并发改密、服务端重启和已撤销 token 拒绝；真实 Silo 完成回包被扣住时撤销，拒绝后续数据库发布；Qt 设备列表与确认、无密码重连、撤销通知／确认延迟、草稿保存窗口、Outbox 对账和原安装续传 |
 | `group_moderation.py [Qt 驱动]` | 禁言角色、水位、时钟、幂等确认，真实 Silo 完成与 Chat 发布之间的竞态；解散的原成员通知、归档隔离、重启回收和共享对象；传入驱动时验证 Qt 多端、隐藏会话手动重试、禁言拒绝、失权任务不可恢复、原设备续传，以及重新入群前后的搜索迟到回包 |
-| `desktop.py` | 真实 RPC 代理延迟或丢弃指定回包，验证 Qt 草稿、Outbox 双会话队首和去重、通知、三页搜索游标与迟到上下文；验证群文件搜索防抖、50/51 页边界、Unicode 文件名与失权；覆盖图片和保存子窗口、群资料置顶、多个上传目标、隐藏会话上传恢复和真实 SDK 下载 |
+| `retire_group_files.py` | 旧 SQL 结构拒绝启动，离线移除独立引用和上传任务，普通消息及本地记录保留，过时 RPC 与对象键授权被拒绝 |
+| `desktop.py` | 真实 RPC 代理延迟或丢弃指定回包，验证 Qt 草稿、Outbox 双会话队首和去重、通知、三页搜索游标与迟到上下文；验证共享文件搜索的乱序回包、50/51 页边界、Unicode 文件名、空结果及失权；覆盖图片和保存子窗口、群资料置顶、多个上传目标、隐藏会话上传恢复和真实 SDK 下载 |
 | `recovery.py` | 停止隔离 Chat 与 Silo，分别备份数据库、月档及整个对象卷；启动独立恢复实例，用原 Qt 安装的任务日志从第 2 片继续，再检查消息权限与对象引用 |
 | `wal.py` | 验证静态服务端与私有 Python 的 SQLite 身份、WAL 并发 checkpoint 和搜索分页 |
 | `history.py` | 真实 Qt 覆盖 3,100 条较新消息后的分类和 around；`--baseline` 可用旧服务端、旧版 Qt 测试驱动复现自动补页上限 |
@@ -40,7 +41,7 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 | `live_history.py` | 双设备实时编辑与撤回、显示/剪贴板、筛选移除、乱序回包和保留服务端游标 |
 | `drafts.py` | 真 Qt 重启与会话/账号/端点隔离；探针扣住本地入队完成回调直至输入新版本，另用隔离数据库故障确认保留文字和回复 |
 | `deep_reply.py` | 最近一页之外的草稿引用、重启恢复、实际发送、编辑与迟到校验、撤回/清空/失权 |
-| `downloads.py` | 两个会话及群文件的同名任务、取消、真实流截断、重新鉴权和撤回拒绝；`--stalls` 保持两个 TCP 流不再发送，检查客户端 EOF、临时文件、共享工作器、落盘/取消竞争及断线清理 |
+| `downloads.py` | 私聊、群聊及共享文件的同名任务、取消、真实流截断、重新鉴权和撤回拒绝；`--stalls` 保持两个 TCP 流不再发送，检查客户端 EOF、临时文件、共享工作器、落盘/取消竞争及断线清理 |
 | `history_filter_perf.py` | 对照两个 Release 服务端的稀疏历史、全局搜索及其他连接的发送确认；输出原始端到端样本 |
 | `search_bench.py` | 在独立磁盘 WAL 库测量真实搜索与发送 RPC，输出每组延迟、CPU、内存、归档读取次数和被动 checkpoint |
 
@@ -64,15 +65,15 @@ python3 ops/acceptance/sdk_json.py "$work/sdk-qa"
 
 [2026-11-24 JSON 和 Unicode 依赖替换验收](results/simdjson-unicode-20261124.md)。
 
-## 消息菜单、联系人与群文件定向回归
+## 消息菜单、联系人与共享文件定向回归
 
 在独立虚拟桌面或离屏环境复用同一 Release 探针及本节的隔离服务端、SQLite、Silo：
 
 - `message_selection.py <probe>`：在真实 xcb 菜单打开期间由另一设备编辑或撤回，检查复制的是当前正文，已撤回项不覆盖剪贴板。转发目标窗口保持打开时，分别撤回首条、中间、末条和全部选中项，并覆盖单条转发、个人清空、失权、账号切换和取消。探针核对真实 RPC 顺序、返回及目标会话 SQLite 中的 `forward_source`，无发送场景使用同连接请求作屏障。
 - `bookmarks.py --probe <probe>`：在已加载两页并选中末行时，未收藏消息的编辑不重置列表；未加载的收藏编辑后仍可新命中。
 - `desktop.py <probe> contacts`：好友申请、拒绝、接受、移除、备注与账户名搜索、资料和分组在第二设备变化时同步。单独使用新账号夹具，不与默认文件任务场景共享。
-- `desktop.py <probe> file-search` 或 `desktop.py <probe> outbox`：独立重跑群文件搜索或待发调度，场景也纳入 `linux.sh`。
-- `downloads.py <probe>`：保存窗口打开后，用原有群文件操作移除所选对象并等待列表刷新，确认保存不再产生无效任务或下载授权请求。另用 `--stalls` 验证 TCP 取消和共享工作器。
+- `desktop.py <probe> file-search` 或 `desktop.py <probe> outbox`：独立重跑共享文件搜索或待发调度，场景也纳入 `linux.sh`。
+- `downloads.py <probe>`：在共享文件的保存窗口打开时撤回所选消息，验证列表项移除、迟到的保存被服务端拒绝且不会产生文件。另用 `--stalls` 验证 TCP 取消和共享工作器。
 
 ## S3 与附件定向回归
 
@@ -90,7 +91,7 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/s3_transport.
 ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/large_attachment.py "$work/qt-probe"
 ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/downloads.py "$work/qt-probe" --stalls
 ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/recovery.py "$work/qt-probe" \
-    --source-server "$OLD_BUILD/chat_server" --source-probe "$OLD_PROBE"
+    --source-server "$OLD_BUILD/server" --source-probe "$OLD_PROBE"
 ```
 
 - `s3-probe` 验证静态 curl 的版本、TLS/DNS/IPv6、实际协议、AWS 固定时间签名样例、查询编码及 Yxml。

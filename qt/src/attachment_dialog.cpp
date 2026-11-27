@@ -130,7 +130,7 @@ attachment_dialog::attachment_dialog(
         image_->hide();
     }
     tools->addStretch();
-    tools->addWidget(downloads.source_button(this, [=] { return download_source{conversation, message, item, {}}; }));
+    tools->addWidget(downloads.source_button(this, [=] { return download_source{conversation, message, item}; }));
     tools->addWidget(save_button_);
     connect(save_button_,
             &QPushButton::clicked,

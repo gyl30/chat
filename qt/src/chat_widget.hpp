@@ -58,15 +58,6 @@ class chat_widget final : public QWidget
    public:
     explicit chat_widget(QWidget* parent = nullptr);
 
-    struct upload_row
-    {
-        qint64 id;
-        QString filename;
-        qint64 size;
-        file_transfer transfer;
-        QString error;
-    };
-    QList<upload_row> group_uploads(qint64 conversation) const;
     void activate_upload(qint64 id, file_action action);
     void add_upload_actions(QMenu& menu, qint64 id);
     void set_downloads(download_tasks& downloads);
@@ -137,9 +128,7 @@ class chat_widget final : public QWidget
                              chat::text_options options);
     void discard_pending_text(qint64 client_id);
     void reconcile_pending_texts(QList<qint64> client_ids);
-    void choose_attachment(qint64 conversation, bool group_only, QWidget* parent);
-    void finish_group_file(qint64 client_id, QString error, bool unavailable);
-    void restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed, bool group_only);
+    void restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed);
     void attachment_progress(qint64 id, qint64 bytes, qint64 total);
     void attachment_cancelled(qint64 id);
     // Only an unfinished local write still needs a quit warning.
@@ -165,7 +154,6 @@ class chat_widget final : public QWidget
     bool control_enter_send() const { return control_enter_send_; }
 
    signals:
-    void uploads_changed();
     void avatar_set_requested(QByteArray data);
     void avatar_clear_requested();
     void avatar_update_finished(QString error);
@@ -212,7 +200,6 @@ class chat_widget final : public QWidget
     void message_context_requested(qint64 conversation, qint64 anchor);
     void chat_history_requested(qint64 conversation, QString title, int category = 0);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
-    void add_file_requested(qint64 conversation, QString key);
     void poll_write_requested(qint64 room, qint64 message, qint64 choice);
     void live_poll_added(qint64 room, qint64 message);
     void create_poll_requested(qint64 room);
@@ -220,7 +207,7 @@ class chat_widget final : public QWidget
     void bundle_requested(qint64 target, QList<qint64> messages);
     void forward_to_contact_requested(qint64 peer, QList<qint64> messages, bool bundle);
     void forward_requested(qint64 target, QList<qint64> messages);
-    void attachment_send_requested(qint64 conversation, QString path, qint64 reply_to, qint64 client_id, bool group_only);
+    void attachment_send_requested(qint64 conversation, QString path, qint64 reply_to, qint64 client_id);
     void attachment_interrupt_requested(qint64 id, bool cancel, QString path);
     void attachment_open_requested(qint64 conversation, qint64 message, QString filename, bool preview);
     void typing_requested(qint64 conversation, bool typing);
@@ -291,7 +278,6 @@ class chat_widget final : public QWidget
         qint64 size = 0;
         quoted_message_data reply;
         qint64 created = 0;
-        bool group_only = false;
         qint64 confirmed = -1;
         QPixmap thumbnail;
         file_transfer upload_transfer() const;
@@ -355,7 +341,8 @@ class chat_widget final : public QWidget
     bool handle_file_drop(QEvent* event);
     void send_image(QImage const& image);
     bool paste_image();
-    void send_files(qint64 target, QStringList const& paths, qint64 clipboard_id = 0, bool group_only = false);
+    void choose_attachment(qint64 target);
+    void send_files(qint64 target, QStringList const& paths, qint64 clipboard_id = 0);
     void queue_outgoing(outgoing item);
     void submit(outgoing const& item);
     // Shows the open conversation's unconfirmed sends after its messages.

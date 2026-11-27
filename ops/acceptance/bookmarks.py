@@ -227,7 +227,7 @@ async def run(root, probe, previous_server):
                         rows(db, "SELECT object_key FROM files ORDER BY object_key"),
                         rows(
                             db,
-                            "SELECT object_key FROM conversation_files ORDER BY object_key",
+                            "SELECT object_key FROM bundle_items WHERE object_key IS NOT NULL ORDER BY object_key",
                         ),
                         rows(
                             db,

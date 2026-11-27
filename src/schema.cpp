@@ -1,4 +1,5 @@
 #include <string_view>
+#include <sqlite3.h>
 
 #include "schema.hpp"
 
@@ -249,7 +250,6 @@ CREATE TABLE IF NOT EXISTS group_join_requests (
 CREATE TABLE IF NOT EXISTS files (
     object_key TEXT PRIMARY KEY NOT NULL,
     uploader_id INTEGER NOT NULL REFERENCES users(id),
-    device TEXT NOT NULL,
     upload_client_id INTEGER NOT NULL,
     filename TEXT NOT NULL CHECK (length(CAST(filename AS BLOB)) BETWEEN 1 AND 255),
     media_type TEXT NOT NULL CHECK (media_type IN ('application/octet-stream', 'image/png', 'image/jpeg')),
@@ -296,19 +296,9 @@ CREATE TABLE IF NOT EXISTS bundle_items (
     PRIMARY KEY(parent,position)
 );
 CREATE INDEX IF NOT EXISTS bundle_files ON bundle_items(object_key) WHERE object_key IS NOT NULL;
-CREATE TABLE IF NOT EXISTS conversation_files (
-    conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-    object_key TEXT NOT NULL REFERENCES files(object_key),
-    created_at INTEGER NOT NULL,
-    PRIMARY KEY(conversation_id, object_key)
-);
-CREATE INDEX IF NOT EXISTS group_files_object ON conversation_files(object_key);
-CREATE INDEX IF NOT EXISTS group_files_page ON conversation_files(conversation_id,created_at DESC,object_key DESC);
-
 CREATE TRIGGER IF NOT EXISTS release_message_attachments AFTER DELETE ON message_attachments
 WHEN NOT EXISTS(SELECT 1 FROM message_attachments WHERE object_key=OLD.object_key)
  AND NOT EXISTS(SELECT 1 FROM bundle_items WHERE object_key=OLD.object_key)
- AND NOT EXISTS(SELECT 1 FROM conversation_files WHERE object_key=OLD.object_key)
 BEGIN
     INSERT INTO attachment_cleanup(object_key,reserved_at) VALUES(OLD.object_key,0);
 END;
@@ -316,23 +306,11 @@ CREATE TRIGGER IF NOT EXISTS claim_message_attachments AFTER INSERT ON message_a
 BEGIN
     DELETE FROM attachment_cleanup WHERE object_key=NEW.object_key AND reserved_at>0;
 END;
-CREATE TRIGGER IF NOT EXISTS release_conversation_files AFTER DELETE ON conversation_files
-WHEN NOT EXISTS(SELECT 1 FROM message_attachments WHERE object_key=OLD.object_key)
- AND NOT EXISTS(SELECT 1 FROM bundle_items WHERE object_key=OLD.object_key)
- AND NOT EXISTS(SELECT 1 FROM conversation_files WHERE object_key=OLD.object_key)
-BEGIN
-    INSERT INTO attachment_cleanup(object_key,reserved_at) VALUES(OLD.object_key,0);
-END;
 CREATE TRIGGER IF NOT EXISTS release_bundle_file AFTER DELETE ON bundle_items
 WHEN OLD.object_key IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bundle_items WHERE object_key=OLD.object_key)
  AND NOT EXISTS(SELECT 1 FROM message_attachments WHERE object_key=OLD.object_key)
- AND NOT EXISTS(SELECT 1 FROM conversation_files WHERE object_key=OLD.object_key)
 BEGIN
     INSERT INTO attachment_cleanup(object_key,reserved_at) VALUES(OLD.object_key,0);
-END;
-CREATE TRIGGER IF NOT EXISTS claim_conversation_files AFTER INSERT ON conversation_files
-BEGIN
-    DELETE FROM attachment_cleanup WHERE object_key=NEW.object_key AND reserved_at>0;
 END;
 CREATE TRIGGER IF NOT EXISTS discard_deleted_message_attachment AFTER UPDATE OF deleted ON messages
 WHEN NEW.deleted=1 AND OLD.deleted=0
@@ -380,6 +358,22 @@ sqlite_error initialize_schema(sqlite_database& database)
     if (!transaction)
     {
         return transaction.error();
+    }
+    {
+        auto retired = database.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='conversation_files'");
+        if (!retired)
+        {
+            return retired.error();
+        }
+        auto found = retired->step();
+        if (!found)
+        {
+            return found.error();
+        }
+        if (*found)
+        {
+            return {SQLITE_SCHEMA, "Legacy group files require offline migration (ops/retire_group_files_server.sql)"};
+        }
     }
     if (auto error = database.exec(kSchema); error)
     {

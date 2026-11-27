@@ -76,9 +76,7 @@ class chat_session
     boost::capy::task<simdjson::error_code> handle_authenticate(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_contact_change(json_rpc_request& request, std::string& response);
-    boost::capy::task<simdjson::error_code> handle_conversation_file(json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> download_attachment(simdjson::ondemand::document& doc, json_rpc_request& request, std::string& response);
-    boost::capy::task<simdjson::error_code> complete_attachment(multipart_upload const& t, json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> grant_attachment_part(
         multipart_upload& t, int number, std::string_view etag, json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> handle_attachment(json_rpc_request& request, std::string& response);

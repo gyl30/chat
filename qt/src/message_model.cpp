@@ -168,7 +168,7 @@ void message_model::set_downloads(download_tasks& downloads)
                 }
                 for (auto const& source : sources)
                 {
-                    if (source.conversation == conversation_ && source.message && !source.item && source.key.isEmpty())
+                    if (source.conversation == conversation_ && source.message && !source.item)
                     {
                         notify_attachment(message_index(source.message));
                     }
@@ -336,15 +336,13 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             }
             return message.text;
         case download_status_role:
-            return downloads_ && message.attachment && !message.deleted ? downloads_->summary({message.conversation, message.id, 0, {}}) : QString{};
+            return downloads_ && message.attachment && !message.deleted ? downloads_->summary({message.conversation, message.id}) : QString{};
         case transfer_role:
             return QVariant::fromValue(downloads_ && message.attachment && !message.deleted
-                                           ? downloads_->transfer({message.conversation, message.id, 0, {}})
+                                           ? downloads_->transfer({message.conversation, message.id})
                                            : file_transfer{});
         case attachment_size_role:
             return message.attachment ? message.attachment->size : 0;
-        case attachment_key_role:
-            return message.attachment ? message.attachment->object_key : QString{};
         case attachment_name_role:
             return !message.deleted && message.attachment ? message.attachment->filename : QString{};
         case attachment_type_role:

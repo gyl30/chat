@@ -45,8 +45,6 @@ add_executable(client
     src/emoji_segments.hpp
     src/emoji_text.cpp
     src/emoji_text.hpp
-    src/group_files_page.cpp
-    src/group_files_page.hpp
     src/group_dialog.cpp
     src/group_dialog.hpp
     src/member_data.hpp
@@ -106,8 +104,6 @@ qt_add_resources(client chat_icons
         resources/icons/bell.svg
         resources/icons/image.svg
         resources/icons/file.svg
-        resources/icons/folder.svg
-        resources/icons/refresh.svg
         resources/icons/shield.svg
         resources/icons/palette.svg
         resources/icons/link.svg

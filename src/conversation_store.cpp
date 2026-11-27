@@ -693,7 +693,6 @@ std::expected<std::variant<std::vector<std::int64_t>, group_member_rejection>, s
                             "DELETE FROM group_join_requests WHERE conversation_id=?",
                             "DELETE FROM group_member_mutes WHERE conversation_id=?",
                             "DELETE FROM group_mutes WHERE conversation_id=?",
-                            "DELETE FROM conversation_files WHERE conversation_id=?",
                             "DELETE FROM messages WHERE conversation_id=?",
                             "DELETE FROM conversations WHERE id=?1 AND NOT EXISTS(SELECT 1 FROM attachment_uploads WHERE conversation=?1)"})
     {

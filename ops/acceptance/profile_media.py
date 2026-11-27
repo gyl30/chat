@@ -33,7 +33,7 @@ async def check(root, probe):
                 ]
 
                 async def upload(
-                    user, room, upload_id, kind, method="finish_attachment"
+                    user, room, upload_id, kind
                 ):
                     payload = b"isolated-category-" + str(upload_id).encode()
                     name = "image.png" if kind == "image/png" else "document.bin"
@@ -44,7 +44,7 @@ async def check(root, probe):
                         number=1,
                         etag=put(part["url"], payload),
                     )
-                    return await user.ok(method, upload=upload_id)
+                    return await user.ok("finish_attachment", upload=upload_id)
 
                 gate = Gate(url)
                 proxy = await stack.enter_async_context(
@@ -60,7 +60,7 @@ async def check(root, probe):
                 try:
                     gate.hold.add("get_messages")
                     await ui.call("group", id=group)
-                    await media("群文件")
+                    await media()
                     await until(
                         lambda: sum(
                             request["method"] == "get_messages"
@@ -85,52 +85,41 @@ async def check(root, probe):
                     )
                     gate.held.reverse()
                     await gate.release("get_messages")
-                    await media("图片", "群文件")
+                    await media("图片")
                     await b.ok(
                         "edit_message",
                         conversation=group,
                         message=plain,
                         text="Added https://example.com",
                     )
-                    await media("图片", "链接", "群文件")
+                    await media("图片", "链接")
                     file = (await upload(b, group, 83, "application/octet-stream"))[
                         "id"
                     ]
-                    await media("图片", "文件", "链接", "群文件")
+                    await media("图片", "文件", "链接")
 
                     extra = (await upload(b, group, 86, "image/png"))["id"]
                     gate.hold.add("get_messages")
                     await b.ok("delete_message", conversation=group, message=img)
                     await gate.caught("get_messages")
                     await gate.release("get_messages", error=True)
-                    # A failed image recheck has no bearing on confirmed files or links.
-                    await media("文件", "链接", "群文件")
-                    await media("图片", "文件", "链接", "群文件")
+                    # The recalled witness is invalid, but a transient failure must not
+                    # strand the category while another accessible image still exists.
+                    await media("文件", "链接")
+                    await media("图片", "文件", "链接")
                     await b.ok("delete_message", conversation=group, message=extra)
-                    await media("文件", "链接", "群文件")
+                    await media("文件", "链接")
                     await b.ok(
                         "edit_message",
                         conversation=group,
                         message=plain,
                         text="Only text again",
                     )
-                    await media("文件", "群文件")
-                    asset = await upload(
-                        b, group, 84, "application/octet-stream", "complete_file"
-                    )
-                    await b.ok(
-                        "add_conversation_file",
-                        conversation_id=group,
-                        object_key=asset["object_key"],
-                    )
+                    await media("文件")
                     await a.ok("clear_history", conversation=group, through=file)
-                    await media("群文件")
-                    assert (
-                        await a.ok("list_conversation_files", conversation_id=group)
-                    )["files"]
-
+                    await media()
                     old = await upload(b, group, 85, "image/png")
-                    await media("图片", "群文件")
+                    await media("图片")
                     await b.ok("invite_group_members", conversation=group, members=[3])
                     assert not (
                         await c.ok(
@@ -153,7 +142,7 @@ async def check(root, probe):
                     await b.ok("invite_group_members", conversation=group, members=[1])
                     await ui.wait("select", lambda r: r["ok"], conv=group)
                     await ui.call("group", id=group)
-                    await media("群文件")
+                    await media()
                     assert not (
                         await a.ok(
                             "get_messages",
@@ -179,7 +168,7 @@ async def check(root, probe):
                 finally:
                     await ui.stop()
     print(
-        "PASS shared entries: live per-category heads, errors, withdrawal, edits, clear, group assets, new membership and friend scope"
+        "PASS shared entries: live per-category heads, errors, withdrawal, edits, clear, new membership and friend scope"
     )
 
 
