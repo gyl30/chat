@@ -555,16 +555,31 @@ void group_dialog::setup_members(QVBoxLayout* members_layout)
     member_search_->setObjectName(QStringLiteral("groupMemberSearch"));
     member_search_->hide();
     members_layout->addWidget(member_search_);
+    auto reveal_search = [this]
+    {
+        // Showing the field or shrinking the filtered list changes the scroll range.
+        QTimer::singleShot(0,
+                           this,
+                           [this]
+                           {
+                               if (member_search_->isVisible() && member_search_->hasFocus())
+                               {
+                                   auto* last = members_empty_->isVisible() ? static_cast<QWidget*>(list_) : member_search_;
+                                   auto const bottom = last->mapTo(overview_scroll_->widget(), last->rect().bottomLeft());
+                                   overview_scroll_->ensureVisible(0, bottom.y(), 0, 6);
+                               }
+                           });
+    };
     connect(search,
             &QToolButton::toggled,
             this,
-            [this, search](bool on)
+            [this, search, reveal_search](bool on)
             {
                 if (on)
                 {
                     member_search_->show();
                     member_search_->setFocus(Qt::ShortcutFocusReason);
-                    overview_scroll_->ensureWidgetVisible(member_search_);
+                    reveal_search();
                 }
                 else
                 {
@@ -580,6 +595,7 @@ void group_dialog::setup_members(QVBoxLayout* members_layout)
     close_search->setContext(Qt::WidgetShortcut);
     connect(close_search, &QShortcut::activated, search, [search] { search->setChecked(false); });
     connect(member_search_, &QLineEdit::textChanged, this, &group_dialog::filter_members);
+    connect(member_search_, &QLineEdit::textChanged, this, reveal_search);
     members_layout->addWidget(list_);
     connect(list_,
             &QListWidget::currentItemChanged,
