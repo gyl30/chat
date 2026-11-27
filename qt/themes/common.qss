@@ -171,7 +171,6 @@ QMainWindow {
             border-radius: 8px;
             padding: 0 8px;
         }
-        QLabel#groupSelectedCount { color: ${text_secondary}; font-size: 13px; }
         QDialog#confirmationDialog QPushButton#confirmationActionButton {
             background: ${danger};
             color: ${on_accent};
@@ -234,10 +233,6 @@ QMainWindow {
         }
         QLabel#loginAvatar[empty="true"] {
             background: ${accent};
-        }
-        QLabel#authSubtitle {
-            color: ${text_secondary};
-            font-size: 13px;
         }
         QFrame#loginCard QLineEdit {
             min-height: 42px;
@@ -849,7 +844,7 @@ QLabel#snapshotAuthor { color: ${message_sender}; font-weight: bold; }
 QLabel#snapshotTime { color: ${text_secondary}; font-size: 12px; }
 QTextBrowser#snapshotBody { background: transparent; border: 0; padding: 0; }
 
-QLabel#pollFeedback, QLabel#pollSummary { color: ${text_secondary}; }
+QLabel#pollFeedback { color: ${text_secondary}; }
 
 QDialog[chatPopup="true"] {
     background: ${panel}; border: 1px solid ${border}; border-radius: 10px;
