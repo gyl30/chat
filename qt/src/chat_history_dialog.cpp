@@ -156,9 +156,8 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     auto* search = new QLineEdit(this);
     search->setObjectName(QStringLiteral("historySearchEdit"));
     style_search_field(*search);
-    search->setPlaceholderText(QStringLiteral("搜索"));
+    search->setPlaceholderText(QStringLiteral("搜索聊天记录"));
     search->setAccessibleName(QStringLiteral("搜索聊天记录"));
-    search->setClearButtonEnabled(true);
     layout->addWidget(search);
     tabs_ = new QTabBar(this);
     tabs_->setObjectName(QStringLiteral("historyTabs"));

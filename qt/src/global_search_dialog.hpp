@@ -38,6 +38,8 @@ class global_search_dialog final : public QDialog
 
    private:
     void search(qint64 before);
+    chat::message_search_filter search_filter() const;
+    void set_status(QString message = {});
     void filter_changed();
     void open_context(QTreeWidgetItem* item);
     void show_context(qint64 conversation, qint64 anchor, QString const& title);
@@ -57,6 +59,7 @@ class global_search_dialog final : public QDialog
     qint64 const self_;
     QLineEdit* query_;
     QWidget* header_;
+    QPushButton* submit_;
     QPushButton* toggle_filters_;
     QComboBox* period_;
     QWidget* filters_;
@@ -73,7 +76,6 @@ class global_search_dialog final : public QDialog
     quint64 sender_request_ = 0;
     bool submitted_ = false;
     QTreeWidget* results_;
-    QLabel* empty_query_hint_;
     QListView* context_;
     message_model* messages_;
     QPushButton* more_;

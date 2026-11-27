@@ -3,7 +3,6 @@
 #include "theme.hpp"
 
 #include <QClipboard>
-#include <QDialogButtonBox>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -67,21 +66,19 @@ message_search_dialog::message_search_dialog(
     input_->setObjectName(QStringLiteral("messageSearchEdit"));
     input_->setAccessibleName(QStringLiteral("消息搜索关键词"));
     style_search_field(*input_);
-    input_->setPlaceholderText(QStringLiteral("输入当前会话的关键词"));
+    input_->setPlaceholderText(QStringLiteral("搜索聊天记录"));
     input_->setMaxLength(256);
     auto* search_button = new QPushButton(QStringLiteral("搜索"), this);
     search_button->setObjectName(QStringLiteral("searchMessagesButton"));
     search_button->setProperty("primary", true);
     search_button->setAutoDefault(false);
-    search_button->setDefault(true);
+    search_button->setEnabled(false);
     search_row->addWidget(input_, 1);
     search_row->addWidget(search_button);
     layout->addLayout(search_row);
-    auto* help = new QLabel(QStringLiteral("不区分大小写。F3 / Shift+F3 浏览结果，Enter 跳转到聊天中的位置；消息被编辑后可重新搜索。"), this);
-    help->setObjectName(QStringLiteral("messageSearchHelp"));
-    help->setWordWrap(true);
-    layout->addWidget(help);
-    status_ = new QLabel(QStringLiteral("输入关键词后搜索。"), this);
+    status_ = new QLabel(this);
+    status_->setTextFormat(Qt::PlainText);
+    status_->hide();
     status_->setObjectName(QStringLiteral("messageSearchStatus"));
     status_->setWordWrap(true);
     layout->addWidget(status_);
@@ -105,11 +102,11 @@ message_search_dialog::message_search_dialog(
     layout->addWidget(results_, 1);
     more_button_ = new QPushButton(QStringLiteral("更早的结果"), this);
     more_button_->setObjectName(QStringLiteral("moreSearchResultsButton"));
-    more_button_->setEnabled(false);
-    auto* buttons = new QDialogButtonBox(this);
-    buttons->addButton(more_button_, QDialogButtonBox::ActionRole);
-    layout->addWidget(buttons);
+    more_button_->setAutoDefault(false);
+    more_button_->hide();
+    layout->addWidget(more_button_, 0, Qt::AlignRight);
     connect(search_button, &QPushButton::clicked, this, [this] { request_search(false); });
+    connect(input_, &QLineEdit::returnPressed, search_button, &QPushButton::click);
     auto const activate = [this](QModelIndex const& index)
     {
         auto const id = index.data(message_model::id_role).toLongLong();
@@ -142,7 +139,22 @@ message_search_dialog::message_search_dialog(
     connect(results_, &QListView::activated, this, activate);
     connect(results_, &QListView::doubleClicked, this, activate);
     connect(more_button_, &QPushButton::clicked, this, [this] { request_search(true); });
-    connect(input_, &QLineEdit::textChanged, this, [this] { more_button_->setEnabled(next_before_ > 0 && input_->text().trimmed() == query_); });
+    connect(input_, &QLineEdit::textChanged, this,
+            [this, search_button]
+            {
+                auto const text = input_->text().trimmed();
+                search_button->setEnabled(!text.isEmpty());
+                if (!query_.isEmpty() && text != query_)
+                {
+                    query_.clear();
+                    next_before_ = 0;
+                    visible_messages_->clear_hits();
+                    messages_->reset(conversation_, group_);
+                    more_button_->hide();
+                    status_->hide();
+                    refresh_count();
+                }
+            });
     connect(results_,
             &QListView::customContextMenuRequested,
             this,
@@ -173,18 +185,17 @@ void message_search_dialog::request_search(bool older)
 {
     if (!older)
     {
-        query_ = input_->text().trimmed();
-        if (query_.isEmpty())
+        auto text = input_->text().trimmed();
+        if (text.isEmpty())
         {
-            status_->setText(QStringLiteral("请输入关键词。"));
-            status_->show();
-            refresh_count();
             return;
         }
+        query_ = std::move(text);
         before_ = 0;
         next_before_ = 0;
-        messages_->reset(conversation_, group_);
         visible_messages_->clear_hits();
+        messages_->reset(conversation_, group_);
+        more_button_->hide();
     }
     else
     {
@@ -260,7 +271,9 @@ void message_search_dialog::set_results(qint64 conversation,
         messages_->end_page();
         status_->setText(error_message);
         status_->show();
-        more_button_->setEnabled(next_before_ > 0 && input_->text().trimmed() == query_);
+        more_button_->setEnabled(next_before_ > 0);
+        more_button_->setVisible(next_before_ > 0);
+        refresh_count();
         return;
     }
     auto const previous = selection();
@@ -281,8 +294,9 @@ void message_search_dialog::set_results(qint64 conversation,
     messages_->merge_messages(std::move(messages));
     messages_->set_read_positions(std::move(positions));
     next_before_ = has_more ? page_boundary : 0;
-    more_button_->setEnabled(next_before_ > 0 && input_->text().trimmed() == query_);
-    status_->setText(before == 0 && hits.isEmpty() ? QStringLiteral("没有匹配的消息。") : QString{});
+    more_button_->setEnabled(next_before_ > 0);
+    more_button_->setVisible(next_before_ > 0);
+    status_->setText(before == 0 && hits.isEmpty() ? QStringLiteral("未找到消息") : QString{});
     status_->setVisible(!status_->text().isEmpty());
     restore_selection(previous);
     refresh_count();
@@ -352,6 +366,11 @@ void message_search_dialog::restore_selection(selection_state const& previous)
 void message_search_dialog::refresh_count()
 {
     auto const count = visible_messages_->rowCount();
-    count_->setText(count > 0 ? QStringLiteral("已加载 %1 条搜索时命中的消息").arg(count) : QStringLiteral("没有已加载的搜索命中；可重新搜索。"));
-    count_->setVisible(count > 0 || status_->isHidden());
+    if (!count && !query_.isEmpty() && status_->isHidden())
+    {
+        status_->setText(QStringLiteral("未找到消息"));
+        status_->show();
+    }
+    count_->setText(QStringLiteral("已加载 %1 条").arg(count));
+    count_->setVisible(count > 0 && status_->isHidden());
 }

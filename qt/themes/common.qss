@@ -106,8 +106,8 @@ QMainWindow {
             color: ${text};
         }
         QLabel#groupOverviewCount, QLabel#groupOverviewPinned, QLabel#groupOverviewInvite,
-        QLabel#groupDetailHint, QLabel#groupJoinRequestsStatus, QLabel#groupStatus,
-        QLabel#messageSearchStatus, QLabel#messageSearchHelp, QLabel#messageSearchCount, QLabel#attachmentStatus {
+        QLabel#groupJoinRequestsStatus, QLabel#groupStatus,
+        QLabel#messageSearchStatus, QLabel#messageSearchCount, QLabel#attachmentStatus {
             font-size: 13px;
             color: ${text_secondary};
         }

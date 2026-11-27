@@ -411,14 +411,9 @@ void group_dialog::setup_members(QVBoxLayout* outer)
                     }
                 });
     }
-    auto* member_hint = new QLabel(QStringLiteral("群主和管理员排列在前；右键查看成员操作。最多 3 名管理员，由群主任免。"), members_page);
-    member_hint->setObjectName(QStringLiteral("groupDetailHint"));
-    member_hint->setContentsMargins(chat_theme::dialog_padding, 16, chat_theme::dialog_padding, 8);
-    member_hint->setWordWrap(true);
-    members_layout->addWidget(member_hint);
     member_search_ = new QLineEdit(members_page);
     style_search_field(*member_search_);
-    member_search_->setPlaceholderText(QStringLiteral("搜索用户名、昵称或备注"));
+    member_search_->setPlaceholderText(QStringLiteral("搜索成员"));
     member_search_->setObjectName(QStringLiteral("groupMemberSearch"));
     members_layout->addWidget(member_search_);
     connect(member_search_, &QLineEdit::textChanged, this, &group_dialog::filter_members);
@@ -838,7 +833,7 @@ void group_dialog::connect_group_settings()
                 if (!invite_edit_->text().isEmpty())
                 {
                     QGuiApplication::clipboard()->setText(invite_edit_->text());
-                    status_->setText(QStringLiteral("已复制邀请码。发给朋友后，对方在「+ → 加入群聊」中输入即可加入。"));
+                    status_->setText(QStringLiteral("邀请码已复制"));
                     update_actions();
                     return;
                 }
@@ -1154,7 +1149,7 @@ void group_dialog::set_invite(qint64 conversation, QString const& token, QString
     if (std::exchange(copy_after_create_, false) && !token.isEmpty())
     {
         QGuiApplication::clipboard()->setText(invite_edit_->text());
-        status_->setText(QStringLiteral("已生成并复制邀请码。发给朋友后，对方在「+ → 加入群聊」中输入即可加入。"));
+        status_->setText(QStringLiteral("邀请码已复制"));
     }
     update_actions();
 }

@@ -60,7 +60,6 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
     search_ = new QLineEdit(this);
     style_search_field(*search_);
     search_->setPlaceholderText(QStringLiteral("搜索文件名"));
-    search_->setClearButtonEnabled(true);
     auto* reload = new QPushButton(QStringLiteral("刷新"), this);
     filters->addWidget(category_);
     filters->addWidget(search_, 1);

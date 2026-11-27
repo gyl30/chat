@@ -27,7 +27,7 @@ create_group_dialog::create_group_dialog(QWidget* parent) : QDialog(parent)
     layout->addWidget(new QLabel(QStringLiteral("群名称"), this));
     title_ = new QLineEdit(this);
     title_->setObjectName(QStringLiteral("newGroupTitleEdit"));
-    title_->setPlaceholderText(QStringLiteral("输入群名称"));
+    title_->setPlaceholderText(QStringLiteral("群名称"));
     layout->addWidget(title_);
     auto* columns = new QHBoxLayout;
     auto* available = new QVBoxLayout;
@@ -109,7 +109,7 @@ void create_group_dialog::update_selection()
         chip->setSizeHint(QSize(0, 40));
         ++count;
     }
-    selected_count_->setText(QStringLiteral("已选 %1 位好友 · 点击姓名取消").arg(count));
+    selected_count_->setText(QStringLiteral("已选 %1 人").arg(count));
     proceed_->setEnabled(count > 0 && chat::valid_group_title(title_->text().toUtf8().toStdString()));
 }
 

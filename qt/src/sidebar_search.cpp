@@ -272,7 +272,7 @@ void sidebar_search::restart()
     debounce_.stop();
     hits_->clear();
     more_->hide();
-    if (!input_.text().isEmpty())
+    if (!input_.text().trimmed().isEmpty())
     {
         debounce_.start();
     }

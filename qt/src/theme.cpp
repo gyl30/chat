@@ -202,6 +202,7 @@ void frame_dialog(QDialog& dialog, bool resizable)
 void style_search_field(QLineEdit& field)
 {
     field.setProperty("searchField", true);
+    field.setClearButtonEnabled(true);
     auto* action = field.addAction(QIcon{}, QLineEdit::LeadingPosition);
     auto recolor = [action] { action->setIcon(svg_icon(u"search", themed("text_muted"), {16, 16})); };
     recolor();

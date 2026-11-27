@@ -54,6 +54,11 @@ QString search_snippet(QString const& body, QString const& query)
     auto const start = std::max<qsizetype>(0, (match.begin() - text.begin()) - 32);
     return QString::fromUcs4(original.data() + start, std::min<qsizetype>(160, std::ssize(original) - start));
 }
+bool has_criteria(chat::message_search_filter const& filter)
+{
+    return !filter.query.empty() || filter.conversation || filter.category != chat::message_category::all || filter.sender || filter.start ||
+           filter.end || filter.mentions_me;
+}
 }    // namespace
 
 global_search_dialog::global_search_dialog(
@@ -66,18 +71,17 @@ global_search_dialog::global_search_dialog(
     frame_dialog(*this);
     query_ = new QLineEdit(this);
     style_search_field(*query_);
-    query_->setPlaceholderText(QStringLiteral("输入关键词，按回车搜索全部聊天记录"));
+    query_->setPlaceholderText(QStringLiteral("搜索聊天记录"));
     query_->setObjectName(QStringLiteral("globalSearchQuery"));
-    query_->setClearButtonEnabled(true);
     query_->setText(query);
     header_ = new QWidget(this);
     auto* header = new QHBoxLayout(header_);
     header->setContentsMargins(0, 0, 0, 0);
     header->addWidget(query_, 1);
-    auto* submit = new QPushButton(QStringLiteral("搜索"), header_);
-    submit->setObjectName(QStringLiteral("submitGlobalSearch"));
-    submit->setProperty("primary", true);
-    header->addWidget(submit);
+    submit_ = new QPushButton(QStringLiteral("搜索"), header_);
+    submit_->setObjectName(QStringLiteral("submitGlobalSearch"));
+    submit_->setProperty("primary", true);
+    header->addWidget(submit_);
     toggle_filters_ = new QPushButton(QStringLiteral("筛选条件"), header_);
     toggle_filters_->setObjectName(QStringLiteral("toggleSearchFilters"));
     toggle_filters_->setCheckable(true);
@@ -119,7 +123,7 @@ global_search_dialog::global_search_dialog(
                     sender_request_ = client_.find_search_senders(text);
                 }
             });
-    submit->setAutoDefault(false);
+    submit_->setAutoDefault(false);
     start_enabled_ = new QCheckBox(QStringLiteral("起始日"), filters_);
     end_enabled_ = new QCheckBox(QStringLiteral("结束日"), filters_);
     mentions_me_ = new QCheckBox(QStringLiteral("提及我"), filters_);
@@ -193,7 +197,7 @@ global_search_dialog::global_search_dialog(
     {
         connect(box, &QComboBox::currentIndexChanged, this, &global_search_dialog::filter_changed);
     }
-    connect(submit, &QPushButton::clicked, this, [this] { search(0); });
+    connect(submit_, &QPushButton::clicked, this, [this] { search(0); });
     back_ = new QPushButton(QStringLiteral("返回搜索结果"), this);
     back_->setAutoDefault(false);
     layout->addWidget(back_, 0, Qt::AlignLeft);
@@ -203,12 +207,6 @@ global_search_dialog::global_search_dialog(
     results_->header()->setStretchLastSection(false);
     results_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     results_->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-    auto* hint_layout = new QGridLayout(results_->viewport());
-    hint_layout->setContentsMargins(0, 0, 0, 0);
-    empty_query_hint_ = new QLabel(QStringLiteral("输入关键词或设置筛选条件"), results_->viewport());
-    empty_query_hint_->setObjectName(QStringLiteral("subtleText"));
-    empty_query_hint_->setAttribute(Qt::WA_TransparentForMouseEvents);
-    hint_layout->addWidget(empty_query_hint_, 0, 0, Qt::AlignCenter);
     layout->addWidget(results_);
     context_ = new QListView(this);
     context_->setObjectName(QStringLiteral("searchContextMessages"));
@@ -247,7 +245,7 @@ global_search_dialog::global_search_dialog(
                 {
                     if (!submitted_)
                     {
-                        status_->setText(error);
+                        set_status(error);
                     }
                     return;
                 }
@@ -276,7 +274,7 @@ global_search_dialog::global_search_dialog(
                 }
                 if (!error.isEmpty() || users.isEmpty())
                 {
-                    status_->setText(error.isEmpty() ? QStringLiteral("没有匹配的发送者") : error);
+                    set_status(error.isEmpty() ? QStringLiteral("没有匹配的发送者") : error);
                     return;
                 }
                 for (auto const& user : users)
@@ -396,11 +394,12 @@ void global_search_dialog::show_results()
     context_->hide();
     back_->hide();
     header_->show();
-    empty_query_hint_->setVisible(!submitted_);
+    submit_->setEnabled(has_criteria(search_filter()));
+    results_->setHeaderHidden(!submitted_);
     filters_->setVisible(toggle_filters_->isChecked());
     results_->show();
     more_->setVisible(next_before_ != 0);
-    status_->clear();
+    set_status();
 }
 
 void global_search_dialog::filter_changed()
@@ -410,6 +409,45 @@ void global_search_dialog::filter_changed()
     submitted_ = false;
     mention_checks_.clear();
     show_results();
+}
+
+void global_search_dialog::set_status(QString message)
+{
+    status_->setText(std::move(message));
+    status_->setVisible(!status_->text().isEmpty());
+}
+
+chat::message_search_filter global_search_dialog::search_filter() const
+{
+    auto id = [](QComboBox const* box) -> std::optional<std::int64_t>
+    {
+        auto const value = box->currentData().toLongLong();
+        return value > 0 ? std::optional<std::int64_t>{value} : std::nullopt;
+    };
+    auto const query = query_->text();
+    chat::message_search_filter filter{query.trimmed().isEmpty() ? std::string{} : query.toStdString(),
+                                      id(conversation_),
+                                      static_cast<chat::message_category>(category_->currentIndex()),
+                                      id(sender_),
+                                      {},
+                                      {},
+                                      mentions_me_->isChecked()};
+    auto const period = period_->currentIndex();
+    if (period == 1 || period == 2)
+    {
+        auto const today = QDate::currentDate();
+        filter.start = today.addDays(period == 1 ? -6 : -29).startOfDay().toMSecsSinceEpoch();
+        filter.end = today.addDays(1).startOfDay().toMSecsSinceEpoch();
+    }
+    if (period == 3 && start_enabled_->isChecked())
+    {
+        filter.start = start_date_->date().startOfDay().toMSecsSinceEpoch();
+    }
+    if (period == 3 && end_enabled_->isChecked())
+    {
+        filter.end = end_date_->date().addDays(1).startOfDay().toMSecsSinceEpoch();
+    }
+    return filter;
 }
 
 void global_search_dialog::search(qint64 before)
@@ -422,51 +460,25 @@ void global_search_dialog::search(qint64 before)
     if (!before)
     {
         filter_changed();
-        auto id = [](QComboBox const* box) -> std::optional<std::int64_t>
-        {
-            auto const value = box->currentData().toLongLong();
-            return value ? std::optional<std::int64_t>{value} : std::nullopt;
-        };
-        submitted_filter_ = {query_->text().toStdString(),
-                             id(conversation_),
-                             static_cast<chat::message_category>(category_->currentIndex()),
-                             id(sender_),
-                             {},
-                             {},
-                             mentions_me_->isChecked()};
-        auto const period = period_->currentIndex();
-        if (period == 1 || period == 2)
-        {
-            submitted_filter_.start = QDate::currentDate().addDays(period == 1 ? -6 : -29).startOfDay().toMSecsSinceEpoch();
-            submitted_filter_.end = QDate::currentDate().addDays(1).startOfDay().toMSecsSinceEpoch();
-        }
-        if (period == 3 && start_enabled_->isChecked())
-        {
-            submitted_filter_.start = start_date_->date().startOfDay().toMSecsSinceEpoch();
-        }
-        if (period == 3 && end_enabled_->isChecked())
-        {
-            submitted_filter_.end = end_date_->date().addDays(1).startOfDay().toMSecsSinceEpoch();
-        }
+        submitted_filter_ = search_filter();
         auto const& filter = submitted_filter_;
         if (filter.start && filter.end && *filter.start >= *filter.end)
         {
-            status_->setText(QStringLiteral("结束日不能早于起始日"));
+            set_status(QStringLiteral("结束日不能早于起始日"));
             return;
         }
-        if (filter.query.empty() && !filter.conversation && filter.category == chat::message_category::all && !filter.sender && !filter.start &&
-            !filter.end && !filter.mentions_me)
+        if (!has_criteria(filter))
         {
             return;
         }
         submitted_ = true;
-        empty_query_hint_->hide();
+        results_->setHeaderHidden(false);
     }
     else
     {
         show_results();
     }
-    status_->setText(QStringLiteral("正在搜索…"));
+    set_status(QStringLiteral("正在搜索…"));
     more_->hide();
     request_ = client_.search_all_messages(submitted_filter_, before);
 }
@@ -505,7 +517,7 @@ void global_search_dialog::show_context(qint64 conversation, qint64 anchor, QStr
     messages_->begin_page();
     context_->show();
     back_->setVisible(!standalone_);
-    status_->setText(QStringLiteral("正在定位消息…"));
+    set_status(QStringLiteral("正在定位消息…"));
     request_ = client_.get_search_context(conversation, anchor);
 }
 
@@ -547,7 +559,7 @@ void global_search_dialog::set_page(quint64 id, chat::message_search_page const&
             insert_hit(page.messages.front(), QString::fromStdString(page.messages.front().snippet));
             if (status_->text() == QStringLiteral("没有找到相关消息"))
             {
-                status_->clear();
+                set_status();
             }
         }
         return;
@@ -557,7 +569,7 @@ void global_search_dialog::set_page(quint64 id, chat::message_search_page const&
         return;
     }
     request_ = 0;
-    status_->setText(error);
+    set_status(error);
     if (error.isEmpty())
     {
         for (auto const& hit : page.messages)
@@ -592,10 +604,10 @@ void global_search_dialog::set_context(
     if (!error.isEmpty())
     {
         messages_->end_page();
-        status_->setText(error);
+        set_status(error);
         return;
     }
-    status_->clear();
+    set_status();
     messages_->merge_messages(messages);
     messages_->set_read_positions(positions);
     auto const hits = messages_->match(messages_->index(0), message_model::id_role, anchor, 1, Qt::MatchExactly);
@@ -624,7 +636,7 @@ void global_search_dialog::remove_scope(qint64 conversation)
         request_ = 0;
         next_before_ = 0;
         more_->hide();
-        status_->setText(QStringLiteral("原会话不可用"));
+        set_status(QStringLiteral("原会话不可用"));
     }
 }
 
@@ -675,7 +687,7 @@ void global_search_dialog::context_unavailable()
     request_ = 0;
     context_conversation_ = context_anchor_ = 0;
     messages_->reset(0);
-    status_->setText(QStringLiteral("消息不可用"));
+    set_status(QStringLiteral("消息不可用"));
     if (anchor_unavailable_)
     {
         auto unavailable = std::move(anchor_unavailable_);
@@ -687,7 +699,7 @@ void global_search_dialog::show_empty_result()
 {
     if (!results_->topLevelItemCount() && !request_ && !next_before_ && context_->isHidden() && status_->text().isEmpty() && submitted_)
     {
-        status_->setText(QStringLiteral("没有找到相关消息"));
+        set_status(QStringLiteral("没有找到相关消息"));
     }
 }
 

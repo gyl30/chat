@@ -332,7 +332,6 @@ QWidget* chat_widget::create_sidebar()
     conversation_search_ = new QLineEdit(conversation_header);
     conversation_search_->setObjectName(QStringLiteral("conversationSearchEdit"));
     conversation_search_->setPlaceholderText(QStringLiteral("搜索"));
-    conversation_search_->setClearButtonEnabled(true);
     conversation_search_->setAccessibleName(QStringLiteral("搜索聊天"));
     style_search_field(*conversation_search_);
     conversation_header_layout->addWidget(conversation_search_, 1);
@@ -433,7 +432,7 @@ QWidget* chat_widget::create_sidebar()
                 QInputDialog dialog(this);
                 dialog.setObjectName(QStringLiteral("joinGroupDialog"));
                 dialog.setWindowTitle(QStringLiteral("加入群聊"));
-                dialog.setLabelText(QStringLiteral("输入群主或管理员分享的邀请码"));
+                dialog.setLabelText(QStringLiteral("邀请码"));
                 dialog.setInputMode(QInputDialog::TextInput);
                 dialog.setOkButtonText(QStringLiteral("加入"));
                 dialog.setCancelButtonText(QStringLiteral("取消"));
@@ -452,7 +451,6 @@ QWidget* chat_widget::create_sidebar()
                 }
                 auto* input = dialog.findChild<QLineEdit*>();
                 input->setMinimumWidth(chat_theme::dialog_small_width - 2 * chat_theme::dialog_padding);
-                input->setPlaceholderText(QStringLiteral("输入邀请码"));
                 input->setAccessibleName(QStringLiteral("邀请码"));
                 auto* ok = buttons->button(QDialogButtonBox::Ok);
                 ok->setEnabled(false);
@@ -464,7 +462,7 @@ QWidget* chat_widget::create_sidebar()
                             auto const valid = chat::normalize_invite_token(text.toStdString()).has_value();
                             ok->setEnabled(valid);
                             dialog.setLabelText(!text.isEmpty() && !valid ? QStringLiteral("邀请码格式不正确，请检查后重试")
-                                                                          : QStringLiteral("输入群主或管理员分享的邀请码"));
+                                                                          : QStringLiteral("邀请码"));
                         });
                 if (dialog.exec() != QDialog::Accepted || !connection_available_)
                 {
@@ -530,7 +528,7 @@ void chat_widget::setup_unified_search(client_bridge& client)
     connect(panel, &sidebar_search::more_requested, this, [this](QString query) { emit global_search_requested(std::move(query), true); });
     auto update = [this, rooms, panel]
     {
-        auto const empty = conversation_search_->text().isEmpty();
+        auto const empty = conversation_search_->text().trimmed().isEmpty();
         rooms->setVisible(empty);
         panel->setVisible(!empty);
     };
@@ -833,8 +831,6 @@ void chat_widget::setup_contacts_dialog()
     contact_search_->setObjectName(QStringLiteral("userSearchEdit"));
     contact_search_->setPlaceholderText(QStringLiteral("搜索好友"));
     contact_search_->setAccessibleName(QStringLiteral("搜索好友"));
-    contact_search_->setToolTip(QStringLiteral("搜索已确认的好友，按 Enter 选择结果"));
-    contact_search_->setClearButtonEnabled(false);
     style_search_field(*contact_search_);
     auto* contact_search_layout = new QHBoxLayout;
     contact_search_layout->setContentsMargins(16, 2, 16, 4);
@@ -1206,23 +1202,28 @@ void chat_widget::setup_add_contact_dialog()
     add_contact_dialog_->setWindowModality(Qt::WindowModal);
     add_contact_dialog_->setMinimumWidth(420);
     auto* add_contacts_layout = new QVBoxLayout(add_contact_dialog_);
-    add_contacts_layout->setContentsMargins(0, 0, 0, 0);
+    add_contacts_layout->setContentsMargins(16, 4, 16, 16);
     add_contacts_layout->setSpacing(12);
     frame_dialog(*add_contact_dialog_, false);
     add_user_search_ = new QLineEdit(add_contact_dialog_);
     add_user_search_->setObjectName(QStringLiteral("userSearchEdit"));
-    add_user_search_->setPlaceholderText(QStringLiteral("搜索用户名或昵称"));
+    add_user_search_->setPlaceholderText(QStringLiteral("用户名或昵称"));
     add_user_search_->setAccessibleName(QStringLiteral("搜索用户"));
-    add_user_search_->setClearButtonEnabled(true);
     style_search_field(*add_user_search_);
     auto* add_search_layout = new QHBoxLayout;
-    add_search_layout->setContentsMargins(18, 0, 18, 0);
-    add_search_layout->addWidget(add_user_search_);
+    add_search_layout->addWidget(add_user_search_, 1);
+    add_search_button_ = new QPushButton(QStringLiteral("搜索"), add_contact_dialog_);
+    add_search_button_->setObjectName(QStringLiteral("addContactSearchButton"));
+    add_search_button_->setProperty("primary", true);
+    add_search_button_->setAutoDefault(false);
+    add_search_button_->setEnabled(false);
+    add_search_layout->addWidget(add_search_button_);
     add_contacts_layout->addLayout(add_search_layout);
-    add_users_status_ = new QLabel(QStringLiteral("输入用户名后按 Enter 查找"), add_contact_dialog_);
+    add_users_status_ = new QLabel(add_contact_dialog_);
+    add_users_status_->setTextFormat(Qt::PlainText);
     add_users_status_->setWordWrap(true);
     add_users_status_->setObjectName(QStringLiteral("addUsersStatus"));
-    add_users_status_->setContentsMargins(18, 8, 14, 8);
+    add_users_status_->hide();
     add_contacts_layout->addWidget(add_users_status_);
 
     add_users_ = new user_model(this, &avatars_);
@@ -1247,7 +1248,7 @@ void chat_widget::setup_add_contact_dialog()
                                                          case chat::friendship_state::outgoing_pending:
                                                              return QStringLiteral("已发出申请，等待对方确认");
                                                          default:
-                                                             return QStringLiteral("添加好友后可发送消息");
+                                                             return QString{};
                                                      }
                                                  });
     add_users_view_->setItemDelegate(add_users_delegate);
@@ -1259,15 +1260,8 @@ void chat_widget::setup_add_contact_dialog()
     add_users_view_->verticalScrollBar()->setSingleStep(24);
     add_users_view_->hide();
     add_contacts_layout->addWidget(add_users_view_);
-    auto* add_buttons = new QDialogButtonBox(add_contact_dialog_);
-    add_buttons->setContentsMargins(18, 0, 18, 16);
-    add_search_button_ = add_buttons->addButton(QStringLiteral("搜索"), QDialogButtonBox::ActionRole);
-    add_search_button_->setObjectName(QStringLiteral("addContactSearchButton"));
-    add_search_button_->setProperty("primary", true);
-    add_search_button_->setDefault(true);
-    add_search_button_->setEnabled(false);
-    add_contacts_layout->addWidget(add_buttons);
-    connect(add_search_button_, &QPushButton::clicked, this, [this] { search_users(); });
+    connect(add_search_button_, &QPushButton::clicked, this, &chat_widget::search_users);
+    connect(add_user_search_, &QLineEdit::returnPressed, add_search_button_, &QPushButton::click);
     connect(add_user_search_,
             &QLineEdit::textChanged,
             this,
@@ -1276,10 +1270,8 @@ void chat_widget::setup_add_contact_dialog()
                 ++add_search_request_;
                 add_users_->set_users({});
                 add_users_view_->hide();
-                add_users_status_->setText(connection_available_ ? QStringLiteral("输入用户名后按 Enter 或点击搜索")
-                                                                 : QStringLiteral("当前离线，连接恢复后可搜索用户"));
                 add_search_button_->setEnabled(connection_available_ && !add_user_search_->text().trimmed().isEmpty());
-                add_contact_dialog_->adjustSize();
+                set_add_contact_status(connection_available_ ? QString{} : QStringLiteral("当前离线"));
             });
     connect(add_contact_dialog_, &QDialog::finished, this, [this] { ++add_search_request_; });
     connect(add_users_delegate,
@@ -2680,7 +2672,7 @@ void chat_widget::set_user(QString const& username, qint64 user, QString const& 
     contacts_status_->setText(QStringLiteral("暂无好友"));
     add_users_->set_users({});
     add_user_search_->clear();
-    add_users_status_->setText(QStringLiteral("输入用户名后按 Enter 查找"));
+    set_add_contact_status();
     show_conversations_section();
     update_chat_header({});
     set_message_status({});
@@ -3162,11 +3154,11 @@ void chat_widget::set_connection_available(bool available)
         ++add_search_request_;
         add_users_->set_users({});
         add_users_view_->hide();
-        add_users_status_->setText(QStringLiteral("当前离线，连接恢复后可搜索用户"));
+        set_add_contact_status(QStringLiteral("当前离线"));
     }
     else if (add_users_->rowCount() == 0)
     {
-        add_users_status_->setText(QStringLiteral("输入用户名后按 Enter 或点击搜索"));
+        set_add_contact_status();
     }
 }
 
@@ -3379,12 +3371,11 @@ void chat_widget::set_add_contact_search_results(QList<user_data> users, quint64
         return;
     }
     add_users_->set_users(std::move(users));
-    add_users_status_->setText(add_users_->rowCount() == 0
-                                   ? QStringLiteral("没有找到用户名以“%1”开头的用户，请确认用户名").arg(add_user_search_->text().trimmed())
-                                   : QStringLiteral("选择用户查看资料和好友状态"));
-    add_users_view_->setVisible(add_users_->rowCount() > 0);
-    add_users_view_->setFixedHeight(std::min(add_users_->rowCount(), 6) * chat_theme::user_row_height);
-    add_contact_dialog_->adjustSize();
+    auto const count = add_users_->rowCount();
+    add_users_view_->setFixedHeight(std::min(count, 6) * chat_theme::user_row_height);
+    add_users_view_->setVisible(count > 0);
+    add_search_button_->setEnabled(true);
+    set_add_contact_status(count ? QString{} : QStringLiteral("未找到用户"));
 }
 
 void chat_widget::set_add_contact_search_error(QString message, quint64 request)
@@ -3395,8 +3386,8 @@ void chat_widget::set_add_contact_search_error(QString message, quint64 request)
     }
     add_users_->set_users({});
     add_users_view_->hide();
-    add_users_status_->setText(std::move(message));
-    add_contact_dialog_->adjustSize();
+    add_search_button_->setEnabled(true);
+    set_add_contact_status(std::move(message));
 }
 
 void chat_widget::finish_add_contact(qint64 user, QString error)
@@ -3968,9 +3959,7 @@ void chat_widget::show_add_contact_dialog()
     add_user_search_->clear();
     add_users_->set_users({});
     add_users_view_->hide();
-    add_users_status_->setText(connection_available_ ? QStringLiteral("输入用户名后按 Enter 或点击搜索")
-                                                     : QStringLiteral("当前离线，连接恢复后可搜索用户"));
-    add_contact_dialog_->adjustSize();
+    set_add_contact_status(connection_available_ ? QString{} : QStringLiteral("当前离线"));
     add_contact_dialog_->open();
     add_user_search_->setFocus();
 }
@@ -3986,25 +3975,24 @@ void chat_widget::filter_contacts(QString const& query)
     contacts_status_->setVisible(!contacts_status_->text().isEmpty());
 }
 
+void chat_widget::set_add_contact_status(QString message)
+{
+    add_users_status_->setText(std::move(message));
+    add_users_status_->setVisible(!add_users_status_->text().isEmpty());
+    add_contact_dialog_->adjustSize();
+}
+
 void chat_widget::search_users()
 {
-    if (!connection_available_)
+    if (!add_search_button_->isEnabled())
     {
         return;
     }
-
-    auto const query = add_user_search_->text().trimmed();
-    if (query.isEmpty())
-    {
-        add_users_->set_users({});
-        add_users_status_->setText(QStringLiteral("输入用户名后按 Enter 查找"));
-        return;
-    }
-
-    add_users_status_->setText(QStringLiteral("正在搜索…"));
+    add_search_button_->setEnabled(false);
     add_users_->set_users({});
     add_users_view_->hide();
-    emit add_contact_search_requested(query, ++add_search_request_);
+    set_add_contact_status(QStringLiteral("正在搜索…"));
+    emit add_contact_search_requested(add_user_search_->text().trimmed(), ++add_search_request_);
 }
 
 void chat_widget::select_contact(QModelIndex const& index)
@@ -4623,7 +4611,7 @@ void chat_widget::update_pinned_message()
         auto const summary =
             QStringLiteral("置顶消息 · %1：%2").arg(item->pinned_message.username, grapheme_prefix(item->pinned_message.text.simplified(), 80));
         pinned_message_button_->setText(QString(summary).replace(QLatin1Char('&'), QStringLiteral("&&")));
-        pinned_message_button_->setToolTip(summary + QStringLiteral("\n点击定位到这条消息。"));
+        pinned_message_button_->setToolTip(summary);
     }
 }
 

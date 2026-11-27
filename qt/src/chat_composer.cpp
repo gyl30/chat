@@ -199,6 +199,7 @@ void chat_widget::setup_attachment_menu()
                                                      emit create_poll_requested(active_conversation_);
                                                  }
                                              });
+    poll->setObjectName(QStringLiteral("createPollAction"));
     auto update_icons = [file, poll]
     {
         file->setIcon(svg_icon(u"attach", themed("text_secondary"), {18, 18}));

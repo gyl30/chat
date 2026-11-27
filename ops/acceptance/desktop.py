@@ -157,7 +157,54 @@ class Desktop:
             await self.proc.wait()
 
 
+async def sidebar_search_cases(ui, gate, sender, conversation):
+    buckets = {}
+    for size in (4, 5, 6):
+        query = f"侧栏{size}条"
+        ids = []
+        for n in range(size):
+            reply = await sender.ok(
+                "send_message",
+                conversation=conversation,
+                text=f"{query} {n}",
+                client_id=7000 + size * 10 + n,
+            )
+            ids.append(reply["id"])
+        buckets[query] = ids[::-1]
+
+    for query, ids in buckets.items():
+        start = len(gate.messages)
+        await ui.call("sidebar_search", query=query)
+        state = await ui.wait("sidebar_search", lambda r: r["ids"] == ids[:5])
+        assert state["more"] == (len(ids) > 5), state
+        assert not state["rooms"], state
+        assert sum(
+            request["method"] == "search_all_messages"
+            for request in gate.messages[start:]
+        ) == 1
+
+    query = "侧栏6条"
+    await ui.call("sidebar_search", open=True)
+    await ui.wait("searchui", lambda r: r.get("ids") == buckets[query])
+    await ui.call("searchui", close=True)
+    state = await ui.call("sidebar_search")
+    assert state["query"] == query and state["ids"] == buckets[query][:5], state
+
+    gate.hold.add("search_all_messages")
+    try:
+        await ui.call("sidebar_search", query="侧栏4条")
+        await gate.caught("search_all_messages")
+        state = await ui.call("sidebar_search", query="")
+        assert state["rooms"] and not state["ids"] and not state["more"], state
+    finally:
+        await gate.release("search_all_messages")
+    state = await ui.call("sidebar_search")
+    assert state["rooms"] and not state["ids"] and not state["more"], state
+    print("PASS sidebar preview limits, newest-first IDs, automatic full search and late-response isolation")
+
+
 async def search_cases(ui, gate, a, b, g):
+    await sidebar_search_cases(ui, gate, b, g)
     ids = []
     for n in range(102):
         ids.append((await b.ok("send_message", conversation=g, text=f"事务回归 {n}", client_id=100 + n))["id"])

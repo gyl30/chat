@@ -292,6 +292,7 @@ class chat_widget final : public QWidget
     void show_add_contact_dialog();
     void filter_contacts(QString const& query);
     void search_users();
+    void set_add_contact_status(QString message = {});
     void select_contact(QModelIndex const& index);
     void request_friend_action(qint64 user, QString const& username, int action);
     QString folder_settings_key_;

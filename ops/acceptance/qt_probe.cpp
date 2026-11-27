@@ -1103,7 +1103,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         }
         if (cmd["create"].toBool())
         {
-            QTimer::singleShot(0, chat->create_poll_action_, &QAction::trigger);
+            QTimer::singleShot(0, chat->findChild<QAction*>("createPollAction"), &QAction::trigger);
         }
         if (cmd.contains("open"))
         {
@@ -1767,6 +1767,36 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 break;
             }
         }
+    }
+    else if (op == "sidebar_search")
+    {
+        auto* input = window.findChild<QLineEdit*>("conversationSearchEdit");
+        auto* more = window.findChild<QPushButton*>("sidebarMoreResults");
+        if (cmd.contains("query"))
+        {
+            input->setText(cmd["query"].toString());
+        }
+        if (cmd["open"].toBool() && more && more->isVisible())
+        {
+            QTimer::singleShot(0, more, &QPushButton::click);
+        }
+        auto* hits = window.findChild<QListWidget*>("sidebarMessageHits");
+        QJsonArray ids;
+        if (hits->isVisible())
+        {
+            for (int row = 0; row < hits->count(); ++row)
+            {
+                auto const id = hits->item(row)->data(Qt::UserRole + 1).toLongLong();
+                if (id)
+                {
+                    ids.append(id);
+                }
+            }
+        }
+        out["ids"] = ids;
+        out["more"] = more && more->isVisible();
+        out["rooms"] = conv->isVisible();
+        out["query"] = input->text();
     }
     else if (op == "filter")
     {
