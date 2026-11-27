@@ -363,15 +363,4 @@ QColor theme_manager::avatar_background(quint64 seed) const
     return avatars_.isEmpty() ? QColor() : avatars_.at(static_cast<qsizetype>(seed % static_cast<quint64>(avatars_.size())));
 }
 
-QString theme_manager::style_sheet(QString text) const
-{
-    QString error;
-    if (!expand(text, colors_, error))
-    {
-        qWarning().noquote() << error;
-        return {};
-    }
-    return text;
-}
-
 QColor themed(char const* role) { return theme_manager::instance().color(QString::fromLatin1(role)); }

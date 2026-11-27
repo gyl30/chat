@@ -1528,18 +1528,9 @@ std::function<void(std::expected<chat::message, chat::error>)> client_bridge::se
                         if (!result)
                         {
                             auto const& error = result.error();
-                            if (error.kind == chat::error_kind::transport)
-                            {
-                                status = send_status::lost;
-                            }
-                            else if (error.kind == chat::error_kind::rpc && error.code == chat::conversation_unavailable)
-                            {
-                                status = send_status::unavailable;
-                            }
-                            else
-                            {
-                                status = send_status::refused;
-                            }
+                            status = error.kind == chat::error_kind::rpc && error.code == chat::conversation_unavailable
+                                         ? send_status::unavailable
+                                         : send_status::failed;
                         }
                         emit send_finished(conversation,
                                            client_id,

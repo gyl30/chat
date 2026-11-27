@@ -23,8 +23,7 @@ enum class history_page
 enum class send_status
 {
     sent,
-    lost,
-    refused,
+    failed,
     unavailable
 };
 Q_DECLARE_METATYPE(send_status)

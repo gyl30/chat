@@ -39,7 +39,6 @@ class theme_manager final : public QObject
     QColor highlight() const { return color(QStringLiteral("highlight")); }
     QColor avatar_background(quint64 seed) const;
     QString style_sheet() const { return sheet_; }
-    QString style_sheet(QString text) const;
    signals:
     void changed();
     void background_changed();
