@@ -77,7 +77,7 @@ std::expected<std::optional<chat::forwarded_page>, sqlite_error> read_bundle(sql
     {
         return std::nullopt;
     }
-    auto q = db.prepare(R"SQL(SELECT b.position,b.created,b.author,b.body,b.markdown,coalesce(f.filename,''),coalesce(f.media_type,'')
+    auto q = db.prepare(R"SQL(SELECT b.position,b.created,b.author,b.body,b.markdown,coalesce(f.filename,''),coalesce(f.media_type,''),f.size
        FROM bundle_items b LEFT JOIN files f ON f.object_key=b.object_key WHERE b.parent=? AND b.position>? ORDER BY b.position LIMIT 11)SQL",
                         p.message,
                         p.after.value_or(0));
@@ -104,7 +104,8 @@ std::expected<std::optional<chat::forwarded_page>, sqlite_error> read_bundle(sql
                                   std::string(q->column_text(3)),
                                   q->column_int64(4) != 0,
                                   std::string(q->column_text(5)),
-                                  std::string(q->column_text(6))};
+                                  std::string(q->column_text(6)),
+                                  q->column_is_null(7) ? std::nullopt : std::optional(q->column_int64(7))};
         std::string encoded;
         if (simdjson::builder::to_json_string(item).get(encoded))
         {

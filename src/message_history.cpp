@@ -182,7 +182,8 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
                                                                                        std::string_view search,
                                                                                        std::optional<std::int64_t> around,
                                                                                        std::optional<chat::message_category> category,
-                                                                                       bool capture_unread)
+                                                                                       bool capture_unread,
+                                                                                       std::size_t limit)
 {
     auto snapshot = sqlite_transaction::begin_read(db);
     if (!snapshot)
@@ -292,7 +293,7 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
     };
     auto more = read_page(after ? "m.id>?3 ORDER BY m.id ASC" : "m.id<?3 ORDER BY m.id DESC",
                           around.value_or(after.value_or(before.value_or(std::numeric_limits<std::int64_t>::max()))),
-                          around ? 20 : kPageSize);
+                          around ? 20 : limit);
     if (!more)
     {
         return std::unexpected(std::move(more.error()));

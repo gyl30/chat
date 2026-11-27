@@ -24,6 +24,7 @@ struct[[= simdjson::deny_unknown_fields]] get_messages_params
     std::optional<std::string> query;
     std::optional<std::string> category;
     std::optional<bool> capture_unread;
+    std::optional<std::int64_t> limit;
 };
 
 struct[[= simdjson::deny_unknown_fields]] search_all_params
@@ -109,11 +110,13 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
     bool const searching = request.method == "search_messages";
     bool const parsed = request.params.read(params);
     auto const category = params.category ? chat::parse_message_category(*params.category) : std::nullopt;
+    auto const limit = params.limit.value_or(message_history_page_size);
     if (!parsed || (params.category && !category) || params.conversation <= 0 || (params.before && *params.before <= 0) ||
         (params.after && (*params.after < 0 || params.before)) ||
         (params.around && (*params.around <= 0 || params.before || params.after || searching || category)) || (category && params.after) ||
         (params.capture_unread.value_or(false) && (searching || params.before || params.after || params.around || category)) ||
-        (params.query && (!valid_search(*params.query) || (!searching && !category))) || (searching && (!params.query || params.after || category)))
+        (params.query && (!valid_search(*params.query) || (!searching && !category))) || (searching && (!params.query || params.after || category)) ||
+        (params.limit && (!category || limit < 1 || limit > static_cast<std::int64_t>(message_history_page_size))))
     {
         if (request.id.present)
         {
@@ -132,7 +135,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
                                     params.query ? std::string_view(*params.query) : "",
                                     params.around,
                                     category,
-                                    params.capture_unread.value_or(false));
+                                    params.capture_unread.value_or(false),
+                                    static_cast<std::size_t>(limit));
     };
     auto history = category || searching || params.around ? co_await database_.search(read) : co_await run_db(read);
     if (!request.id.present)

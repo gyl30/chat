@@ -1225,7 +1225,8 @@ struct client::impl
                                      std::optional<std::string> query = {},
                                      std::optional<std::int64_t> around = {},
                                      std::optional<message_category> category = {},
-                                     bool capture_unread = false)
+                                     bool capture_unread = false,
+                                     std::optional<std::int64_t> limit = {})
     {
         request_params params;
         params.add("conversation", conversation);
@@ -1249,6 +1250,10 @@ struct client::impl
         if (category)
         {
             params.add("category", category_name(*category));
+        }
+        if (limit)
+        {
+            params.add("limit", *limit);
         }
         if (capture_unread)
         {
@@ -1322,7 +1327,9 @@ struct client::impl
                 GROUP BY conversation
             )
             ORDER BY rowid
-        )SQL", outbox_account_, std::string_view(blocked)));
+        )SQL",
+                                               outbox_account_,
+                                               std::string_view(blocked)));
     }
 
     std::expected<std::vector<pending_text>, error> read_text_rows(std::expected<sqlite_statement, sqlite_error> query)
@@ -1381,8 +1388,7 @@ struct client::impl
         }
         for (auto& item : *items)
         {
-            if (!deferred_text_conversations_.contains(item.conversation) &&
-                sending_texts_.try_emplace(item.conversation, item.client_id).second)
+            if (!deferred_text_conversations_.contains(item.conversation) && sending_texts_.try_emplace(item.conversation, item.client_id).second)
             {
                 send_pending_text(std::move(item));
             }
@@ -3037,13 +3043,23 @@ void client::get_messages(
 void client::get_categorized_history(
     std::int64_t conversation, message_category category, std::string query, std::optional<std::int64_t> before, messages_handler handler)
 {
+    get_categorized_history(conversation, category, std::move(query), before, {}, std::move(handler));
+}
+
+void client::get_categorized_history(std::int64_t conversation,
+                                     message_category category,
+                                     std::string query,
+                                     std::optional<std::int64_t> before,
+                                     std::optional<std::int64_t> limit,
+                                     messages_handler handler)
+{
     std::optional<std::string> keyword;
     if (!query.empty())
     {
         keyword.emplace(std::move(query));
     }
     boost::capy::run_async(impl_->io_context_.get_executor())(
-        impl_->get_messages(conversation, before, std::move(handler), {}, std::move(keyword), {}, category));
+        impl_->get_messages(conversation, before, std::move(handler), {}, std::move(keyword), {}, category, false, limit));
 }
 
 void client::get_messages_around(std::int64_t conversation, std::int64_t around, messages_handler handler)

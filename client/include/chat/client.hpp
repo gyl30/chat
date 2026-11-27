@@ -211,6 +211,12 @@ class client
     void get_message_search_scopes(message_search_scopes_handler handler);
     void get_categorized_history(
         std::int64_t conversation, message_category category, std::string query, std::optional<std::int64_t> before, messages_handler handler);
+    void get_categorized_history(std::int64_t conversation,
+                                 message_category category,
+                                 std::string query,
+                                 std::optional<std::int64_t> before,
+                                 std::optional<std::int64_t> limit,
+                                 messages_handler handler);
     void get_messages_around(std::int64_t conversation, std::int64_t around, messages_handler handler);
     void search_messages(std::int64_t conversation, std::string query, std::optional<std::int64_t> before, messages_handler handler);
     static std::int64_t new_client_id();

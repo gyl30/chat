@@ -1,6 +1,7 @@
 #ifndef CHAT_SRC_MESSAGE_HISTORY_HPP
 #define CHAT_SRC_MESSAGE_HISTORY_HPP
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <optional>
@@ -8,6 +9,8 @@
 #include <chat/message.hpp>
 
 #include "sqlite_database.hpp"
+
+inline constexpr std::size_t message_history_page_size = 50;
 
 // Null means the conversation is not accessible to the caller.
 std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_history(sqlite_database& db,
@@ -18,7 +21,8 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
                                                                                        std::string_view search = "",
                                                                                        std::optional<std::int64_t> around = {},
                                                                                        std::optional<chat::message_category> category = {},
-                                                                                       bool capture_unread = false);
+                                                                                       bool capture_unread = false,
+                                                                                       std::size_t limit = message_history_page_size);
 
 std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlite_database& db,
                                                                            std::int64_t user,

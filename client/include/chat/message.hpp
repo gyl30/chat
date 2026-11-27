@@ -122,6 +122,7 @@ struct forwarded_item
     std::string author, body;
     bool markdown;
     std::string filename, media_type;
+    std::optional<std::int64_t> size;
 };
 struct forwarded_page
 {
