@@ -263,6 +263,17 @@ chat_history_dialog::chat_history_dialog(
                 }
             });
     connect(list_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) { activate(*item); });
+    connect(list_,
+            &QListWidget::itemClicked,
+            this,
+            [this](QListWidgetItem* item)
+            {
+                if (tabs_->currentIndex() == int(category::images) &&
+                    !list_->style()->styleHint(QStyle::SH_ItemView_ActivateItemOnSingleClick, nullptr, list_))
+                {
+                    activate(*item);
+                }
+            });
     connect(list_, &QListWidget::customContextMenuRequested, this, [this](QPoint position) { show_menu(position); });
     search->setFocus(Qt::OtherFocusReason);
     update_status();

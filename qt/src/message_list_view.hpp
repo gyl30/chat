@@ -9,10 +9,13 @@
 // The overlay follows the real scrollbar without taking space away from message layout.
 class message_list_view final : public QListView
 {
+    Q_OBJECT
    public:
     explicit message_list_view(QWidget* parent);
     std::function<void()> selection_finished;
     std::function<void(const std::function<void()>&)> preserve_layout;
+    void show_location(QModelIndex const& index);
+    bool is_location(QModelIndex const& index) const { return located_ == index; }
     bool selecting_range() const { return drag_start_.isValid(); }
 
    protected:
@@ -29,6 +32,8 @@ class message_list_view final : public QListView
    private:
     void select_range(QModelIndex end);
     QPersistentModelIndex drag_start_;
+    QPersistentModelIndex located_;
+    QTimer location_timeout_;
     bool drag_select_ = false;
     QScrollBar overlay_;
     QTimer timer_;

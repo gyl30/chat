@@ -30,6 +30,7 @@
 #include "avatar.hpp"
 #include "emoji_text.hpp"
 #include "message_model.hpp"
+#include "message_list_view.hpp"
 #include "theme.hpp"
 
 namespace
@@ -808,10 +809,6 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     painter->setPen(Qt::NoPen);
     painter->setBrush(layout.outgoing ? themed("bubble_out") : themed("bubble_in"));
     auto const path = bubble_path(bubble, layout.outgoing, layout.group_start, layout.group_end);
-    if (!layout.gutter && !context_anchor_ && (layout.bundle || layout.poll) && (option.state & (QStyle::State_MouseOver | QStyle::State_HasFocus)))
-    {
-        painter->setPen(themed("focus"));
-    }
     painter->drawPath(path);
 
     auto content_top = bubble.top() + chat_theme::message_padding_vertical;
@@ -976,11 +973,13 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         painter->drawText(rect, Qt::AlignCenter, reaction.emoji + QStringLiteral(" %1").arg(reaction.users.size()));
     }
 
-    bool const focused =
-        context_anchor_ ? index.data(message_model::id_role).toLongLong() == *context_anchor_ : option.state.testFlag(QStyle::State_HasFocus);
-    if (!layout.gutter && focused)
+    auto const* timeline = qobject_cast<message_list_view const*>(option.widget);
+    const bool located =
+        (context_anchor_ && index.data(message_model::id_role).toLongLong() == *context_anchor_) || (timeline && timeline->is_location(index));
+    const bool focused = (option.state & QStyle::State_HasFocus) && (option.state & QStyle::State_KeyboardFocusChange);
+    if (!layout.gutter && (located || focused))
     {
-        painter->setPen(QPen(themed("message_focus"), focused ? 1.5 : 1.0));
+        painter->setPen(QPen(themed("message_focus"), 1.5));
         painter->setBrush(Qt::NoBrush);
         // Attached bubbles meet the row's top edge; keep the centered stroke in its own item.
         painter->setClipRect(option.rect, Qt::IntersectClip);

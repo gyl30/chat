@@ -18,6 +18,16 @@ message_list_view::message_list_view(QWidget* parent) : QListView(parent), overl
     overlay_.setObjectName(QStringLiteral("messageScrollOverlay"));
     overlay_.setFocusPolicy(Qt::NoFocus);
     overlay_.hide();
+    location_timeout_.setSingleShot(true);
+    connect(&location_timeout_,
+            &QTimer::timeout,
+            this,
+            [this]
+            {
+                auto const old = located_;
+                located_ = QModelIndex{};
+                update(old);
+            });
     timer_.setSingleShot(true);
     timer_.setInterval(900);
     connect(&timer_,
@@ -44,6 +54,15 @@ message_list_view::message_list_view(QWidget* parent) : QListView(parent), overl
             });
     connect(&overlay_, &QScrollBar::valueChanged, scroll, &QScrollBar::setValue);
     connect(&overlay_, &QScrollBar::sliderReleased, &timer_, qOverload<>(&QTimer::start));
+}
+
+void message_list_view::show_location(QModelIndex const& index)
+{
+    auto const old = located_;
+    located_ = index;
+    update(old);
+    update(index);
+    location_timeout_.start(1600);
 }
 
 void message_list_view::mousePressEvent(QMouseEvent* event)

@@ -45,6 +45,7 @@ class QTimer;
 class conversation_model;
 class feedback_label;
 class message_model;
+class message_list_view;
 class user_model;
 
 class QVBoxLayout;
@@ -446,7 +447,7 @@ class chat_widget final : public QWidget
     QToolButton* selection_retract_ = nullptr;
     QToolButton* selection_copy_ = nullptr;
     QToolButton* selection_forward_ = nullptr;
-    QListView* messages_view_ = nullptr;
+    message_list_view* messages_view_ = nullptr;
     QWidget* input_bar_ = nullptr;
     QLabel* speech_notice_ = nullptr;
     QTimer* speech_expiry_ = nullptr;

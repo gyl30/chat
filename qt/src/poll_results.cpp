@@ -1,4 +1,5 @@
 #include "chat_widget.hpp"
+#include "message_list_view.hpp"
 #include "client_bridge.hpp"
 #include "message_card.hpp"
 #include "message_model.hpp"

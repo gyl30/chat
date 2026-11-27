@@ -1,6 +1,7 @@
 #include "chat_widget.hpp"
 #include "conversation_model.hpp"
 #include "message_model.hpp"
+#include "message_list_view.hpp"
 #include <QApplication>
 #include <QListView>
 #include <QMenu>
@@ -43,6 +44,7 @@ void chat_widget::restore_reading_position(reading_position position)
         {
             messages_view_->setCurrentIndex(top);
             messages_view_->scrollTo(top, QAbstractItemView::PositionAtCenter);
+            messages_view_->show_location(top);
         }
     }
 }
