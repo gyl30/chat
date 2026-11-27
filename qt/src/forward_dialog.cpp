@@ -127,7 +127,7 @@ void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows
             {
                 return;
             }
-            auto* item = new QListWidgetItem(avatar_icon(name, 34, avatars_.image(avatar)), name, targets);
+            auto* item = new QListWidgetItem(avatar_icon(name, 34, avatars_.image(avatar), avatar < 0 ? -avatar : 0), name, targets);
             item->setSizeHint(QSize(0, 45));
             item->setToolTip(username);
             item->setData(Qt::UserRole, id);

@@ -111,7 +111,7 @@ void group_dialog::setup_overview()
     overview_avatar_ = new QLabel(overview);
     overview_avatar_->setObjectName(QStringLiteral("groupOverviewAvatar"));
     overview_avatar_->setFixedSize(64, 64);
-    overview_avatar_->setPixmap(avatar_icon(title_, 64).pixmap(64));
+    overview_avatar_->setPixmap(avatar_icon(title_, 64, {}, conversation_).pixmap(64));
     identity->addWidget(overview_avatar_);
     auto* identity_text = new QVBoxLayout;
     identity_text->setSpacing(4);
@@ -141,7 +141,7 @@ void group_dialog::setup_overview()
                 {
                     if (key == -conversation_)
                     {
-                        overview_avatar_->setPixmap(avatar_icon(title_, 64, avatars_->image(key)).pixmap(64));
+                        overview_avatar_->setPixmap(avatar_icon(title_, 64, avatars_->image(key), conversation_).pixmap(64));
                     }
                 });
     }
@@ -1069,7 +1069,7 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
     {
         avatars_->observe(-conversation_, found->avatar);
     }
-    overview_avatar_->setPixmap(avatar_icon(found->username, 64, avatars_ ? avatars_->image(-conversation_) : QPixmap{}).pixmap(64));
+    overview_avatar_->setPixmap(avatar_icon(found->username, 64, avatars_ ? avatars_->image(-conversation_) : QPixmap{}, conversation_).pixmap(64));
     if (title_ != found->username)
     {
         auto const modified = title_edit_->text() != title_;

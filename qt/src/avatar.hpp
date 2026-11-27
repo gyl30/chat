@@ -17,9 +17,8 @@ Q_DECLARE_METATYPE(chat::avatar_state)
 class QPainter;
 
 QString avatar_initial(QString const& username);
-QColor avatar_background(QString const& username);
-void paint_avatar(QPainter& painter, QRect const& rect, QString const& username, int font_size = 0, QPixmap const& image = {});
-QIcon avatar_icon(QString const& username, int size, QPixmap const& image = {});
+void paint_avatar(QPainter& painter, QRect const& rect, QString const& username, int font_size = 0, QPixmap const& image = {}, quint64 color_key = 0);
+QIcon avatar_icon(QString const& username, int size, QPixmap const& image = {}, quint64 color_key = 0);
 
 #include <expected>
 std::expected<QByteArray, QString> choose_avatar(QWidget* parent);

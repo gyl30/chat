@@ -350,7 +350,7 @@ class chat_widget final : public QWidget
     void update_pinned_message();
     void set_message_status(QString message);
     void stop_typing();
-    void update_typing_label();
+    void update_chat_status();
     void load_visible_images();
 
     avatar_cache avatars_;
@@ -411,7 +411,8 @@ class chat_widget final : public QWidget
     QListView* add_users_view_ = nullptr;
     QLabel* add_users_status_ = nullptr;
     QPushButton* chat_title_ = nullptr;
-    QLabel* typing_label_ = nullptr;
+    QLabel* chat_name_ = nullptr;
+    QLabel* chat_status_ = nullptr;
     QTimer* mute_expiry_timer_ = nullptr;
     QTimer* typing_idle_timer_ = nullptr;
     QElapsedTimer last_typing_sent_;

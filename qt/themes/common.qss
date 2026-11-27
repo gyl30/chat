@@ -448,12 +448,20 @@ QMainWindow {
         QPushButton#chatHeaderButton:disabled {
             color: ${text};
         }
+        QLabel#chatHeaderName {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        QLabel#chatHeaderStatus {
+            font-size: 13px;
+            color: ${text_secondary};
+        }
         QPushButton#historyDownButton {
             background: ${surface};
             color: ${text};
             border: 1px solid ${input_border};
-            border-radius: 6px;
-            min-height: 28px;
+            border-radius: 18px;
+            min-height: 34px;
             padding: 0 8px;
         }
         QPushButton#historyDownButton:hover:enabled {

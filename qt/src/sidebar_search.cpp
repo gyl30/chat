@@ -268,7 +268,7 @@ void sidebar_search::refresh_directory()
             heading(QStringLiteral("群聊"));
             first = false;
         }
-        auto* item = new QListWidgetItem(avatar_icon(room.username, 32, avatars_.image(room.avatar_key())), room.username, directory_);
+        auto* item = new QListWidgetItem(avatar_icon(room.username, 32, avatars_.image(room.avatar_key()), room.id), room.username, directory_);
         item->setData(Qt::UserRole, -room.id);
     }
     directory_->setVisible(directory_->count() > 0);

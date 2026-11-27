@@ -35,7 +35,7 @@ QString timestamp_text(qint64 timestamp)
     }
     if (date.daysTo(today) >= 0 && date.daysTo(today) < 7)
     {
-        return QLocale().toString(date, QStringLiteral("ddd"));
+        return QLocale(QLocale::Chinese, QLocale::China).dayName(date.dayOfWeek());
     }
     if (date.year() == today.year())
     {
@@ -67,10 +67,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
         auto const row = option.rect;
         if (option.state & (QStyle::State_MouseOver | QStyle::State_HasFocus))
         {
-            painter->setRenderHint(QPainter::Antialiasing);
-            painter->setBrush(themed("subtle"));
-            painter->setPen(Qt::NoPen);
-            painter->drawRoundedRect(row, 8, 8);
+            painter->fillRect(row, themed("chat_sidebar_search"));
         }
         QRect arrow(option.rect.left() + chat_theme::dialog_left + (chat_theme::dialog_avatar_size - 16) / 2, row.center().y() - 7, 16, 16);
         (index.data(conversation_model::collapsed_role).toBool() ? collapsed_ : expanded_).paint(painter, arrow);
@@ -92,19 +89,13 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     painter->setRenderHint(QPainter::Antialiasing);
 
     auto const rect = option.rect;
-    // Selection is an inset rounded card rather than a full-width band.
-    auto const card = QRectF(rect).adjusted(8, 3, -8, -3);
+    auto const state = option.state;
+    auto const background = state.testFlag(QStyle::State_Selected) ? "chat_sidebar_selected"
+                          : state.testFlag(QStyle::State_MouseOver)    ? "chat_sidebar_search"
+                                                                     : "chat_sidebar";
     if (option.state & (QStyle::State_Selected | QStyle::State_MouseOver))
     {
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(option.state & QStyle::State_Selected ? themed("chat_sidebar_selected") : themed("chat_sidebar_search"));
-        painter->drawRoundedRect(card, 12, 12);
-    }
-    if (option.state & QStyle::State_Selected)
-    {
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(themed("accent"));
-        painter->drawRoundedRect(QRectF(card.left() + 1, card.top() + 15, 2, card.height() - 30), 1, 1);
+        painter->fillRect(rect, themed(background));
     }
 
     auto const username = index.data(Qt::DisplayRole).toString();
@@ -120,10 +111,11 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
                       rect.top() + chat_theme::dialog_avatar_top,
                       chat_theme::dialog_avatar_size,
                       chat_theme::dialog_avatar_size);
-    paint_avatar(*painter, avatar_rect, group ? QStringLiteral("群") : username, 17, index.data(Qt::DecorationRole).value<QPixmap>());
+    const auto key = group ? -index.data(conversation_model::avatar_key_role).toLongLong() : 0;
+    paint_avatar(*painter, avatar_rect, username, 17, index.data(Qt::DecorationRole).value<QPixmap>(), key);
     if (online)
     {
-        painter->setPen(QPen(themed(option.state & QStyle::State_Selected ? "chat_sidebar_selected" : "chat_sidebar"), 2));
+        painter->setPen(QPen(themed(background), 2));
         painter->setBrush(themed("online"));
         painter->drawEllipse(QPointF(avatar_rect.right() - 3, avatar_rect.bottom() - 3), 5, 5);
     }
@@ -213,11 +205,11 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
         painter->drawText(badge_rect, Qt::AlignCenter, badge_text);
     }
 
-    if (option.state & QStyle::State_HasFocus)
+    if (state.testFlag(QStyle::State_HasFocus) && !state.testFlag(QStyle::State_Selected))
     {
         painter->setPen(QPen(themed("focus"), 1));
         painter->setBrush(Qt::NoBrush);
-        painter->drawRoundedRect(card, 12, 12);
+        painter->drawRect(rect.adjusted(0, 0, -1, -1));
     }
     painter->restore();
 }

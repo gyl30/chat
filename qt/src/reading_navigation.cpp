@@ -167,13 +167,14 @@ void chat_widget::update_reading_navigation()
     const bool returning = !reply_returns_.isEmpty();
     const auto gap = scroll->maximum() - scroll->value();
     const bool away = returning || !tail_loaded_ || gap > (unread ? 0 : viewport->height() / 2);
-    history_down_->setText(!returning && unread ? QStringLiteral("↓  %1").arg(unread) : QStringLiteral("↓"));
+    history_down_->setText(!returning && unread ? QString::number(unread) : QString{});
     history_down_->setToolTip(returning ? QStringLiteral("返回上次阅读位置")
                               : unread  ? QStringLiteral("前往未读消息")
                                         : QStringLiteral("返回最新消息"));
     history_down_->setAccessibleName(history_down_->toolTip());
     history_down_->adjustSize();
-    history_down_->move(viewport->width() - history_down_->width() - 14, viewport->height() - history_down_->height() - 12);
+    constexpr int inset = 12;
+    history_down_->move(viewport->width() - history_down_->width() - inset, viewport->height() - history_down_->height() - inset);
     history_down_->setVisible(active_conversation_ > 0 && messages_loaded_ && away);
     history_down_->setEnabled(connection_available_ && !messages_loading_);
 }

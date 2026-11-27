@@ -1090,7 +1090,7 @@ void chat_widget::setup_contacts_dialog()
                 {
                     label += QStringLiteral("  ·  %1 个入群申请").arg(room.join_requests);
                 }
-                auto* row = new QListWidgetItem(avatar_icon(room.username, 34, avatars_.image(room.avatar_key())), label, groups);
+                auto* row = new QListWidgetItem(avatar_icon(room.username, 34, avatars_.image(room.avatar_key()), room.id), label, groups);
                 row->setData(Qt::UserRole, room.id);
                 row->setToolTip(label);
                 row->setSizeHint(QSize(0, 46));
@@ -1487,12 +1487,18 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
     chat_title_->setCursor(Qt::PointingHandCursor);
     chat_title_->setIconSize(QSize(38, 38));
     header_layout->addWidget(chat_title_);
-    typing_label_ = new QLabel(header);
-    typing_label_->setObjectName(QStringLiteral("typingStatusLabel"));
-    typing_label_->setTextFormat(Qt::PlainText);
-    typing_label_->hide();
-    header_layout->addWidget(typing_label_);
-    header_layout->addStretch();
+    auto* title_layout = new QVBoxLayout;
+    title_layout->setSpacing(0);
+    chat_name_ = new emoji_label(header);
+    chat_name_->setObjectName(QStringLiteral("chatHeaderName"));
+    chat_name_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    title_layout->addWidget(chat_name_);
+    chat_status_ = new emoji_label(header);
+    chat_status_->setObjectName(QStringLiteral("chatHeaderStatus"));
+    chat_status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    title_layout->addWidget(chat_status_);
+    header_layout->addLayout(title_layout, 1);
+    header_layout->setAlignment(title_layout, Qt::AlignVCenter);
     auto* search = new QToolButton(header);
     search->setDefaultAction(message_search_action_);
     search->setObjectName(QStringLiteral("searchChatButton"));
@@ -1608,6 +1614,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     hint_layout->addWidget(empty_conversation_hint_, 0, 0, Qt::AlignCenter);
     history_down_ = new QPushButton(messages_view_->viewport());
     history_down_->setObjectName(QStringLiteral("historyDownButton"));
+    history_down_->setIcon(svg_icon(u"chevron-down", themed("text"), QSize(20, 20)));
     history_down_->setAutoDefault(false);
     history_down_->hide();
     connect(history_down_, &QPushButton::clicked, this, &chat_widget::navigate_down);
@@ -2633,7 +2640,7 @@ void chat_widget::connect_chat_controls()
                 {
                     it = it->expiry.hasExpired() ? typing_users_.erase(it) : std::next(it);
                 }
-                update_typing_label();
+                update_chat_status();
             });
     typing_expiry->start();
     connect(messages_view_->verticalScrollBar(),
@@ -2679,7 +2686,7 @@ void chat_widget::set_user(QString const& username, qint64 user, QString const& 
     ++add_search_request_;
     stop_typing();
     typing_users_.clear();
-    update_typing_label();
+    update_chat_status();
     avatars_.clear();
     images_.clear();
     avatar_updating_ = false;
@@ -3147,7 +3154,7 @@ void chat_widget::set_connection_available(bool available)
         stop_typing();
         set_presences({});
         typing_users_.clear();
-        update_typing_label();
+        update_chat_status();
         for (auto& item : outgoing_)
         {
             if (item.path.isEmpty())
@@ -3395,6 +3402,7 @@ void chat_widget::set_presences(QList<presence_data> users)
     {
         set_presence(std::move(user));
     }
+    update_chat_status();
 }
 
 void chat_widget::set_presence(presence_data user)
@@ -3405,9 +3413,10 @@ void chat_widget::set_presence(presence_data user)
     }
 
     presence_.insert(user.user, user);
-    if (!user.online && typing_users_.remove(user.user))
+    const auto stopped_typing = !user.online && typing_users_.remove(user.user);
+    if (stopped_typing || user.user == active_peer_)
     {
-        update_typing_label();
+        update_chat_status();
     }
     conversations_->set_online(user.user, user.online);
     contacts_->set_presence(user.user, user.online, user.last_seen);
@@ -4086,6 +4095,7 @@ void chat_widget::refresh_theme()
     contacts_requests_arrow_->setPixmap(svg_icon(u"chevron-right", themed("text_secondary"), QSize(16, 16)).pixmap(16, 16));
     cancel_reply_button_->setIcon(svg_icon(QStringLiteral("close"), themed("text"), QSize(20, 20)));
     send_button_->setIcon(composer_send_icon());
+    history_down_->setIcon(svg_icon(u"chevron-down", themed("text"), QSize(20, 20)));
     attachment_button_->setIcon(svg_icon(u"attach", themed("text"), QSize(22, 22)));
     screenshot_button_->setIcon(svg_icon(u"screenshot", themed("text"), QSize(22, 22)));
     emoji_button_->setIcon(svg_icon(u"emoji", themed("text"), QSize(22, 22)));
@@ -4482,7 +4492,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     flush_draft();
     stop_typing();
     typing_users_.clear();
-    update_typing_label();
+    update_chat_status();
     images_.discard_queued();
     if (active_conversation_ && messages_loaded_)
     {
@@ -4621,7 +4631,7 @@ void chat_widget::leave_conversation(qint64 conversation)
     flush_draft();
     stop_typing();
     typing_users_.clear();
-    update_typing_label();
+    update_chat_status();
     active_conversation_ = 0;
     history_target_.reset();
     reply_returns_.clear();
@@ -4688,7 +4698,7 @@ void chat_widget::set_members(qint64 conversation, QList<member_data> members, Q
         auto const present = std::any_of(members.begin(), members.end(), [id = it.key()](auto const& member) { return member.id == id; });
         it = present ? std::next(it) : typing_users_.erase(it);
     }
-    update_typing_label();
+    update_chat_status();
 }
 
 void chat_widget::show_read_details(qint64 conversation, qint64 message)
@@ -5658,10 +5668,15 @@ void chat_widget::update_chat_header(QString const& username)
         return;
     }
     auto const item = conversation(active_conversation_);
-    chat_title_->setAccessibleName(item ? item->display_name() : username);
+    const auto name = item ? item->display_name() : username;
+    chat_name_->setText(name);
+    chat_name_->setToolTip(name);
+    chat_title_->setAccessibleName(name);
     chat_title_->setToolTip(chat_title_->accessibleName());
-    chat_title_->setIcon(avatar_icon(username, 38, avatars_.image(active_group_ ? -active_conversation_ : active_peer_)));
+    const auto image = avatars_.image(active_group_ ? -active_conversation_ : active_peer_);
+    chat_title_->setIcon(avatar_icon(active_group_ ? name : username, 38, image, active_group_ ? active_conversation_ : 0));
     chat_title_->setEnabled(true);
+    update_chat_status();
 }
 
 void chat_widget::finish_avatar_update(QString error)

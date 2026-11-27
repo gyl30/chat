@@ -139,10 +139,10 @@ int choice_gutter(QStyleOptionViewItem const& option)
     return view && view->selectionMode() == QAbstractItemView::ExtendedSelection ? 30 : 0;
 }
 
-int maximum_bubble_width(QStyleOptionViewItem const& option)
+int maximum_bubble_width(QStyleOptionViewItem const& option, int avatar_space)
 {
     auto const width = std::max(320, option.rect.width());
-    auto const reserved = chat_theme::message_side_margin * 2 + chat_theme::message_avatar_skip;
+    auto const reserved = chat_theme::message_side_margin * 2 + avatar_space;
     return std::max(180, std::min(chat_theme::message_max_width, width - reserved - choice_gutter(option)));
 }
 
@@ -152,12 +152,15 @@ struct message_layout
     QString sender;
     QString sender_label;
     int sender_height = 0;
+    QString reply_author;
     QString reply;
     int reply_height = 0;
     QString forward_header;
     int forward_height = 0;
     QString time;
     bool outgoing = false;
+    bool incoming_group = false;
+    bool show_avatar = false;
     bool read = false;
     bool day_start = false;
     bool group_start = false;
@@ -190,19 +193,19 @@ struct message_layout
 
     QRect bubble_rect(QRect const& row) const
     {
-        int const margin = chat_theme::message_side_margin + chat_theme::message_avatar_skip;
+        int const margin = chat_theme::message_side_margin + (incoming_group ? chat_theme::message_avatar_skip : 0);
         int const x = outgoing ? row.right() - margin - bubble_width + 1 : row.left() + margin + gutter;
         return {x, row.top() + day_height + unread_height + top_margin, bubble_width, bubble_height};
     }
 
     QRect avatar_rect(QRect const& row) const
     {
-        if (!group_end)
+        if (!show_avatar)
         {
             return {};
         }
         constexpr int size = chat_theme::message_avatar_size;
-        auto const x = outgoing ? row.right() - chat_theme::message_side_margin - size + 1 : row.left() + chat_theme::message_side_margin + gutter;
+        auto const x = row.left() + chat_theme::message_side_margin + gutter;
         return {x, bubble_rect(row).bottom() - size + 1, size, size};
     }
 
@@ -293,8 +296,9 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         result.poll = poll.value<chat::poll_summary>();
     }
     result.outgoing = outgoing_at(index);
+    result.incoming_group = !result.outgoing && index.data(message_model::group_role).toBool();
     result.gutter = choice_gutter(option);
-    auto const bubble_max = maximum_bubble_width(option);
+    auto const bubble_max = maximum_bubble_width(option, result.incoming_group ? chat_theme::message_avatar_skip : 0);
     auto const inner_max = std::max(80, bubble_max - chat_theme::message_padding_horizontal * 2);
 
     if (!index.data(message_model::attachment_name_role).toString().isEmpty())
@@ -311,9 +315,12 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     auto const reply = index.data(message_model::reply_text_role).toString();
     if (!reply.isEmpty())
     {
-        const QFontMetrics metrics(option.font);
-        result.reply = metrics.elidedText(reply.simplified(), Qt::ElideRight, inner_max - 10);
-        result.reply_height = metrics.height() + 8;
+        const auto split = reply.indexOf(u'\n');
+        const QFontMetrics name_metrics(sender_font(option));
+        const QFontMetrics preview_metrics(date_font(option));
+        result.reply_author = name_metrics.elidedText(reply.sliced(2, split - 2), Qt::ElideRight, inner_max - 10);
+        result.reply = preview_metrics.elidedText(reply.sliced(split + 1).simplified(), Qt::ElideRight, inner_max - 10);
+        result.reply_height = name_metrics.height() + preview_metrics.height() + 6;
     }
     auto const origin = index.data(message_model::forwarded_from_role).toString();
     if (!origin.isEmpty() || index.data(message_model::mention_all_role).toBool())
@@ -345,6 +352,7 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     result.day_start = starts_day(index);
     result.group_start = starts_group(index);
     result.group_end = ends_group(index);
+    result.show_avatar = result.incoming_group && result.group_end && !deleted;
     if (result.group_start && index.data(message_model::show_sender_role).toBool())
     {
         const QFontMetrics name_metrics(sender_font(option));
@@ -509,7 +517,9 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     }
     if (result.reply_height)
     {
-        content_width = std::max(content_width, 10 + QFontMetrics(option.font).horizontalAdvance(result.reply));
+        content_width = std::max(content_width,
+                                 10 + std::max(QFontMetrics(sender_font(option)).horizontalAdvance(result.reply_author),
+                                               QFontMetrics(date_font(option)).horizontalAdvance(result.reply)));
         content_height += result.reply_height;
     }
     if (result.sender_height)
@@ -521,11 +531,11 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
 
     result.bubble_width = std::min(bubble_max, content_width + chat_theme::message_padding_horizontal * 2);
     result.bubble_height = content_height + chat_theme::message_padding_vertical * 2;
-    if (result.group_end)
+    if (result.show_avatar)
     {
         result.bubble_height = std::max(result.bubble_height, chat_theme::message_avatar_size);
     }
-    result.unread_height = index.data(message_model::unread_boundary_role).toBool() ? QFontMetrics(date_font(option)).height() + 12 : 0;
+    result.unread_height = index.data(message_model::unread_boundary_role).toBool() ? chat_theme::message_date_height : 0;
     if (result.day_start && !date_text(index).isEmpty())
     {
         result.day_height = chat_theme::message_date_margin_top + chat_theme::message_date_height + chat_theme::message_date_margin_bottom;
@@ -766,17 +776,10 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
 
     if (layout.unread_height)
     {
-        QRect band(option.rect.left() + chat_theme::message_side_margin,
-                   y + layout.day_height,
-                   option.rect.width() - 2 * chat_theme::message_side_margin,
-                   layout.unread_height);
+        QRect band(option.rect.left(), y + layout.day_height, option.rect.width(), layout.unread_height);
         auto const label = QStringLiteral("未读消息");
+        painter->fillRect(band, themed("day_pill"));
         painter->setFont(date_font(option));
-        int const gap = painter->fontMetrics().horizontalAdvance(label) / 2 + 10;
-        auto const center = band.center();
-        painter->setPen(themed("input_border"));
-        painter->drawLine(band.left(), center.y(), center.x() - gap, center.y());
-        painter->drawLine(center.x() + gap, center.y(), band.right(), center.y());
         painter->setPen(themed("text_secondary"));
         painter->drawText(band, Qt::AlignCenter, label);
     }
@@ -844,8 +847,12 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     {
         const auto rect = layout.reply_rect(option.rect).adjusted(0, 0, 0, -4);
         painter->fillRect(rect.adjusted(0, 1, 3 - rect.width(), -1), themed("link"));
+        painter->setFont(sender_font(option));
+        painter->setPen(themed("link"));
+        painter->drawText(rect.adjusted(9, 0, 0, 0), Qt::AlignTop | Qt::AlignLeft, layout.reply_author);
+        painter->setFont(date_font(option));
         painter->setPen(themed("text_secondary"));
-        painter->drawText(rect.adjusted(9, 0, 0, 0), Qt::AlignVCenter | Qt::AlignLeft, layout.reply);
+        painter->drawText(rect.adjusted(9, 0, 0, 0), Qt::AlignBottom | Qt::AlignLeft, layout.reply);
         content_top += layout.reply_height;
     }
     if (layout.image_height > 0)

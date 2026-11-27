@@ -1,5 +1,6 @@
 #include "chat_widget.hpp"
 #include "emoji_segments.hpp"
+#include "presence.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -284,21 +285,41 @@ void chat_widget::set_typing(qint64 conversation, qint64 user, QString username,
     {
         typing_users_.remove(user);
     }
-    update_typing_label();
+    update_chat_status();
 }
 
-void chat_widget::update_typing_label()
+void chat_widget::update_chat_status()
 {
+    if (!active_conversation_)
+    {
+        return;
+    }
     QStringList names;
     for (auto const& user : typing_users_)
     {
         names.push_back(user.username);
     }
-    names.sort();
-    typing_label_->setText(names.isEmpty() ? QString{}
-                                           : names.mid(0, 3).join(QStringLiteral("、")) +
-                                                 (names.size() > 3 ? QStringLiteral("等人正在输入…") : QStringLiteral("正在输入…")));
-    typing_label_->setVisible(!names.isEmpty());
+    QString text;
+    if (!names.isEmpty())
+    {
+        names.sort();
+        text = !active_group_ ? QStringLiteral("正在输入…")
+                              : names.mid(0, 3).join(QStringLiteral("、")) +
+                                    (names.size() > 3 ? QStringLiteral("等人正在输入…") : QStringLiteral("正在输入…"));
+    }
+    else if (active_group_)
+    {
+        if (const auto room = conversation(active_conversation_))
+        {
+            text = QStringLiteral("%1 位成员").arg(room->member_count);
+        }
+    }
+    else if (const auto peer = presence_.constFind(active_peer_); peer != presence_.cend())
+    {
+        text = presence_text(peer->online, peer->last_seen);
+    }
+    chat_status_->setText(text);
+    chat_status_->setVisible(!text.isEmpty());
 }
 
 void chat_widget::set_control_enter_send(bool enabled)

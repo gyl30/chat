@@ -20,9 +20,7 @@ QString avatar_initial(QString const& username)
     return value.isEmpty() ? QStringLiteral("?") : value.left(grapheme_ends(value).front()).toUpper();
 }
 
-QColor avatar_background(QString const& username) { return theme_manager::instance().avatar_background(qHash(username.trimmed())); }
-
-void paint_avatar(QPainter& painter, QRect const& rect, QString const& username, int font_size, QPixmap const& image)
+void paint_avatar(QPainter& painter, QRect const& rect, QString const& username, int font_size, QPixmap const& image, quint64 color_key)
 {
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing);
@@ -38,7 +36,7 @@ void paint_avatar(QPainter& painter, QRect const& rect, QString const& username,
         return;
     }
     painter.setPen(Qt::NoPen);
-    painter.setBrush(avatar_background(username));
+    painter.setBrush(theme_manager::instance().avatar_background(color_key ? color_key : qHash(username.trimmed())));
     painter.drawEllipse(rect);
 
     auto font = painter.font();
@@ -49,13 +47,13 @@ void paint_avatar(QPainter& painter, QRect const& rect, QString const& username,
     painter.restore();
 }
 
-QIcon avatar_icon(QString const& username, int size, QPixmap const& image)
+QIcon avatar_icon(QString const& username, int size, QPixmap const& image, quint64 color_key)
 {
     QPixmap pixmap(size * 2, size * 2);
     pixmap.setDevicePixelRatio(2);
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
-    paint_avatar(painter, QRect(0, 0, size, size), username, 0, image);
+    paint_avatar(painter, QRect(0, 0, size, size), username, 0, image, color_key);
     return QIcon(pixmap);
 }
 

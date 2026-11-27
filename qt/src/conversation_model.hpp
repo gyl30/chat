@@ -27,6 +27,7 @@ class conversation_model final : public QAbstractListModel
         folder_header_role,
         collapsed_role,
         folder_role,
+        avatar_key_role,
     };
 
     explicit conversation_model(QObject* parent = nullptr, avatar_cache* avatars = nullptr);

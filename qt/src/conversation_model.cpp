@@ -141,6 +141,8 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
             return item->marked_unread;
         case pinned_role:
             return item->pinned;
+        case avatar_key_role:
+            return item->avatar_key();
         case Qt::DecorationRole:
             return avatars_ ? QVariant::fromValue(avatars_->image(item->avatar_key())) : QVariant{};
         default:
