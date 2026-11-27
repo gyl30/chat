@@ -353,7 +353,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                                    });
                 editor->click();
             }
-            if (auto* avatar = profile->findChild<QAbstractButton*>("changeAvatarButton"))
+            if (auto* avatar = profile->findChild<QAbstractButton*>("changeAvatarButton"); avatar && avatar->isVisible())
             {
                 auto* clear = profile->findChild<QPushButton*>("removeAvatarButton");
                 out["avatarEditable"] = avatar->isEnabled();
