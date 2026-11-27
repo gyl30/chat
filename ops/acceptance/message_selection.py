@@ -3,10 +3,8 @@
 import argparse
 import base64
 from contextlib import AsyncExitStack
-import os
 from pathlib import Path
 import sqlite3
-import subprocess
 import sys
 import tempfile
 
@@ -14,6 +12,7 @@ from websockets.asyncio.server import serve
 
 from desktop import Desktop, Gate, until
 from isolated import Store, begin, chat, login, put
+from isolated_x11 import run_x11
 
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAAFUlEQVR4nGOUrHjOwMDAwMDAxAADABneAXybXmOGAAAAAElFTkSuQmCC"
@@ -567,53 +566,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="chat-message-selection-") as tmp:
         root = Path(tmp)
-        # This entry always allocates a separate X server and bus before creating Qt.
-        runtime = root / "runtime"
-        runtime.mkdir(mode=0o700)
-        bus = root / "session.conf"
-        bus.write_text(
-            "<busconfig><type>session</type><listen>unix:tmpdir=/tmp</listen>"
-            '<policy context="default"><allow send_destination="*"/>'
-            '<allow receive_sender="*"/><allow own="*"/></policy></busconfig>'
-        )
-        env = os.environ.copy()
-        for key in (
-            "DISPLAY",
-            "WAYLAND_DISPLAY",
-            "SESSION_MANAGER",
-            "DBUS_SESSION_BUS_ADDRESS",
-            "QT_IM_MODULE",
-        ):
-            env.pop(key, None)
-        env.update(
-            XDG_RUNTIME_DIR=str(runtime),
-            XDG_SESSION_TYPE="x11",
-            QT_QPA_PLATFORMTHEME="generic",
-            GTK_USE_PORTAL="0",
-            NO_AT_BRIDGE="1",
-        )
         script = (
-            "import asyncio, sys; from pathlib import Path; "
-            "sys.path.insert(0, sys.argv[1]); from message_selection import run; "
-            "asyncio.run(run(Path(sys.argv[2]), sys.argv[3]))"
+            "import asyncio; from pathlib import Path; from message_selection import run; "
+            "asyncio.run(run(Path(sys.argv[1]), sys.argv[2]))"
         )
-        sys.exit(
-            subprocess.call(
-                [
-                    "xvfb-run",
-                    "-a",
-                    "-s",
-                    "-screen 0 1280x900x24",
-                    "dbus-run-session",
-                    f"--config-file={bus}",
-                    "--",
-                    sys.executable,
-                    "-c",
-                    script,
-                    str(Path(__file__).resolve().parent),
-                    str(root),
-                    args.probe,
-                ],
-                env=env,
-            )
-        )
+        sys.exit(run_x11(root, script, root, args.probe))

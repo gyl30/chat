@@ -7,7 +7,7 @@ ops/build-sqlite-runtime.sh "$SQLITE_PREFIX"
 ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-release
 ```
 
-脚本构建三个生产目标，在临时目录链接 Qt 驱动。驱动操作实际主窗口、菜单和模型，使用生产 SDK、资源和主题。验收创建临时账号、SQLite、Silo 卷、私有会话总线及 Qt 应用目录；测试客户端连接本机随机端口。多选与转发、分组拖放和收藏分别使用隔离的 Xvfb 和 D-Bus，无需登录桌面。安装 xauth 和 libXtst 以运行虚拟桌面交互验收。失败返回非零。请使用普通的 Python 运行模式，以执行断言。
+脚本构建三个生产目标，在临时目录链接 Qt 驱动。驱动操作实际主窗口、菜单和模型，使用生产 SDK、资源和主题。验收创建临时账号、SQLite、Silo 卷、私有会话总线及 Qt 应用目录；测试客户端连接本机随机端口。多选与转发、分组拖放和收藏使用相同的 X11 启动辅助。每次运行创建独立的 Xvfb、Xauthority、权限为 `0700` 的运行目录，以及不加载桌面服务目录的私有 D-Bus。临时 Qt 配置、数据和缓存随验收目录清理。启动时清理继承的显示、会话总线和输入法变量。安装 xauth 和 libXtst 以运行虚拟桌面交互验收。失败返回非零。请使用普通的 Python 运行模式，以执行断言。
 
 下面列出的功能脚本可以单独运行。标准回归外的 SDK 协议验收、S3 传输及 4 GiB 边界、WAL 与性能测量、平台实测继续使用各自入口。
 
@@ -33,6 +33,7 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 | `wal.py` | 验证静态服务端与私有 Python 的 SQLite 身份、WAL 并发 checkpoint 和搜索分页 |
 | `history.py` | 真实 Qt 覆盖 3,100 条较新消息后的分类和 around；`--baseline` 可用旧服务端、旧版 Qt 测试驱动复现自动补页上限 |
 | `reading_navigation.py` | 真实 RPC 与 Qt：同快照未读锚点、跨月只读定位、滚动和重连补页、提及组合/分页、编辑及失权、迟到回包 |
+| `read_receipts.py <probe>` | 完整历史翻页的 Model 通知及锚点、群成员入群与重入边界、乱序成员列表、实时已读、清空记录与私聊 |
 | `bookmarks.py [--probe 路径] [--previous-server 旧版服务端]` | 个人收藏、隐私和失效、分页顺序、附件引用、Qt 多端与保留草稿定位；可选验证旧库升级 |
 | `search_filters.py` | 组合条件、无关键词、隐藏私聊、权限、50/51 页边界及字面空格 |
 | `message_selection.py <probe>` | Qt xcb 隔离虚拟桌面：Ctrl/Shift 多选、撤回、历史补页、待发/失败行、断线、剪贴板顺序与草稿、会话切换、清空及批量转发 |
@@ -190,12 +191,7 @@ done
 可另传 `--previous-server /path/to/old/chat_server` 验证旧库原地升级、原消息收藏和重启持久化。
 
 ```sh
-runtime=$(mktemp -d)
-env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
-    XDG_RUNTIME_DIR="$runtime" XDG_SESSION_TYPE=x11 QT_QPA_PLATFORMTHEME=generic \
-    xvfb-run -a -s '-screen 0 1280x900x24' dbus-run-session -- \
-    ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/bookmarks.py --probe "$work/probe"
-rmdir "$runtime"
+ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/bookmarks.py --probe "$work/probe"
 ```
 
 

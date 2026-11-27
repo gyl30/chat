@@ -2,14 +2,13 @@
 
 import asyncio
 import ctypes
-import os
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 
 from desktop import Desktop, until
 from fixture import fixture
+from isolated_x11 import run_x11
 
 
 async def drag(start, end):
@@ -139,44 +138,6 @@ async def run(probe):
 
 
 if __name__ == "__main__":
-    env = os.environ.copy()
-    for key in (
-        "DISPLAY",
-        "WAYLAND_DISPLAY",
-        "SESSION_MANAGER",
-        "DBUS_SESSION_BUS_ADDRESS",
-    ):
-        env.pop(key, None)
-    env.update(
-        XDG_SESSION_TYPE="x11",
-        QT_QPA_PLATFORMTHEME="generic",
-        NO_AT_BRIDGE="1",
-        QT_IM_MODULE="compose",
-        GTK_USE_PORTAL="0",
-    )
-    script = "import asyncio,sys;sys.path.insert(0,sys.argv[1]);from folder_interaction import run;asyncio.run(run(sys.argv[2]))"
-    with tempfile.TemporaryDirectory() as private:
-        env["XDG_RUNTIME_DIR"] = private
-        bus = Path(private) / "session.conf"
-        bus.write_text(
-            '<busconfig><type>session</type><listen>unix:tmpdir=/tmp</listen><policy context="default"><allow send_destination="*"/><allow receive_sender="*"/><allow own="*"/></policy></busconfig>'
-        )
-        sys.exit(
-            subprocess.call(
-                [
-                    "xvfb-run",
-                    "-a",
-                    "-s",
-                    "-screen 0 1280x900x24",
-                    "dbus-run-session",
-                    f"--config-file={bus}",
-                    "--",
-                    sys.executable,
-                    "-c",
-                    script,
-                    str(Path(__file__).resolve().parent),
-                    sys.argv[1],
-                ],
-                env=env,
-            )
-        )
+    script = "import asyncio; from folder_interaction import run; asyncio.run(run(sys.argv[1]))"
+    with tempfile.TemporaryDirectory(prefix="chat-folder-x11-") as private:
+        sys.exit(run_x11(Path(private), script, sys.argv[1]))

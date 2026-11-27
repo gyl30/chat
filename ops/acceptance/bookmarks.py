@@ -15,6 +15,7 @@ from websockets.asyncio.server import serve
 from desktop import Desktop, Gate
 from fixture import Client, connect, fixture
 from isolated import Store, begin, chat, login, put
+from isolated_x11 import run_x11
 
 
 def rows(db, query, *args):
@@ -531,7 +532,7 @@ async def qt_cases(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--probe", help="run with xvfb-run -a and the freshly linked Qt probe"
+        "--probe", help="run Qt cases with a freshly linked probe in an isolated X11 session"
     )
     parser.add_argument(
         "--previous-server",
@@ -539,4 +540,10 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="chat-bookmarks-") as tmp:
-        asyncio.run(run(Path(tmp), args.probe, args.previous_server))
+        if args.probe:
+            script = (
+                "import asyncio; from pathlib import Path; from bookmarks import run; "
+                "asyncio.run(run(Path(sys.argv[1]), sys.argv[2], sys.argv[3] or None))"
+            )
+            sys.exit(run_x11(Path(tmp), script, tmp, args.probe, args.previous_server or ""))
+        asyncio.run(run(Path(tmp), None, args.previous_server))
