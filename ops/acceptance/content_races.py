@@ -1052,6 +1052,10 @@ async def scenario(probe, mode):
                             "poll_ui",
                             lambda r: len(r.get("members", [])) == 10 and r.get("more"),
                         )
+                        # Both initial requests must finish before the Gate can fail only A's next page.
+                        await ui.wait(
+                            "poll_ui", lambda r: r.get("members") == ["a"], choice=2
+                        )
                         gate.hold.add("get_poll_voters")
                         await ui.call("poll_ui", more=True)
                         await gate.caught("get_poll_voters")
