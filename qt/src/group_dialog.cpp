@@ -439,7 +439,7 @@ void group_dialog::setup_members(QVBoxLayout* outer)
     remove_button_ = new QPushButton(QStringLiteral("移除成员"), this);
     remove_button_->setObjectName(QStringLiteral("groupRemoveButton"));
     remove_button_->setAutoDefault(false);
-    invite_button_ = new QPushButton(QStringLiteral("从联系人邀请"), this);
+    invite_button_ = new QPushButton(QStringLiteral("邀请好友"), this);
     invite_button_->setObjectName(QStringLiteral("groupInviteButton"));
     invite_button_->setAutoDefault(false);
     remove_button_->hide();
@@ -616,7 +616,7 @@ void group_dialog::connect_member_actions()
             {
                 QDialog dialog(this);
                 dialog.setObjectName(QStringLiteral("groupInviteDialog"));
-                dialog.setWindowTitle(QStringLiteral("邀请联系人"));
+                dialog.setWindowTitle(QStringLiteral("邀请好友"));
                 dialog.resize(400, 360);
                 auto* layout = new QVBoxLayout(&dialog);
                 frame_dialog(dialog);
@@ -637,7 +637,7 @@ void group_dialog::connect_member_actions()
                 }
                 if (list->count() == 0)
                 {
-                    layout->addWidget(new QLabel(QStringLiteral("联系人均已在群内，请先添加其他联系人。"), &dialog));
+                    layout->addWidget(new QLabel(QStringLiteral("好友均已在群内"), &dialog));
                 }
                 auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
                 buttons->button(QDialogButtonBox::Ok)->setText(QStringLiteral("邀请"));

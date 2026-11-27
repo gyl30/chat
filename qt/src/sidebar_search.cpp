@@ -248,7 +248,7 @@ void sidebar_search::refresh_directory()
         }
         if (first)
         {
-            heading(QStringLiteral("联系人"));
+            heading(QStringLiteral("好友"));
             first = false;
         }
         auto const& user = *contacts_.user_at(index);

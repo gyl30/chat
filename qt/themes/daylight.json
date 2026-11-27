@@ -38,9 +38,7 @@
     "input_border": "#A9BAD0",
     "input_hover": "#667C99",
     "chat_title_bar": "#E3EBF5",
-    "chat_sidebar": "#E9EFF7",
-    "composer_surface": "#F8FAFD",
-    "composer_border": "#B8C8DD"
+    "chat_sidebar": "#E9EFF7"
   },
   "avatars": [
     "#D5E4F7",

@@ -30,8 +30,7 @@ constexpr char const* required_roles[]{
     "reaction_own", "border",       "border_strong",    "focus",         "text",             "text_secondary", "text_muted",
     "accent",       "accent_hover", "accent_pressed",  "accent_disabled", "online",         "link",        "danger",          "danger_hover",
     "danger_soft",  "on_accent",    "avatar_text",     "highlight",     "badge_text",       "message_sender", "reaction_text", "day_pill",
-    "message_focus", "message_muted", "read",           "input_border",  "input_hover",      "chat_title_bar", "chat_sidebar",
-    "composer_surface", "composer_border"};
+    "message_focus", "message_muted", "read",           "input_border",  "input_hover",      "chat_title_bar", "chat_sidebar"};
 
 QString appearance_key(chat_appearance value)
 {

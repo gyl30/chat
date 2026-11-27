@@ -33,7 +33,7 @@ void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows
     auto* search = new QLineEdit;
     search->setObjectName(QStringLiteral("forwardSearch"));
     style_search_field(*search);
-    search->setPlaceholderText(QStringLiteral("搜索联系人或群聊"));
+    search->setPlaceholderText(QStringLiteral("搜索好友或群聊"));
     search->setClearButtonEnabled(true);
     layout->addWidget(search);
     auto* targets = new QListWidget;

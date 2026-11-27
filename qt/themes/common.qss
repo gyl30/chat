@@ -562,8 +562,8 @@ QMainWindow {
         }
         QScrollBar::handle:horizontal { min-width: 32px; }
         QFrame#inputBar, QWidget#replyBar, QLabel#groupSpeechNotice {
-            background: ${composer_surface};
-            border-top: 1px solid ${composer_border};
+            background: ${panel};
+            border-top: 1px solid ${border};
         }
         QLabel#groupSpeechNotice {
             padding: 4px 12px;

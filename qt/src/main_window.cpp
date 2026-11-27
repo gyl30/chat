@@ -1009,7 +1009,7 @@ void main_window::connect_conversations_and_contacts()
         {
             if (!error_message.isEmpty())
             {
-                chat_page_->set_error(QStringLiteral("移除联系人失败：%1").arg(error_message));
+                chat_page_->set_error(QStringLiteral("删除好友失败：%1").arg(error_message));
                 return;
             }
             client_->get_contacts();
