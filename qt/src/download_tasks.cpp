@@ -76,7 +76,7 @@ file_transfer download_tasks::transfer(download_source const& source) const
             case state::failed:
                 return {file_action::resume, QStringLiteral("下载失败")};
             case state::completed:
-                if (!path_busy(it->path) && QFileInfo::exists(it->path))
+                if (available_file(*it))
                 {
                     return {file_action::open, QStringLiteral("已下载")};
                 }
@@ -87,6 +87,14 @@ file_transfer download_tasks::transfer(download_source const& source) const
     }
     return {file_action::download, {}};
 }
+
+QString download_tasks::saved_file(download_source const& source) const
+{
+    auto const item = primary(source);
+    return item != tasks_.cend() && item->status == state::completed && available_file(*item) ? item->path : QString{};
+}
+
+bool download_tasks::available_file(task const& value) const { return !path_busy(value.path) && QFileInfo::exists(value.path); }
 
 bool download_tasks::activate(download_source const& source, QWidget* parent)
 {

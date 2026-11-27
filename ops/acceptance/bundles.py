@@ -234,6 +234,13 @@ async def run(root, probe):
                 for destination, payload in saved:
                     await until(destination.exists, "both Qt downloads completed")
                     assert destination.read_bytes() == payload
+                await ui.call("bundle_view", open=mid)
+                await ui.wait(
+                    "bundle_view",
+                    lambda r: len(r.get("attachmentHeights", [])) == 2
+                    and r["attachmentHeights"][0] > r["attachmentHeights"][1] >= 64,
+                )
+                await ui.call("bundle_view", close=True)
                 # The archive metadata, children and file references must survive an actual restore.
                 with sqlite3.connect(db) as con:
                     con.execute(

@@ -15,6 +15,7 @@
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDialog>
+#include <QImageReader>
 #include <QLabel>
 #include <QMenu>
 #include <QPainter>
@@ -50,8 +51,8 @@ class snapshot_file_row final : public QPushButton
         setObjectName(QStringLiteral("snapshotAttachment"));
         setToolTip(text());
         setAutoDefault(false);
-        setFixedHeight(file_row_height + 8);
         setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+        refresh_thumbnail();
         connect(&downloads,
                 &download_tasks::changed,
                 this,
@@ -59,11 +60,16 @@ class snapshot_file_row final : public QPushButton
                 {
                     if (sources.isEmpty() || sources.contains(source_))
                     {
+                        refresh_thumbnail();
                         update();
                     }
                 });
         connect(&theme_manager::instance(), &theme_manager::changed, this, qOverload<>(&QWidget::update));
     }
+
+    QPixmap thumbnail() const { return thumbnail_; }
+    QSize sizeHint() const override { return {0, file_row_height + 8 + thumbnail_.height()}; }
+    QSize minimumSizeHint() const override { return sizeHint(); }
 
    protected:
     void paintEvent(QPaintEvent*) override
@@ -83,7 +89,12 @@ class snapshot_file_row final : public QPushButton
         {
             painter.fillRect(rect(), themed(isDown() ? "selected" : "canvas_hover"));
         }
-        paint_file_row(painter, rect().adjusted(6, 4, -6, -4), font(), text(), details, transfer, image_ ? u"image" : u"file");
+        auto const content = rect().adjusted(6, 4, -6, -4);
+        if (!thumbnail_.isNull())
+        {
+            painter.drawPixmap(content.topLeft(), thumbnail_);
+        }
+        paint_file_row(painter, content.adjusted(0, thumbnail_.height(), 0, 0), font(), text(), details, transfer, image_ ? u"image" : u"file");
         if (hasFocus())
         {
             painter.setPen(themed("focus"));
@@ -92,15 +103,43 @@ class snapshot_file_row final : public QPushButton
     }
 
    private:
+    void refresh_thumbnail()
+    {
+        if (!image_)
+        {
+            return;
+        }
+        auto path = downloads_.saved_file(source_);
+        if (path == thumbnail_path_)
+        {
+            return;
+        }
+        thumbnail_path_ = std::move(path);
+        thumbnail_ = {};
+        if (!thumbnail_path_.isEmpty())
+        {
+            QImageReader reader(thumbnail_path_);
+            reader.setAutoTransform(true);
+            if (auto const size = reader.size(); size.isValid() && qint64(size.width()) * size.height() <= 16 * 1024 * 1024)
+            {
+                reader.setScaledSize(size.scaled(QSize(200, 100), Qt::KeepAspectRatio));
+                thumbnail_ = QPixmap::fromImage(reader.read());
+            }
+        }
+        updateGeometry();
+    }
+
     download_tasks& downloads_;
     download_source source_;
     std::optional<qint64> size_;
     bool image_;
+    QString thumbnail_path_;
+    QPixmap thumbnail_;
 };
 
-void show_image(client_bridge& client, QDialog& dialog, qint64 room, qint64 message, qint64 position, QString const& name)
+void show_image(client_bridge& client, QDialog& dialog, qint64 room, qint64 message, qint64 position, QString const& name, QPixmap thumbnail)
 {
-    attachment_dialog preview(client.downloads(), room, message, name, true, &dialog, {}, position);
+    attachment_dialog preview(client.downloads(), room, message, name, true, &dialog, std::move(thumbnail), position);
     QObject::connect(&dialog, &QDialog::finished, &preview, &QDialog::reject);
     QObject::connect(&preview,
                      &attachment_dialog::save_requested,
@@ -150,12 +189,12 @@ void append_entry(QVBoxLayout& stream, chat::forwarded_item const& item, QDialog
         QObject::connect(file,
                          &QPushButton::clicked,
                          &dialog,
-                         [&, source, name, image]
+                         [&, file, source, name, image]
                          {
                              auto const action = downloads.transfer(source).action;
                              if (image && action != file_action::cancel && action != file_action::resume)
                              {
-                                 show_image(client, dialog, source.conversation, source.message, source.item, name);
+                                 show_image(client, dialog, source.conversation, source.message, source.item, name, file->thumbnail());
                              }
                              else if (!downloads.activate(source, &dialog))
                              {

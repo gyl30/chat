@@ -1311,6 +1311,15 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             out["open"] = true;
             auto entries = dialog->findChildren<QWidget*>(QStringLiteral("bundleEntry"));
             out["count"] = entries.size();
+            QJsonArray attachment_heights;
+            for (auto* entry : entries)
+            {
+                if (auto* file = entry->findChild<QPushButton*>("snapshotAttachment"))
+                {
+                    attachment_heights.append(file->height());
+                }
+            }
+            out["attachmentHeights"] = attachment_heights;
             if (cmd.contains("attachment_row"))
             {
                 auto* button = entries.at(cmd["attachment_row"].toInt())->findChild<QPushButton*>("snapshotAttachment");
