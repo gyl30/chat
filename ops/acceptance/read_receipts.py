@@ -133,6 +133,24 @@ async def run(root, probe, case):
                     await ui.wait("reading", lambda r: r["last"] == marker)
                     await check([old, new, again, latest], [(False, []), (False, []), (True, [2]), (True, [3])])
                     print("PASS current roster, multi-device read, clear, leave/rejoin, kick/reinvite and stale reply ordering", flush=True)
+
+                    await a.ok("hide_conversation", conversation=room)
+                    await ui.call("searchui", open=True)
+                    await ui.wait("searchui", lambda r: r.get("open"))
+                    await ui.call("searchui", query="回执 104")
+                    await ui.wait("searchui", lambda r: r["ids"] == [marker])
+                    gate.hold.add("get_members")
+                    await ui.call("searchui", row=0, enter=True)
+                    await ui.wait("searchui", lambda r: r.get("anchor") == marker)
+                    assert not (await ui.call("searchui", inspect=latest))["read"]
+                    await gate.caught("get_members")
+                    await gate.release("get_members")
+                    await ui.wait("searchui", lambda r: r["read"], inspect=latest)
+                    assert not (await ui.call("searchui", inspect=new))["read"]
+                    await b2.ok("mark_read", conversation=room, message=marker)
+                    await ui.wait("searchui", lambda r: r["read"], inspect=marker)
+                    assert not (await ui.call("searchui", inspect=new))["read"]
+                    print("PASS hidden-group search context uses join boundaries and live receipts", flush=True)
             finally:
                 await ui.stop()
 

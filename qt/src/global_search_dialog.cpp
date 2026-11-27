@@ -303,6 +303,30 @@ global_search_dialog::global_search_dialog(
     connect(&client_, &client_bridge::global_search_received, this, &global_search_dialog::set_page);
     connect(&client_, &client_bridge::search_context_received, this, &global_search_dialog::set_context);
     connect(&client_,
+            &client_bridge::members_received,
+            this,
+            [this](qint64 conversation, QList<member_data> const& members, QString const& error)
+            {
+                if (conversation == context_conversation_ && error.isEmpty())
+                {
+                    for (auto const& member : members)
+                    {
+                        chat_.avatars().observe(member.id, member.avatar);
+                    }
+                    messages_->set_members(members);
+                }
+            });
+    connect(&client_,
+            &client_bridge::messages_read,
+            this,
+            [this](qint64 conversation, qint64 user, qint64 message)
+            {
+                if (conversation == context_conversation_)
+                {
+                    messages_->set_read_message(user, message);
+                }
+            });
+    connect(&client_,
             &client_bridge::personal_view_changed,
             this,
             [this](qint64 id, QString const& action, qint64 through)
@@ -321,6 +345,11 @@ global_search_dialog::global_search_dialog(
                 if (removed)
                 {
                     remove_scope(conv);
+                }
+                else if (conv == context_conversation_)
+                {
+                    // The main window is already fetching the replacement roster.
+                    messages_->set_members({});
                 }
                 if (!standalone_)
                 {
@@ -455,7 +484,14 @@ void global_search_dialog::show_context(qint64 conversation, qint64 anchor, QStr
     results_->hide();
     more_->hide();
     auto const room = chat_.conversation(conversation);
-    messages_->reset(conversation, room && room->group);
+    // Hidden rooms are in the sidebar model too. Until a new room is known,
+    // require its roster instead of treating any reader as the peer of a direct chat.
+    const auto group = !room || room->group;
+    messages_->reset(conversation, group);
+    if (group)
+    {
+        client_.get_members(conversation);
+    }
     messages_->begin_page();
     context_->show();
     back_->setVisible(!standalone_);

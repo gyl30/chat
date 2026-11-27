@@ -1658,6 +1658,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                         out["quote"] = row.data(message_model::reply_text_role).toString();
                         out["deleted"] = row.data(message_model::deleted_role).toBool();
                         out["outgoing"] = row.data(message_model::outgoing_role).toBool();
+                        out["read"] = row.data(message_model::read_role).toBool();
                         out["pollRevision"] = static_cast<qint64>(row.data(message_model::poll_role).value<chat::poll_summary>().revision);
                     }
                 }
