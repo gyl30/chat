@@ -3,30 +3,82 @@
 #include <QDateTime>
 #include <QFormLayout>
 #include <QHBoxLayout>
-#include <QHeaderView>
+#include <QListWidget>
+#include <QStyledItemDelegate>
+#include <QPainter>
+#include <QMenu>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QTreeWidget>
+#include <QDialogButtonBox>
 #include <QVBoxLayout>
 
 #include "client_bridge.hpp"
 #include "theme.hpp"
+#include "theme_manager.hpp"
+#include "file_presentation.hpp"
+
+namespace
+{
+enum device_role
+{
+    id_role = Qt::UserRole,
+    current_role,
+    client_role,
+    created_role,
+    active_role,
+};
+
+class device_delegate final : public QStyledItemDelegate
+{
+   public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    QSize sizeHint(QStyleOptionViewItem const&, QModelIndex const& index) const override
+    {
+        return {0, index.data(id_role).isValid() ? file_row_height + 8 : 34};
+    }
+
+    void paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const override
+    {
+        if (!index.data(id_role).isValid())
+        {
+            painter->save();
+            painter->setPen(themed("text_secondary"));
+            painter->drawText(option.rect.adjusted(10, 0, -10, 0), Qt::AlignVCenter, index.data().toString());
+            painter->restore();
+            return;
+        }
+        if (option.state & (QStyle::State_Selected | QStyle::State_MouseOver))
+        {
+            painter->fillRect(option.rect, themed(option.state & QStyle::State_Selected ? "selected" : "canvas_hover"));
+        }
+        const auto details = index.data(client_role).toString() + QStringLiteral(" · 最近活动 ") + index.data(active_role).toString();
+        paint_file_row(*painter,
+                       option.rect.adjusted(10, 4, -10, -4),
+                       option.font,
+                       index.data().toString(),
+                       details,
+                       {index.data(current_role).toBool() ? file_action::open : file_action::none, {}},
+                       u"window-maximize");
+    }
+};
+}    // namespace
 
 login_sessions_dialog::login_sessions_dialog(client_bridge& client, QWidget* parent) : QDialog(parent), client_(client)
 {
     setObjectName(QStringLiteral("loginSessionsDialog"));
     setWindowTitle(QStringLiteral("账号安全与登录设备"));
-    resize(760, 500);
+    resize(550, 470);
     auto* layout = new QVBoxLayout(this);
     frame_dialog(*this);
-    sessions_ = new QTreeWidget(this);
+    sessions_ = new QListWidget(this);
     sessions_->setObjectName(QStringLiteral("loginSessionsList"));
-    sessions_->setRootIsDecorated(false);
-    sessions_->setHeaderLabels(
-        {QStringLiteral("设备"), QStringLiteral("客户端"), QStringLiteral("首次登录"), QStringLiteral("最近活动"), QStringLiteral("状态")});
-    sessions_->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    sessions_->setItemDelegate(new device_delegate(sessions_));
+    sessions_->setMouseTracking(true);
+    sessions_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    sessions_->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(sessions_, 1);
 
     auto button = [this](QString title, QString name)
@@ -37,22 +89,26 @@ login_sessions_dialog::login_sessions_dialog(client_bridge& client, QWidget* par
         return result;
     };
     auto* actions = new QHBoxLayout;
-    revoke_ = button(QStringLiteral("退出所选设备"), QStringLiteral("revokeLoginSession"));
+    password_entry_ = button(QStringLiteral("修改密码"), QStringLiteral("openLoginPassword"));
     revoke_others_ = button(QStringLiteral("退出其他所有设备"), QStringLiteral("revokeOtherLoginSessions"));
     auto* reload = button(QStringLiteral("刷新"), QStringLiteral("refreshLoginSessions"));
-    actions->addWidget(revoke_);
+    actions->addWidget(password_entry_);
     actions->addWidget(revoke_others_);
     actions->addStretch();
     actions->addWidget(reload);
     layout->addLayout(actions);
 
-    auto* hint = new QLabel(QStringLiteral("修改密码后，其他登录会话会退出，当前会话保持登录。"), this);
+    password_dialog_ = new QDialog(this);
+    password_dialog_->setWindowTitle(QStringLiteral("修改密码"));
+    auto* password_layout = new QVBoxLayout(password_dialog_);
+    frame_dialog(*password_dialog_, false);
+    auto* hint = new QLabel(QStringLiteral("修改密码后，其他登录会话会退出，当前会话保持登录。"), password_dialog_);
     hint->setWordWrap(true);
-    layout->addWidget(hint);
+    password_layout->addWidget(hint);
     auto* password_form = new QFormLayout;
     auto password_field = [&](QString label, QString name)
     {
-        auto* field = new QLineEdit(this);
+        auto* field = new QLineEdit(password_dialog_);
         field->setObjectName(std::move(name));
         field->setEchoMode(QLineEdit::Password);
         password_form->addRow(std::move(label), field);
@@ -62,14 +118,43 @@ login_sessions_dialog::login_sessions_dialog(client_bridge& client, QWidget* par
     current_password_ = password_field(QStringLiteral("当前密码"), QStringLiteral("currentLoginPassword"));
     new_password_ = password_field(QStringLiteral("新密码"), QStringLiteral("newLoginPassword"));
     repeat_password_ = password_field(QStringLiteral("确认新密码"), QStringLiteral("repeatLoginPassword"));
-    change_password_ = button(QStringLiteral("修改密码"), QStringLiteral("changeLoginPassword"));
-    password_form->addRow(QString{}, change_password_);
-    layout->addLayout(password_form);
+    password_layout->addLayout(password_form);
+    password_status_ = new QLabel(password_dialog_);
+    password_status_->setWordWrap(true);
+    password_status_->setTextFormat(Qt::PlainText);
+    password_status_->hide();
+    password_layout->addWidget(password_status_);
+    auto* password_actions = new QDialogButtonBox(QDialogButtonBox::Cancel, password_dialog_);
+    change_password_ = password_actions->addButton(QStringLiteral("修改密码"), QDialogButtonBox::AcceptRole);
+    change_password_->setObjectName(QStringLiteral("changeLoginPassword"));
+    change_password_->setAutoDefault(false);
+    password_layout->addWidget(password_actions);
+    connect(password_actions, &QDialogButtonBox::rejected, password_dialog_, &QDialog::reject);
+    connect(password_dialog_,
+            &QDialog::finished,
+            this,
+            [this]
+            {
+                for (auto* field : {current_password_, new_password_, repeat_password_})
+                {
+                    field->clear();
+                }
+                password_status_->hide();
+            });
+    connect(password_entry_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                current_password_->setFocus(Qt::ShortcutFocusReason);
+                password_dialog_->open();
+            });
     status_ = new QLabel(this);
     status_->setObjectName(QStringLiteral("loginSessionsStatus"));
     status_->setTextFormat(Qt::PlainText);
     status_->setWordWrap(true);
     layout->addWidget(status_);
+    status_->hide();
 
     auto close_on_session_loss = [this]
     {
@@ -77,13 +162,39 @@ login_sessions_dialog::login_sessions_dialog(client_bridge& client, QWidget* par
         {
             confirmation->reject();
         }
+        password_dialog_->reject();
         reject();
     };
     connect(&client_, &client_bridge::disconnected, this, close_on_session_loss);
     connect(&client_, &client_bridge::login_revoked, this, close_on_session_loss);
     connect(&client_, &client_bridge::login_sessions_changed, this, [this] { refresh(); });
     connect(reload, &QPushButton::clicked, this, [this] { refresh(); });
-    connect(sessions_, &QTreeWidget::itemSelectionChanged, this, [this] { update_actions(); });
+    connect(sessions_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) { revoke(*item); });
+    connect(sessions_,
+            &QListWidget::customContextMenuRequested,
+            this,
+            [this](QPoint position)
+            {
+                auto const* item = sessions_->itemAt(position);
+                if (!item || !item->data(id_role).isValid() || item->data(current_role).toBool() || pending_)
+                {
+                    return;
+                }
+                auto const id = item->data(id_role);
+                QMenu menu(this);
+                connect(this, &QDialog::finished, &menu, &QMenu::close);
+                if (auto* exit = menu.addAction(QStringLiteral("退出设备")); menu.exec(sessions_->viewport()->mapToGlobal(position)) == exit)
+                {
+                    for (int i = 0; i < sessions_->count(); ++i)
+                    {
+                        if (sessions_->item(i)->data(id_role) == id)
+                        {
+                            revoke(*sessions_->item(i));
+                            break;
+                        }
+                    }
+                }
+            });
     connect(&client_,
             &client_bridge::login_sessions_received,
             this,
@@ -96,26 +207,40 @@ login_sessions_dialog::login_sessions_dialog(client_bridge& client, QWidget* par
                 if (!error.isEmpty())
                 {
                     status_->setText(error);
+                    status_->show();
                     return;
                 }
                 auto const* selected = sessions_->currentItem();
-                auto const selected_id = selected ? selected->data(0, Qt::UserRole).toLongLong() : 0;
+                auto const selected_id = selected ? selected->data(id_role).toLongLong() : 0;
                 sessions_->clear();
                 auto local_time = [](qint64 milliseconds)
                 { return QDateTime::fromMSecsSinceEpoch(milliseconds).toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")); };
-                for (auto const& session : sessions)
+                for (const bool current : {true, false})
                 {
-                    auto* row = new QTreeWidgetItem(sessions_,
-                                                    {QString::fromStdString(session.device_name),
-                                                     QString::fromStdString(session.client_type),
-                                                     local_time(session.created_at),
-                                                     local_time(session.last_seen),
-                                                     session.current ? QStringLiteral("当前会话") : QStringLiteral("其他会话")});
-                    row->setData(0, Qt::UserRole, static_cast<qint64>(session.id));
-                    row->setData(0, Qt::UserRole + 1, session.current);
-                    if (session.id == selected_id)
+                    bool heading_added = false;
+                    for (auto const& session : sessions)
                     {
-                        sessions_->setCurrentItem(row);
+                        if (session.current != current)
+                        {
+                            continue;
+                        }
+                        if (!heading_added)
+                        {
+                            auto* heading = new QListWidgetItem(current ? QStringLiteral("当前设备") : QStringLiteral("其他设备"), sessions_);
+                            heading->setFlags(Qt::NoItemFlags);
+                            heading_added = true;
+                        }
+                        auto* row = new QListWidgetItem(QString::fromStdString(session.device_name), sessions_);
+                        row->setData(id_role, static_cast<qint64>(session.id));
+                        row->setData(current_role, current);
+                        row->setData(client_role, QString::fromStdString(session.client_type));
+                        row->setData(created_role, local_time(session.created_at));
+                        row->setData(active_role, local_time(session.last_seen));
+                        row->setToolTip(row->text() + QStringLiteral("\n首次登录 ") + local_time(session.created_at));
+                        if (session.id == selected_id)
+                        {
+                            sessions_->setCurrentItem(row);
+                        }
                     }
                 }
                 update_actions();
@@ -126,7 +251,20 @@ login_sessions_dialog::login_sessions_dialog(client_bridge& client, QWidget* par
             [this](QString const& message, bool success)
             {
                 pending_ = false;
+                if (password_dialog_->isVisible())
+                {
+                    if (success)
+                    {
+                        password_dialog_->accept();
+                    }
+                    else
+                    {
+                        password_status_->setText(message);
+                        password_status_->setVisible(!message.isEmpty());
+                    }
+                }
                 status_->setText(message);
+                status_->setVisible(!message.isEmpty());
                 update_actions();
                 if (success)
                 {
@@ -134,26 +272,6 @@ login_sessions_dialog::login_sessions_dialog(client_bridge& client, QWidget* par
                 }
             });
 
-    connect(
-        revoke_,
-        &QPushButton::clicked,
-        this,
-        [this]
-        {
-            auto const* selected = sessions_->currentItem();
-            if (!selected)
-            {
-                return;
-            }
-            auto const id = selected->data(0, Qt::UserRole).toLongLong();
-            if (confirm_action(
-                    this, QStringLiteral("退出设备"), QStringLiteral("退出「%1」的登录会话？").arg(selected->text(0)), QStringLiteral("退出设备")))
-            {
-                pending_ = true;
-                update_actions();
-                client_.revoke_login_session(id);
-            }
-        });
     connect(revoke_others_,
             &QPushButton::clicked,
             this,
@@ -174,7 +292,8 @@ login_sessions_dialog::login_sessions_dialog(client_bridge& client, QWidget* par
             {
                 if (new_password_->text() != repeat_password_->text() || new_password_->text().toUtf8().size() > 72)
                 {
-                    status_->setText(QStringLiteral("两次输入的新密码须一致，且不超过 72 个 UTF-8 字节。"));
+                    password_status_->setText(QStringLiteral("两次输入的新密码须一致，且不超过 72 个 UTF-8 字节。"));
+                    password_status_->show();
                     return;
                 }
                 auto const current = current_password_->text();
@@ -192,11 +311,31 @@ login_sessions_dialog::login_sessions_dialog(client_bridge& client, QWidget* par
 
 void login_sessions_dialog::refresh() { request_ = client_.get_login_sessions(); }
 
+void login_sessions_dialog::revoke(QListWidgetItem const& item)
+{
+    auto const id = item.data(id_role).toLongLong();
+    if (!id || item.data(current_role).toBool() || pending_)
+    {
+        return;
+    }
+    if (confirm_action(this, QStringLiteral("退出设备"), QStringLiteral("退出「%1」的登录会话？").arg(item.text()), QStringLiteral("退出设备")))
+    {
+        pending_ = true;
+        update_actions();
+        client_.revoke_login_session(id);
+    }
+}
+
 void login_sessions_dialog::update_actions()
 {
-    auto const* selected = sessions_->currentItem();
-    revoke_->setEnabled(!pending_ && selected && !selected->data(0, Qt::UserRole + 1).toBool());
-    revoke_others_->setEnabled(!pending_ && sessions_->topLevelItemCount() > 1);
+    bool has_other = false;
+    for (int i = 0; i < sessions_->count(); ++i)
+    {
+        auto const* item = sessions_->item(i);
+        has_other |= item->data(id_role).isValid() && !item->data(current_role).toBool();
+    }
+    revoke_others_->setEnabled(!pending_ && has_other);
+    password_entry_->setEnabled(!pending_);
     change_password_->setEnabled(!pending_ && !current_password_->text().isEmpty() && !new_password_->text().isEmpty() &&
                                  !repeat_password_->text().isEmpty());
 }

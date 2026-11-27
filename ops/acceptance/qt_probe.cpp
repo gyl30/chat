@@ -166,18 +166,22 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         auto* dialog = window.findChild<QDialog*>("loginSessionsDialog");
         if (dialog && dialog->isVisible())
         {
-            auto* list = dialog->findChild<QTreeWidget*>("loginSessionsList");
+            auto* list = dialog->findChild<QListWidget*>("loginSessionsList");
             QJsonArray rows;
-            for (int i = 0; i < list->topLevelItemCount(); ++i)
+            for (int i = 0; i < list->count(); ++i)
             {
-                auto* row = list->topLevelItem(i);
-                auto const id = row->data(0, Qt::UserRole).toLongLong();
+                auto* row = list->item(i);
+                auto const id = row->data(Qt::UserRole).toLongLong();
+                if (!id)
+                {
+                    continue;
+                }
                 rows << QJsonObject{{"id", id},
-                                    {"name", row->text(0)},
-                                    {"type", row->text(1)},
-                                    {"created", row->text(2)},
-                                    {"seen", row->text(3)},
-                                    {"current", row->data(0, Qt::UserRole + 1).toBool()}};
+                                    {"name", row->text()},
+                                    {"type", row->data(Qt::UserRole + 2).toString()},
+                                    {"created", row->data(Qt::UserRole + 3).toString()},
+                                    {"seen", row->data(Qt::UserRole + 4).toString()},
+                                    {"current", row->data(Qt::UserRole + 1).toBool()}};
                 if (cmd["select"].toInteger() == id)
                 {
                     list->setCurrentItem(row);
@@ -185,12 +189,21 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             }
             out["rows"] = rows;
             out["status"] = dialog->findChild<QLabel*>("loginSessionsStatus")->text();
-            out["revoke_enabled"] = button("revokeLoginSession")->isEnabled();
+            auto const* selected = list->currentItem();
+            out["revoke_enabled"] = selected && selected->data(Qt::UserRole).isValid() && !selected->data(Qt::UserRole + 1).toBool();
             out["other_enabled"] = button("revokeOtherLoginSessions")->isEnabled();
             if (cmd["revoke"].toBool())
             {
-                auto* revoke = button("revokeLoginSession");
-                QTimer::singleShot(0, revoke, &QAbstractButton::click);
+                QTimer::singleShot(0,
+                                   list,
+                                   [list]
+                                   {
+                                       if (auto* item = list->currentItem())
+                                       {
+                                           list->scrollToItem(item);
+                                           choose_menu_action(list, list->visualItemRect(item).center(), QStringLiteral("退出设备"));
+                                       }
+                                   });
             }
             if (cmd["others"].toBool())
             {
@@ -199,6 +212,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             }
             if (cmd.contains("new"))
             {
+                button("openLoginPassword")->click();
                 dialog->findChild<QLineEdit*>("currentLoginPassword")->setText(cmd["password"].toString());
                 dialog->findChild<QLineEdit*>("newLoginPassword")->setText(cmd["new"].toString());
                 dialog->findChild<QLineEdit*>("repeatLoginPassword")->setText(cmd["new"].toString());

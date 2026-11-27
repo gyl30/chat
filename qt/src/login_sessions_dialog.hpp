@@ -7,7 +7,8 @@ class client_bridge;
 class QLabel;
 class QLineEdit;
 class QPushButton;
-class QTreeWidget;
+class QListWidget;
+class QListWidgetItem;
 
 class login_sessions_dialog final : public QDialog
 {
@@ -17,11 +18,14 @@ class login_sessions_dialog final : public QDialog
    private:
     void refresh();
     void update_actions();
+    void revoke(QListWidgetItem const& item);
 
     client_bridge& client_;
-    QTreeWidget* sessions_;
+    QListWidget* sessions_;
     QLabel* status_;
-    QPushButton* revoke_;
+    QDialog* password_dialog_;
+    QLabel* password_status_;
+    QPushButton* password_entry_;
     QPushButton* revoke_others_;
     QPushButton* change_password_;
     QLineEdit* current_password_;
