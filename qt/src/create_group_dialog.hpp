@@ -7,6 +7,7 @@
 class avatar_cache;
 class user_model;
 struct user_data;
+class empty_state;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -23,11 +24,13 @@ class create_group_dialog final : public QDialog
 
    private:
     void update_selection();
+    void filter_contacts();
 
     QLineEdit* search_;
     QLabel* selected_count_;
     QListWidget* selected_;
     QListWidget* list_;
+    empty_state* empty_;
     QLineEdit* title_;
     QPushButton* proceed_;
 };

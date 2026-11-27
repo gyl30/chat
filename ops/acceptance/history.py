@@ -126,7 +126,7 @@ async def main(root, probe, baseline):
 
                             await until(walked, "Qt exhausted its automatic scan")
                             result = await ui.wait(
-                                "history", lambda r: r.get("status") == "没有图片"
+                                "history", lambda r: r.get("status") == "暂无图片"
                             )
                             assert result["count"] == 0 and not result["more"]
                             print(

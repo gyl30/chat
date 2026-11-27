@@ -5,6 +5,8 @@
 #include <QTimer>
 
 class avatar_cache;
+class empty_state;
+class QLabel;
 class client_bridge;
 class conversation_model;
 class user_model;
@@ -27,12 +29,16 @@ class sidebar_search final : public QWidget
     void refresh_directory();
     void restart();
     void search();
+    void refresh_status();
     client_bridge& client_;
     QLineEdit& input_;
     user_model& contacts_;
     conversation_model& rooms_;
     avatar_cache& avatars_;
     QListWidget* results_;
+    empty_state* empty_;
+    QLabel* status_;
+    QString error_;
     QTimer debounce_;
     quint64 request_ = 0;
 };

@@ -1518,19 +1518,30 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 }
             }
             auto* more = button("moreBookmarks");
-            auto* locate = button("locateBookmark");
-            auto* remove = button("removeBookmark");
+            const bool can_locate = list->currentItem() && list->currentItem()->data(preview_role::conversation).toLongLong();
             if (cmd["more"].toBool())
             {
                 more->click();
             }
             if (cmd["locate"].toBool())
             {
-                QTimer::singleShot(0, locate, &QAbstractButton::click);
+                QTimer::singleShot(0,
+                                   list,
+                                   [list]
+                                   {
+                                       if (auto* row = list->currentItem())
+                                       {
+                                           emit list->itemActivated(row);
+                                       }
+                                   });
             }
             if (cmd["remove"].toBool())
             {
-                remove->click();
+                if (auto const* row = list->currentItem())
+                {
+                    list->scrollToItem(row);
+                    choose_menu_action(list, list->visualItemRect(row).center(), QStringLiteral("取消收藏"));
+                }
             }
             QJsonArray rows;
             for (int i = 0; i < list->count(); ++i)
@@ -1543,7 +1554,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             out["open"] = true;
             out["rows"] = rows;
             out["more"] = more->isVisible();
-            out["locate"] = locate->isEnabled();
+            out["locate"] = can_locate;
             out["selected"] = list->currentItem() ? list->currentItem()->data(preview_role::message).toLongLong() : 0;
             out["status"] = dialog->findChild<QLabel*>("bookmarkStatus")->text();
             if (cmd["close"].toBool())
@@ -1682,6 +1693,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 out["heights"] = heights;
                 out["scroll"] = l->verticalScrollBar()->value();
                 out["row"] = l->row(l->currentItem());
+                out["focus"] = d->focusWidget() ? d->focusWidget()->objectName() : QString{};
                 out["ctx"] = ctx->isVisible();
                 QJsonArray context_ids;
                 for (int i = 0; i < ctx->model()->rowCount(); ++i)
@@ -1805,6 +1817,12 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 }
             }
         }
+        const auto* empty = results->findChild<QWidget*>("sidebarSearchEmpty");
+        auto const* inline_status = window.findChild<QLabel*>("sidebarSearchStatus");
+        out["status"] = empty && empty->isVisible()                   ? empty->accessibleName()
+                        : inline_status && inline_status->isVisible() ? inline_status->text()
+                                                                      : QString{};
+        out["rows"] = results->count();
         out["ids"] = ids;
         out["more"] = more;
         out["rooms"] = conv->isVisible();

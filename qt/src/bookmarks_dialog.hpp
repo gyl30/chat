@@ -8,10 +8,12 @@
 
 class client_bridge;
 class chat_widget;
+class empty_state;
 class QLabel;
 class QLineEdit;
 class QPushButton;
 class QListWidget;
+class QListWidgetItem;
 class QTimer;
 
 class bookmarks_dialog final : public QDialog
@@ -24,16 +26,16 @@ class bookmarks_dialog final : public QDialog
     void fetch(qint64 before);
     void set_page(quint64 request, chat::bookmark_page const& page, QString const& error);
     void update_actions();
-    void locate();
+    void locate(QListWidgetItem const& item);
+    void show_menu(QPoint position);
 
     client_bridge& client_;
     chat_widget& chat_;
     QLineEdit* query_;
     QListWidget* results_;
-    QPushButton* locate_;
-    QPushButton* remove_;
     QPushButton* more_;
     QLabel* status_;
+    empty_state* empty_;
     QLabel* feedback_;
     QTimer* refresh_;
     QSet<quint64> bookmark_checks_;

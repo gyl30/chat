@@ -1,3 +1,4 @@
+#include "empty_state.hpp"
 #include "message_search_dialog.hpp"
 #include "avatar.hpp"
 #include "theme.hpp"
@@ -100,6 +101,7 @@ message_search_dialog::message_search_dialog(
     results_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     results_->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(results_, 1);
+    empty_ = new empty_state(*results_->viewport(), QStringLiteral("messageSearchEmpty"));
     more_button_ = new QPushButton(QStringLiteral("更早的结果"), this);
     more_button_->setObjectName(QStringLiteral("moreSearchResultsButton"));
     more_button_->setAutoDefault(false);
@@ -152,6 +154,7 @@ message_search_dialog::message_search_dialog(
                     messages_->reset(conversation_, group_);
                     more_button_->hide();
                     status_->hide();
+                    empty_->set_message();
                     refresh_count();
                 }
             });
@@ -203,6 +206,7 @@ void message_search_dialog::request_search(bool older)
         before_ = next_before_;
     }
     more_button_->setEnabled(false);
+    empty_->set_message();
     status_->setText(QStringLiteral("正在搜索…"));
     status_->show();
     refresh_count();
@@ -297,8 +301,9 @@ void message_search_dialog::set_results(qint64 conversation,
     next_before_ = has_more ? page_boundary : 0;
     more_button_->setEnabled(next_before_ > 0);
     more_button_->setVisible(next_before_ > 0);
-    status_->setText(before == 0 && hits.isEmpty() ? QStringLiteral("未找到消息") : QString{});
-    status_->setVisible(!status_->text().isEmpty());
+    status_->setText(before == 0 && hits.isEmpty() ? QStringLiteral("未找到相关消息") : QString{});
+    status_->hide();
+    empty_->set_message(status_->text(), u"search");
     restore_selection(previous);
     refresh_count();
     if (before == 0)
@@ -367,10 +372,14 @@ void message_search_dialog::restore_selection(selection_state const& previous)
 void message_search_dialog::refresh_count()
 {
     auto const count = visible_messages_->rowCount();
-    if (!count && !query_.isEmpty() && status_->isHidden())
+    if (!count && !query_.isEmpty() && status_->isHidden() && empty_->isHidden())
     {
-        status_->setText(QStringLiteral("未找到消息"));
-        status_->show();
+        status_->setText(QStringLiteral("未找到相关消息"));
+        empty_->set_message(status_->text(), u"search");
+    }
+    if (count > 0)
+    {
+        empty_->set_message();
     }
     count_->setText(QStringLiteral("已加载 %1 条").arg(count));
     count_->setVisible(count > 0 && status_->isHidden());

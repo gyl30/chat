@@ -1,6 +1,7 @@
 #include "login_sessions_dialog.hpp"
 
 #include <QDateTime>
+#include <algorithm>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QListWidget>
@@ -17,7 +18,7 @@
 #include "client_bridge.hpp"
 #include "theme.hpp"
 #include "theme_manager.hpp"
-#include "file_presentation.hpp"
+#include "icons.hpp"
 
 namespace
 {
@@ -35,10 +36,7 @@ class device_delegate final : public QStyledItemDelegate
    public:
     using QStyledItemDelegate::QStyledItemDelegate;
 
-    QSize sizeHint(QStyleOptionViewItem const&, QModelIndex const& index) const override
-    {
-        return {0, index.data(id_role).isValid() ? file_row_height + 8 : 34};
-    }
+    QSize sizeHint(QStyleOptionViewItem const&, QModelIndex const& index) const override { return {0, index.data(id_role).isValid() ? 58 : 34}; }
 
     void paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const override
     {
@@ -55,13 +53,26 @@ class device_delegate final : public QStyledItemDelegate
             painter->fillRect(option.rect, themed(option.state & QStyle::State_Selected ? "selected" : "canvas_hover"));
         }
         const auto details = index.data(client_role).toString() + QStringLiteral(" · 最近活动 ") + index.data(active_role).toString();
-        paint_file_row(*painter,
-                       option.rect.adjusted(10, 4, -10, -4),
-                       option.font,
-                       index.data().toString(),
-                       details,
-                       {index.data(current_role).toBool() ? file_action::open : file_action::none, {}},
-                       u"window-maximize");
+        painter->save();
+        auto const icon = QRect(option.rect.left() + 12, option.rect.center().y() - 12, 24, 24);
+        svg_icon(u"monitor", themed("accent"), icon.size()).paint(painter, icon);
+        auto const left = icon.right() + 12;
+        auto const width = option.rect.right() - left - 8;
+        auto font = option.font;
+        font.setPixelSize(15);
+        font.setBold(true);
+        painter->setFont(font);
+        painter->setPen(themed("text"));
+        painter->drawText(QRect(left, option.rect.top() + 7, width, 24),
+                          Qt::AlignVCenter,
+                          QFontMetrics(font).elidedText(index.data().toString(), Qt::ElideRight, width));
+        font.setBold(false);
+        font.setPixelSize(13);
+        painter->setFont(font);
+        painter->setPen(themed("text_secondary"));
+        painter->drawText(
+            QRect(left, option.rect.top() + 31, width, 19), Qt::AlignVCenter, QFontMetrics(font).elidedText(details, Qt::ElideRight, width));
+        painter->restore();
     }
 };
 }    // namespace
@@ -243,6 +254,11 @@ login_sessions_dialog::login_sessions_dialog(client_bridge& client, QWidget* par
                         }
                     }
                 }
+                if (std::ranges::none_of(sessions, [](auto const& session) { return !session.current; }))
+                {
+                    auto* hint = new QListWidgetItem(QStringLiteral("暂无其他设备"), sessions_);
+                    hint->setFlags(Qt::NoItemFlags);
+                }
                 update_actions();
             });
     connect(&client_,
@@ -334,6 +350,7 @@ void login_sessions_dialog::update_actions()
         auto const* item = sessions_->item(i);
         has_other |= item->data(id_role).isValid() && !item->data(current_role).toBool();
     }
+    revoke_others_->setVisible(has_other);
     revoke_others_->setEnabled(!pending_ && has_other);
     password_entry_->setEnabled(!pending_);
     change_password_->setEnabled(!pending_ && !current_password_->text().isEmpty() && !new_password_->text().isEmpty() &&

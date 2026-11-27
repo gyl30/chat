@@ -6,6 +6,7 @@
 #include "message_data.hpp"
 
 class avatar_cache;
+class empty_state;
 class QLabel;
 class QLineEdit;
 class QListView;
@@ -63,6 +64,7 @@ class message_search_dialog final : public QDialog
     QLineEdit* input_;
     QPushButton* more_button_;
     QLabel* status_;
+    empty_state* empty_;
     QLabel* count_;
     QListView* results_;
     message_model* messages_;

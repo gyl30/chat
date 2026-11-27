@@ -12,6 +12,7 @@
 class avatar_cache;
 class message_images;
 class download_tasks;
+class empty_state;
 class QLabel;
 class QListWidget;
 class QListWidgetItem;
@@ -62,6 +63,7 @@ class chat_history_dialog final : public QDialog
     QTabBar* tabs_ = nullptr;
     QListWidget* list_ = nullptr;
     QLabel* status_ = nullptr;
+    empty_state* empty_ = nullptr;
     QPushButton* more_ = nullptr;
     QString query_;
     // Keep the server boundary even if the matching row disappears locally.

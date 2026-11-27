@@ -1,4 +1,5 @@
 #include "chat_widget.hpp"
+#include "empty_state.hpp"
 #include "conversation_model.hpp"
 #include "message_model.hpp"
 #include "theme.hpp"
@@ -40,6 +41,7 @@ void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows
     targets->setIconSize(QSize(34, 34));
     targets->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     layout->addWidget(targets, 1);
+    auto* empty = new empty_state(*targets->viewport());
     auto* preview = new QLabel;
     preview->setObjectName(QStringLiteral("forwardPreview"));
     preview->setTextFormat(Qt::PlainText);
@@ -88,6 +90,11 @@ void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows
     {
         auto ids = source_ids();
         auto* target = targets->currentItem();
+        empty->set_message(targets->count()                     ? QString{}
+                           : search->text().trimmed().isEmpty() ? QStringLiteral("暂无可转发的会话")
+                                                                : QStringLiteral("未找到转发目标"),
+                           u"search");
+        send->setVisible(targets->count() != 0);
         bool complete = !ids.isEmpty() && (!bundle || !bundle->isChecked() || ids.size() == rows.size());
         send->setEnabled(connection_available_ && target && complete && owner == self_user_ && visit == conversation_visit_);
         if (!target)

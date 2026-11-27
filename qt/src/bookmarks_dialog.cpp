@@ -1,3 +1,4 @@
+#include "empty_state.hpp"
 #include "theme.hpp"
 #include "bookmarks_dialog.hpp"
 
@@ -10,6 +11,7 @@
 #include <QScrollBar>
 #include <QTimer>
 #include <QListWidget>
+#include <QMenu>
 #include <QVBoxLayout>
 
 #include "client_bridge.hpp"
@@ -28,8 +30,6 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, chat_widget& chat, QWi
       chat_(chat),
       query_(new QLineEdit(this)),
       results_(new QListWidget(this)),
-      locate_(new QPushButton(QStringLiteral("定位原消息"), this)),
-      remove_(new QPushButton(QStringLiteral("取消收藏"), this)),
       more_(new QPushButton(QStringLiteral("加载更多"), this)),
       status_(new QLabel(this)),
       feedback_(new QLabel(this)),
@@ -44,28 +44,21 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, chat_widget& chat, QWi
     results_->setObjectName(QStringLiteral("bookmarkResults"));
     results_->setAccessibleName(QStringLiteral("收藏消息"));
     style_message_previews(*results_, *query_, &chat_.avatars());
-    locate_->setObjectName(QStringLiteral("locateBookmark"));
-    remove_->setObjectName(QStringLiteral("removeBookmark"));
     more_->setObjectName(QStringLiteral("moreBookmarks"));
     status_->setObjectName(QStringLiteral("bookmarkStatus"));
     feedback_->setTextFormat(Qt::PlainText);
     status_->setTextFormat(Qt::PlainText);
-    locate_->setAutoDefault(false);
-    remove_->setAutoDefault(false);
     more_->setAutoDefault(false);
 
-    auto* buttons = new QHBoxLayout;
-    buttons->addWidget(locate_);
-    buttons->addWidget(remove_);
-    buttons->addStretch();
-    buttons->addWidget(more_);
     auto* layout = new QVBoxLayout(this);
     frame_dialog(*this);
     layout->addWidget(query_);
-    layout->addWidget(results_);
+    layout->addWidget(results_, 1);
+    empty_ = new empty_state(*results_->viewport(), QStringLiteral("bookmarksEmpty"));
     layout->addWidget(status_);
     layout->addWidget(feedback_);
-    layout->addLayout(buttons);
+    layout->addWidget(more_, 0, Qt::AlignHCenter);
+    feedback_->hide();
 
     refresh_->setSingleShot(true);
     refresh_->setInterval(150);
@@ -80,9 +73,20 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, chat_widget& chat, QWi
                 refresh_->stop();
                 fetch(0);
             });
-    connect(results_, &QListWidget::itemSelectionChanged, this, &bookmarks_dialog::update_actions);
-    connect(results_, &QListWidget::itemActivated, this, &bookmarks_dialog::locate);
-    connect(locate_, &QPushButton::clicked, this, &bookmarks_dialog::locate);
+    auto activate = [this](QListWidgetItem* item) { locate(*item); };
+    connect(results_, &QListWidget::itemActivated, this, activate);
+    connect(results_,
+            &QListWidget::itemClicked,
+            this,
+            [this, activate](QListWidgetItem* item)
+            {
+                if (!results_->style()->styleHint(QStyle::SH_ItemView_ActivateItemOnSingleClick, nullptr, results_))
+                {
+                    activate(item);
+                }
+            });
+    results_->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(results_, &QListWidget::customContextMenuRequested, this, &bookmarks_dialog::show_menu);
     connect(more_, &QPushButton::clicked, this, [this] { fetch(before_); });
     connect(results_->verticalScrollBar(),
             &QScrollBar::valueChanged,
@@ -93,21 +97,6 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, chat_widget& chat, QWi
                 {
                     fetch(before_);
                 }
-            });
-    connect(remove_,
-            &QPushButton::clicked,
-            this,
-            [this]
-            {
-                auto const* item = results_->currentItem();
-                if (!item || removing_)
-                {
-                    return;
-                }
-                removing_ = item->data(preview_role::message).toLongLong();
-                update_actions();
-                feedback_->clear();
-                client_.set_message_bookmark(removing_, false);
             });
     connect(&client_, &client_bridge::bookmarks_received, this, &bookmarks_dialog::set_page);
     connect(&client_, &client_bridge::bookmark_changed, this, [this] { refresh(); });
@@ -122,6 +111,7 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, chat_widget& chat, QWi
                 }
                 removing_ = 0;
                 feedback_->setText(error.isEmpty() ? QStringLiteral("已取消收藏") : error);
+                feedback_->show();
                 update_actions();
                 if (error.isEmpty())
                 {
@@ -183,7 +173,9 @@ void bookmarks_dialog::refresh()
     request_ = 0;
     before_ = 0;
     results_->clear();
+    empty_->set_message();
     status_->setText(QStringLiteral("正在加载…"));
+    status_->show();
     update_actions();
     refresh_->start();
 }
@@ -191,7 +183,9 @@ void bookmarks_dialog::refresh()
 void bookmarks_dialog::fetch(qint64 before)
 {
     request_ = client_.list_message_bookmarks(query_->text(), before);
+    empty_->set_message();
     status_->setText(QStringLiteral("正在加载…"));
+    status_->show();
     update_actions();
 }
 
@@ -205,6 +199,7 @@ void bookmarks_dialog::set_page(quint64 request, chat::bookmark_page const& page
     {
         request_ = 0;
         status_->setText(error);
+        status_->show();
         update_actions();
         return;
     }
@@ -231,31 +226,63 @@ void bookmarks_dialog::set_page(quint64 request, chat::bookmark_page const& page
     status_->setText(results_->count() ? QString{}
                      : query_->text().isEmpty()    ? QStringLiteral("暂无收藏")
                                                    : QStringLiteral("没有匹配的收藏消息"));
+    status_->hide();
+    empty_->set_message(status_->text(), u"bookmark");
     update_actions();
 }
 
 void bookmarks_dialog::update_actions()
 {
-    auto const* item = results_->currentItem();
-    locate_->setEnabled(item && item->data(preview_role::conversation).toLongLong());
-    remove_->setEnabled(item && !removing_);
     more_->setVisible(before_ != 0);
     more_->setEnabled(before_ && !request_);
 }
 
-void bookmarks_dialog::locate()
+void bookmarks_dialog::locate(QListWidgetItem const& item)
 {
-    auto const* item = results_->currentItem();
+    if (auto const conversation = item.data(preview_role::conversation).toLongLong())
+    {
+        auto const message = item.data(preview_role::message).toLongLong();
+        global_search_dialog context(client_, chat_, this);
+        context.locate(conversation, message, [this] { refresh(); }, item.data(preview_role::title).toString());
+        context.exec();
+    }
+}
+
+void bookmarks_dialog::show_menu(QPoint position)
+{
+    auto const* item = results_->itemAt(position);
     if (!item)
     {
         return;
     }
-    auto const conversation = item->data(preview_role::conversation).toLongLong();
     auto const message = item->data(preview_role::message).toLongLong();
-    if (conversation)
+    QMenu menu(this);
+    connect(this, &QDialog::finished, &menu, &QMenu::close);
+    auto* open = item->data(preview_role::conversation).toLongLong() ? menu.addAction(QStringLiteral("定位原消息")) : nullptr;
+    auto* remove = menu.addAction(QStringLiteral("取消收藏"));
+    remove->setEnabled(!removing_);
+    auto* selected = menu.exec(results_->viewport()->mapToGlobal(position));
+    if (!selected)
     {
-        global_search_dialog context(client_, chat_, this);
-        context.locate(conversation, message, [this] { refresh(); }, item->data(preview_role::title).toString());
-        context.exec();
+        return;
+    }
+    for (int row = 0; row < results_->count(); ++row)
+    {
+        auto const& current = *results_->item(row);
+        if (current.data(preview_role::message).toLongLong() != message)
+        {
+            continue;
+        }
+        if (selected == open)
+        {
+            locate(current);
+        }
+        else if (selected == remove && !removing_)
+        {
+            removing_ = message;
+            feedback_->hide();
+            client_.set_message_bookmark(message, false);
+        }
+        break;
     }
 }

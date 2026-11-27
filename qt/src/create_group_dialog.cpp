@@ -1,3 +1,4 @@
+#include "empty_state.hpp"
 #include "create_group_dialog.hpp"
 #include "avatar.hpp"
 #include "theme.hpp"
@@ -60,6 +61,7 @@ create_group_dialog::create_group_dialog(QWidget* parent, bool invite) : QDialog
     list_->setIconSize(QSize(32, 32));
     list_->setAccessibleName(QStringLiteral("选择群成员"));
     layout->addWidget(list_, 1);
+    empty_ = new empty_state(*list_->viewport(), QStringLiteral("groupPickerEmpty"));
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     proceed_ = buttons->button(QDialogButtonBox::Ok);
     proceed_->setObjectName(invite ? QStringLiteral("groupInviteSubmitButton") : QStringLiteral("groupCreateButton"));
@@ -106,17 +108,25 @@ create_group_dialog::create_group_dialog(QWidget* parent, bool invite) : QDialog
                     }
                 }
             });
-    connect(search_,
-            &QLineEdit::textChanged,
-            this,
-            [this](QString const& query)
-            {
-                for (int row = 0; row < list_->count(); ++row)
-                {
-                    list_->item(row)->setHidden(!list_->item(row)->data(user_model::search_role).toString().contains(query, Qt::CaseInsensitive));
-                }
-            });
+    connect(search_, &QLineEdit::textChanged, this, &create_group_dialog::filter_contacts);
     (title_ ? title_ : search_)->setFocus(Qt::OtherFocusReason);
+}
+
+void create_group_dialog::filter_contacts()
+{
+    auto const query = search_->text();
+    bool found = false;
+    for (int row = 0; row < list_->count(); ++row)
+    {
+        auto* item = list_->item(row);
+        const bool match = item->data(user_model::search_role).toString().contains(query, Qt::CaseInsensitive);
+        item->setHidden(!match);
+        found |= match;
+    }
+    empty_->set_message(found             ? QString{}
+                        : query.isEmpty() ? QStringLiteral("暂无可选好友")
+                                          : QStringLiteral("未找到好友"),
+                        query.isEmpty() ? u"contacts" : u"search");
 }
 
 void create_group_dialog::update_selection()
@@ -174,9 +184,9 @@ void create_group_dialog::set_candidates(QList<user_data> const& candidates, ava
             item->setData(user_model::search_role, search);
             item->setToolTip(user.username);
             item->setSizeHint(QSize(0, 50));
-            item->setHidden(!search.contains(search_->text(), Qt::CaseInsensitive));
         }
     }
+    filter_contacts();
     update_selection();
 }
 

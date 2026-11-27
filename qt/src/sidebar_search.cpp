@@ -1,6 +1,8 @@
 #include "sidebar_search.hpp"
 
 #include "avatar.hpp"
+#include "empty_state.hpp"
+#include <QLabel>
 #include "message_preview.hpp"
 #include "client_bridge.hpp"
 #include "conversation_model.hpp"
@@ -31,7 +33,15 @@ sidebar_search::sidebar_search(
     results_->setObjectName(QStringLiteral("sidebarSearchResults"));
     results_->setAccessibleName(QStringLiteral("好友、群聊和聊天记录搜索结果"));
     style_message_previews(*results_, input, &avatars_, true);
-    layout->addWidget(results_);
+    layout->addWidget(results_, 1);
+    empty_ = new empty_state(*results_->viewport(), QStringLiteral("sidebarSearchEmpty"));
+    status_ = new QLabel(this);
+    status_->setObjectName(QStringLiteral("sidebarSearchStatus"));
+    status_->setTextFormat(Qt::PlainText);
+    status_->setWordWrap(true);
+    status_->setAlignment(Qt::AlignCenter);
+    status_->hide();
+    layout->addWidget(status_);
     debounce_.setSingleShot(true);
     debounce_.setInterval(220);
     connect(&debounce_, &QTimer::timeout, this, &sidebar_search::search);
@@ -40,11 +50,31 @@ sidebar_search::sidebar_search(
             this,
             [this]
             {
-                refresh_directory();
                 restart();
+                refresh_directory();
             });
     connect(&contacts_, &QAbstractItemModel::modelReset, this, &sidebar_search::refresh_directory);
     connect(&rooms_, &QAbstractItemModel::modelReset, this, &sidebar_search::refresh_directory);
+    connect(&contacts_,
+            &QAbstractItemModel::dataChanged,
+            this,
+            [this](QModelIndex const&, QModelIndex const&, QList<int> const& roles)
+            {
+                if (roles.isEmpty() || roles.contains(user_model::search_role) || roles.contains(Qt::DisplayRole))
+                {
+                    refresh_directory();
+                }
+            });
+    connect(&rooms_,
+            &QAbstractItemModel::dataChanged,
+            this,
+            [this](QModelIndex const&, QModelIndex const&, QList<int> const& roles)
+            {
+                if (roles.isEmpty() || roles.contains(conversation_model::username_role) || roles.contains(Qt::DisplayRole))
+                {
+                    refresh_directory();
+                }
+            });
     auto activate = [this](QListWidgetItem* row)
     {
         auto const id = row->data(preview_role::directory).toLongLong();
@@ -78,13 +108,10 @@ sidebar_search::sidebar_search(
                     return;
                 }
                 request_ = 0;
-                if (!error.isEmpty() || page.messages.empty())
+                error_ = error;
+                if (!error_.isEmpty() || page.messages.empty())
                 {
-                    if (!error.isEmpty() || !results_->count())
-                    {
-                        auto* status = new QListWidgetItem(error.isEmpty() ? QStringLiteral("没有匹配的结果") : error, results_);
-                        status->setFlags(Qt::NoItemFlags);
-                    }
+                    refresh_status();
                     return;
                 }
                 auto* heading = new QListWidgetItem(QStringLiteral("聊天记录"), results_);
@@ -103,6 +130,7 @@ sidebar_search::sidebar_search(
                     auto* more = new QListWidgetItem(QStringLiteral("更多搜索结果"), results_);
                     more->setData(preview_role::more, true);
                 }
+                refresh_status();
             });
     // Drop the pending page before a new request can race with a withdrawal or loss of visibility.
     connect(&client_,
@@ -160,6 +188,7 @@ void sidebar_search::refresh_directory()
     auto query = input_.text().trimmed();
     if (query.isEmpty())
     {
+        refresh_status();
         return;
     }
     auto heading = [this, &next](QString const& text)
@@ -204,10 +233,12 @@ void sidebar_search::refresh_directory()
         item->setData(preview_role::directory, -room.id);
         results_->insertItem(next++, item);
     }
+    refresh_status();
 }
 void sidebar_search::restart()
 {
     request_ = 0;
+    error_.clear();
     debounce_.stop();
     while (results_->count() && !directory_item(*results_->item(results_->count() - 1)))
     {
@@ -217,10 +248,37 @@ void sidebar_search::restart()
     {
         debounce_.start();
     }
+    refresh_status();
 }
 void sidebar_search::search()
 {
     chat::message_search_filter filter;
     filter.query = input_.text().toStdString();
     request_ = client_.search_all_messages(filter, 0);
+    refresh_status();
+}
+
+void sidebar_search::refresh_status()
+{
+    auto const active = !input_.text().trimmed().isEmpty();
+    auto const has_rows = results_->count() != 0;
+    auto const loading = debounce_.isActive() || request_;
+    status_->setText(active && has_rows ? error_ : QString{});
+    status_->setVisible(!status_->text().isEmpty());
+    if (!active || has_rows)
+    {
+        empty_->set_message();
+    }
+    else if (!error_.isEmpty())
+    {
+        empty_->set_message(error_);
+    }
+    else if (loading)
+    {
+        empty_->set_message(QStringLiteral("正在搜索…"));
+    }
+    else
+    {
+        empty_->set_message(QStringLiteral("未找到相关结果"), u"search", QStringLiteral("试试其他关键词"));
+    }
 }

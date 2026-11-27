@@ -454,7 +454,7 @@ async def run(
                 await gate.release("search_all_messages")
                 await ui.wait(
                     "searchui",
-                    lambda r: not r["ids"] and r["status"] == "没有找到相关消息",
+                    lambda r: not r["ids"] and r["status"] == "未找到相关消息",
                 )
                 await ui.call("searchui", mentions=True, query="")
                 await ui.wait("searchui", lambda r: len(r["ids"]) == 50)

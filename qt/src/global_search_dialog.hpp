@@ -20,6 +20,7 @@ class QListWidgetItem;
 class QListView;
 class QPushButton;
 class QLabel;
+class empty_state;
 class QCheckBox;
 class QComboBox;
 class QDateEdit;
@@ -39,8 +40,9 @@ class global_search_dialog final : public QDialog
    private:
     void search(qint64 before);
     chat::message_search_filter search_filter() const;
-    void set_status(QString message = {});
+    void set_status(QString message = {}, bool empty_result = false);
     void filter_changed();
+    void set_filter_error(QString const& text);
     void open_context(QListWidgetItem* item);
     void show_context(qint64 conversation, qint64 anchor, QString const& title);
     void context_unavailable();
@@ -81,6 +83,8 @@ class global_search_dialog final : public QDialog
     QPushButton* more_;
     QPushButton* back_;
     QLabel* status_;
+    QLabel* filter_error_;
+    empty_state* empty_;
     // Deltas received while a results page is in flight also apply to that page.
     QHash<qint64, QString> page_edits_;
     QHash<qint64, qint64> page_floors_;

@@ -157,7 +157,7 @@ class Desktop:
             await self.proc.wait()
 
 
-async def sidebar_search_cases(ui, gate, sender, conversation):
+async def sidebar_search_cases(ui, gate, reader, sender, conversation):
     buckets = {}
     for size in (4, 5, 6):
         query = f"侧栏{size}条"
@@ -205,11 +205,29 @@ async def sidebar_search_cases(ui, gate, sender, conversation):
         await gate.release("search_all_messages")
     state = await ui.call("sidebar_search")
     assert state["rooms"] and not state["ids"] and not state["more"], state
+    gate.hold.add("search_all_messages")
+    query = "侧栏空状态验收"
+    try:
+        loading = await ui.call("sidebar_search", query=query)
+        assert loading["status"] == "正在搜索…" and not loading["rows"], loading
+        await gate.caught("search_all_messages")
+        assert (await ui.call("sidebar_search"))["status"] == "正在搜索…"
+    finally:
+        await gate.release("search_all_messages")
+    empty = await ui.wait("sidebar_search", lambda r: r["status"] == "未找到相关结果")
+    assert not empty["rows"] and not empty["more"], empty
+    await reader.ok("set_friend_remark", user=2, remark=query)
+    matched = await ui.wait("sidebar_search", lambda r: r["rows"] == 2)
+    assert not matched["status"] and not matched["ids"] and not matched["more"], matched
+    await reader.ok("set_friend_remark", user=2, remark="")
+    await ui.wait("sidebar_search", lambda r: r["status"] == "未找到相关结果")
+    await ui.call("sidebar_search", query="")
+    print("PASS sidebar loading, real empty state and live friend refresh remain outside the result model")
     print("PASS sidebar preview limits, newest-first IDs, automatic full search and late-response isolation")
 
 
 async def search_cases(ui, gate, a, b, g):
-    await sidebar_search_cases(ui, gate, b, g)
+    await sidebar_search_cases(ui, gate, a, b, g)
     ids = []
     for n in range(102):
         ids.append((await b.ok("send_message", conversation=g, text=f"事务回归 {n}", client_id=100 + n))["id"])
@@ -233,7 +251,7 @@ async def search_cases(ui, gate, a, b, g):
     assert not state["status"] and not state["ids"], state
     assert not any(m["method"] == "search_all_messages" for m in gate.messages[start:])
     await ui.call("searchui", submit=True)
-    await ui.wait("searchui", lambda r: r["status"] == "没有找到相关消息" and not r["ids"])
+    await ui.wait("searchui", lambda r: r["status"] == "未找到相关消息" and not r["ids"])
     # Open an old snapshot only after a newer cleared snapshot has already landed.
     source = (await b.ok("send_message", conversation=unrelated, text="引用源", client_id=3100))["id"]
     anchor = (await a.ok("send_message", conversation=unrelated, text="上下文定位", client_id=3101, reply_to=source))["id"]
@@ -281,7 +299,7 @@ async def search_cases(ui, gate, a, b, g):
         else:
             await b.ok("edit_message", **params, text="改后正文")
         state = await rows(0)
-        assert state["status"] == "没有找到相关消息", state
+        assert state["status"] == "未找到相关消息", state
     # First page made invisible while a later page is pending. Inject an RPC error
     # and revoke one remaining hit to ensure that errors survive row removal.
     await show("事务回归")
@@ -297,7 +315,7 @@ async def search_cases(ui, gate, a, b, g):
     await gate.release("search_all_messages", error=True)
     state = await ui.wait("searchui", lambda r: r["more"])
     error = state["status"]
-    assert error and error != "没有找到相关消息"
+    assert error and error != "未找到相关消息"
     await b.ok("delete_message", conversation=g, message=first["ids"][-1])
     state = await rows(0)
     assert state["more"] and state["status"] == error

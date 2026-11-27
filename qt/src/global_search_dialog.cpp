@@ -1,3 +1,4 @@
+#include "empty_state.hpp"
 #include "theme.hpp"
 #include "global_search_dialog.hpp"
 
@@ -138,6 +139,12 @@ global_search_dialog::global_search_dialog(
         dates_layout->addWidget(w);
     }
     fields->addWidget(dates, 2, 0, 1, 3);
+    filter_error_ = new QLabel(filters_);
+    filter_error_->setObjectName(QStringLiteral("globalSearchFilterError"));
+    filter_error_->setTextFormat(Qt::PlainText);
+    filter_error_->setWordWrap(true);
+    filter_error_->hide();
+    fields->addWidget(filter_error_, 3, 0, 1, 3);
     dates->hide();
     connect(period_,
             &QComboBox::currentIndexChanged,
@@ -177,7 +184,8 @@ global_search_dialog::global_search_dialog(
     results_->setObjectName(QStringLiteral("globalSearchResults"));
     results_->setAccessibleName(QStringLiteral("消息搜索结果"));
     style_message_previews(*results_, *query_, &chat.avatars());
-    layout->addWidget(results_);
+    layout->addWidget(results_, 1);
+    empty_ = new empty_state(*results_->viewport(), QStringLiteral("globalSearchEmpty"));
     context_ = new QListView(this);
     context_->setObjectName(QStringLiteral("searchContextMessages"));
     context_->setFrameShape(QFrame::NoFrame);
@@ -213,10 +221,7 @@ global_search_dialog::global_search_dialog(
                 }
                 if (!error.isEmpty())
                 {
-                    if (!submitted_)
-                    {
-                        set_status(error);
-                    }
+                    set_filter_error(error);
                     return;
                 }
                 auto const selected = conversation_->currentData();
@@ -244,7 +249,7 @@ global_search_dialog::global_search_dialog(
                 }
                 if (!error.isEmpty() || users.isEmpty())
                 {
-                    set_status(error.isEmpty() ? QStringLiteral("没有匹配的发送者") : error);
+                    set_filter_error(error.isEmpty() ? QStringLiteral("没有匹配的发送者") : error);
                     return;
                 }
                 for (auto const& user : users)
@@ -361,19 +366,38 @@ void global_search_dialog::show_results()
     page_edits_.clear();
     page_floors_.clear();
     setWindowTitle(QStringLiteral("全局消息搜索"));
+    bool const returning = header_->isHidden() && !context_->isHidden();
+    header_->show();
+    results_->show();
+    if (returning)
+    {
+        (results_->count() ? static_cast<QWidget*>(results_) : query_)->setFocus(Qt::OtherFocusReason);
+    }
     messages_->reset(0);
     context_->hide();
     back_->hide();
-    header_->show();
     submit_->setEnabled(has_criteria(search_filter()));
     filters_->setVisible(toggle_filters_->isChecked());
-    results_->show();
     more_->setVisible(next_before_ != 0);
     set_status();
 }
 
+void global_search_dialog::set_filter_error(QString const& text)
+{
+    filter_error_->setText(text);
+    filter_error_->setVisible(!text.isEmpty());
+}
+
 void global_search_dialog::filter_changed()
 {
+    auto const filter = search_filter();
+    if (filter.start && filter.end && *filter.start >= *filter.end)
+    {
+        set_filter_error(QStringLiteral("结束日不能早于起始日"));
+        submit_->setEnabled(false);
+        return;
+    }
+    set_filter_error({});
     results_->clear();
     next_before_ = 0;
     submitted_ = false;
@@ -381,10 +405,11 @@ void global_search_dialog::filter_changed()
     show_results();
 }
 
-void global_search_dialog::set_status(QString message)
+void global_search_dialog::set_status(QString message, bool empty_result)
 {
-    status_->setText(std::move(message));
-    status_->setVisible(!status_->text().isEmpty());
+    status_->setText(message);
+    status_->setVisible(!message.isEmpty() && !empty_result);
+    empty_->set_message(empty_result ? message : QString{}, empty_result ? u"search" : QStringView{});
 }
 
 chat::message_search_filter global_search_dialog::search_filter() const
@@ -429,18 +454,18 @@ void global_search_dialog::search(qint64 before)
     }
     if (!before)
     {
-        filter_changed();
-        submitted_filter_ = search_filter();
-        auto const& filter = submitted_filter_;
+        auto filter = search_filter();
         if (filter.start && filter.end && *filter.start >= *filter.end)
         {
-            set_status(QStringLiteral("结束日不能早于起始日"));
+            set_filter_error(QStringLiteral("结束日不能早于起始日"));
             return;
         }
         if (!has_criteria(filter))
         {
             return;
         }
+        filter_changed();
+        submitted_filter_ = std::move(filter);
         submitted_ = true;
     }
     else
@@ -448,6 +473,10 @@ void global_search_dialog::search(qint64 before)
         show_results();
     }
     set_status(QStringLiteral("正在搜索…"));
+    if (more_->hasFocus())
+    {
+        results_->setFocus(Qt::OtherFocusReason);
+    }
     more_->hide();
     request_ = client_.search_all_messages(submitted_filter_, before);
 }
@@ -470,6 +499,8 @@ void global_search_dialog::show_context(qint64 conversation, qint64 anchor, QStr
     context_conversation_ = conversation;
     context_anchor_ = anchor;
     setWindowTitle(title.isEmpty() ? QStringLiteral("消息上下文") : QStringLiteral("聊天记录 · %1").arg(title));
+    context_->show();
+    context_->setFocus(Qt::OtherFocusReason);
     header_->hide();
     filters_->hide();
     results_->hide();
@@ -484,7 +515,6 @@ void global_search_dialog::show_context(qint64 conversation, qint64 anchor, QStr
         client_.get_members(conversation);
     }
     messages_->begin_page();
-    context_->show();
     back_->setVisible(!standalone_);
     set_status(QStringLiteral("正在定位消息…"));
     request_ = client_.get_search_context(conversation, anchor);
@@ -525,7 +555,7 @@ void global_search_dialog::set_page(quint64 id, chat::message_search_page const&
         if (error.isEmpty() && !page.messages.empty() && page.messages.front().id == target)
         {
             insert_hit(page.messages.front(), QString::fromStdString(page.messages.front().snippet));
-            if (status_->text() == QStringLiteral("没有找到相关消息"))
+            if (status_->text() == QStringLiteral("未找到相关消息"))
             {
                 set_status();
             }
@@ -667,7 +697,7 @@ void global_search_dialog::show_empty_result()
 {
     if (!results_->count() && !request_ && !next_before_ && context_->isHidden() && status_->text().isEmpty() && submitted_)
     {
-        set_status(QStringLiteral("没有找到相关消息"));
+        set_status(QStringLiteral("未找到相关消息"), true);
     }
 }
 

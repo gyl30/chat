@@ -1,3 +1,4 @@
+#include "empty_state.hpp"
 #include "chat_history_dialog.hpp"
 
 #include <algorithm>
@@ -231,6 +232,7 @@ chat_history_dialog::chat_history_dialog(
             [this] { list_->viewport()->update(); });
     list_->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(list_, 1);
+    empty_ = new empty_state(*list_->viewport(), QStringLiteral("historyEmpty"));
     layout->addWidget(status_);
     more_ = new QPushButton(QStringLiteral("加载更早的记录"), this);
     more_->setObjectName(QStringLiteral("historyMoreButton"));
@@ -377,6 +379,7 @@ void chat_history_dialog::interrupt_loading()
     }
     loading_ = false;
     page_updates_.clear();
+    empty_->set_message();
     status_->setText(QStringLiteral("连接已断开，恢复后可重新加载。"));
     status_->show();
     more_->setText(QStringLiteral("重新加载"));
@@ -424,6 +427,7 @@ void chat_history_dialog::set_history(qint64 conversation, QList<message_data> m
     if (!error.isEmpty())
     {
         page_updates_.clear();
+        empty_->set_message();
         status_->setText(error);
         status_->show();
         more_->setText(QStringLiteral("重新加载"));
@@ -545,23 +549,24 @@ void chat_history_dialog::update_message(qint64 conversation, message_data messa
 void chat_history_dialog::update_status()
 {
     auto const kind = static_cast<category>(tabs_->currentIndex());
-    if (loading_ && list_->count() == 0)
+    auto const no_rows = list_->count() == 0;
+    if (no_rows)
     {
-        status_->setText(QStringLiteral("正在加载…"));
-    }
-    else if (list_->count() == 0)
-    {
-        status_->setText(!query_.isEmpty()          ? QStringLiteral("没有找到相关记录")
-                         : kind == category::images ? QStringLiteral("没有图片")
-                         : kind == category::files  ? QStringLiteral("没有文件")
-                         : kind == category::links  ? QStringLiteral("没有链接")
-                                                    : QStringLiteral("还没有聊天记录"));
+        static const QStringView icons[]{u"history", u"image", u"file", u"link"};
+        static const QStringView empty[]{u"暂无聊天记录", u"暂无图片", u"暂无文件", u"暂无链接"};
+        static const QStringView no_match[]{u"未找到相关消息", u"未找到相关图片", u"未找到相关文件", u"未找到相关链接"};
+        auto const i = int(kind);
+        auto const message = loading_ ? QStringLiteral("正在加载…") : (query_.isEmpty() ? empty[i] : no_match[i]).toString();
+        status_->setText(message);
+        status_->hide();
+        empty_->set_message(message, loading_ ? QStringView{} : icons[i]);
     }
     else
     {
+        empty_->set_message();
         status_->clear();
+        status_->hide();
     }
-    status_->setVisible(!status_->text().isEmpty());
     more_->setVisible(has_more_ && !loading_);
 }
 
