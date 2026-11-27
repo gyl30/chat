@@ -603,6 +603,10 @@ QMainWindow {
             background: ${surface};
             border-color: rgba(${focus.rgb}, 0.65);
         }
+        QToolButton#searchClearButton:hover {
+            background: ${canvas_hover};
+            border-radius: 6px;
+        }
         QToolButton#sendAttachmentButton,
         QToolButton#screenshotButton, QToolButton#emojiButton, QToolButton#chatHistoryButton {
             padding: 0;
@@ -644,6 +648,8 @@ QMainWindow {
             border-radius: 6px;
             padding: 2px 1px;
         }
+        QToolButton#mentionMemberButton { font-size: 18px; font-weight: 600; }
+        QToolButton#markdownButton { font-size: 14px; font-weight: 600; }
         QFrame QToolButton[composeText="true"]:hover:enabled {
             background: ${subtle};
         }
@@ -723,7 +729,8 @@ QToolButton#attachmentDownloadState, QToolButton#uploadRowActions {
     background: ${subtle}; color: ${text}; border: 1px solid ${border}; border-radius: 5px; padding: 3px 9px;
 }
 QToolButton#attachmentDownloadState:hover, QToolButton#uploadRowActions:hover { background: ${selected}; }
-QMenu#mainNavigationMenu { min-width: 180px; }
+QMenu#mainNavigationMenu { min-width: 184px; }
+QMenu#mainNavigationMenu::item { min-height: 28px; padding: 5px 24px 5px 12px; }
 QMenu#mainNavigationMenu::item:checked { background: ${subtle}; color: ${text}; }
 QMenu#mainNavigationMenu::item:selected {
     background: ${selected};

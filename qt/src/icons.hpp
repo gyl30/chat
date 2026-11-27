@@ -6,6 +6,9 @@
 #include <QSize>
 #include <QStringView>
 
-QIcon svg_icon(QStringView name, QColor const& color, QSize size = QSize(20, 20));
+class QMenu;
+
+QIcon svg_icon(QStringView name, QColor const& color, QSize size = QSize(20, 20), int inset = 0);
+void style_menu_icons(QMenu& menu, int size);
 
 #endif

@@ -268,25 +268,47 @@ void frame_dialog(QDialog& dialog, bool resizable)
     close->setAccessibleName(QStringLiteral("关闭"));
     close->setToolTip(close->accessibleName());
     close->setFixedSize(32, 32);
+    close->setIconSize(chat_theme::action_icon);
     close->setAutoRaise(true);
-    close->setFocusPolicy(Qt::ClickFocus);
-    auto recolor = [close] { close->setIcon(svg_icon(u"close", themed("text_secondary"), {16, 16})); };
+    close->setFocusPolicy(Qt::TabFocus);
+    auto recolor = [close] { close->setIcon(svg_icon(u"close", themed("text_secondary"), chat_theme::action_icon)); };
     recolor();
     QObject::connect(&theme_manager::instance(), &theme_manager::changed, close, recolor);
     QObject::connect(close, &QToolButton::clicked, &dialog, &QWidget::close);
     row->addWidget(close);
     dialog.layout()->setMenuBar(bar);
     dialog.setSizeGripEnabled(resizable);
+    if (!qobject_cast<QMessageBox*>(&dialog) && !qobject_cast<QInputDialog*>(&dialog))
+    {
+        dialog.setFocus(Qt::OtherFocusReason);
+    }
 }
 
 void style_search_field(QLineEdit& field)
 {
     field.setProperty("searchField", true);
-    field.setClearButtonEnabled(true);
-    auto* action = field.addAction(QIcon{}, QLineEdit::LeadingPosition);
-    auto recolor = [action] { action->setIcon(svg_icon(u"search", themed("text_muted"), {16, 16})); };
+    auto* search = field.addAction(QIcon{}, QLineEdit::LeadingPosition);
+    auto* clear = field.addAction(QIcon{}, QLineEdit::TrailingPosition);
+    clear->setText(QStringLiteral("清空搜索"));
+    clear->setVisible(!field.text().isEmpty());
+    QObject::connect(clear, &QAction::triggered, &field, &QLineEdit::clear);
+    QObject::connect(&field, &QLineEdit::textChanged, clear, [clear](QString const& value) { clear->setVisible(!value.isEmpty()); });
+    for (auto* tool : field.findChildren<QToolButton*>(Qt::FindDirectChildrenOnly))
+    {
+        if (tool->defaultAction() == clear)
+        {
+            tool->setObjectName(QStringLiteral("searchClearButton"));
+            tool->setAccessibleName(clear->text());
+            break;
+        }
+    }
+    auto recolor = [search, clear]
+    {
+        search->setIcon(svg_icon(u"search", themed("text_muted"), {18, 18}));
+        clear->setIcon(svg_icon(u"close", themed("text_secondary"), {16, 16}));
+    };
     recolor();
-    QObject::connect(&theme_manager::instance(), &theme_manager::changed, action, recolor);
+    QObject::connect(&theme_manager::instance(), &theme_manager::changed, search, recolor);
 }
 
 QString prompt_text(QWidget* parent, QString const& title, QString const& label, QString const& initial, bool& accepted, bool multiline)

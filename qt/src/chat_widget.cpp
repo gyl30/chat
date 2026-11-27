@@ -104,9 +104,16 @@ QString local_file_path(QUrl url)
     return url.host().isEmpty() ? url.toLocalFile() : QString{};
 }
 
+QIcon navigation_menu_icon(QStringView name)
+{
+    constexpr int canvas = chat_theme::menu_avatar_size;
+    constexpr int inset = (canvas - chat_theme::menu_icon_size) / 2;
+    return svg_icon(name, themed("text"), QSize(canvas, canvas), inset);
+}
+
 QIcon composer_send_icon()
 {
-    constexpr QSize size{20, 20};
+    constexpr auto size = chat_theme::toolbar_icon;
     auto icon = svg_icon(u"send", themed("accent"), size);
     icon.addPixmap(svg_icon(u"send", themed("text_muted"), size).pixmap(size), QIcon::Disabled);
     return icon;
@@ -265,21 +272,22 @@ QWidget* chat_widget::create_sidebar()
     main_menu_button_->setProperty("navigationTool", true);
     main_menu_button_->setAccessibleName(QStringLiteral("主菜单"));
     main_menu_button_->setToolTip(QStringLiteral("主菜单"));
-    main_menu_button_->setIcon(svg_icon(u"menu", themed("text_secondary"), QSize(22, 22)));
-    main_menu_button_->setIconSize(QSize(22, 22));
+    main_menu_button_->setIcon(svg_icon(u"menu", themed("text_secondary"), chat_theme::toolbar_icon));
+    main_menu_button_->setIconSize(chat_theme::toolbar_icon);
     main_menu_button_->setFixedSize(40, 40);
     main_menu_button_->setCursor(Qt::PointingHandCursor);
     main_menu_button_->setPopupMode(QToolButton::InstantPopup);
     auto* main_menu = new QMenu(main_menu_button_);
     main_menu->setObjectName(QStringLiteral("mainNavigationMenu"));
+    style_menu_icons(*main_menu, chat_theme::menu_avatar_size);
     main_menu->setAccessibleName(QStringLiteral("主菜单"));
     resume_reading_after_menu(*main_menu);
     chats_action_ = main_menu->addAction(QStringLiteral("聊天"));
     chats_action_->setObjectName(QStringLiteral("showChatsAction"));
-    chats_action_->setIcon(svg_icon(u"chat", themed("text"), QSize(20, 20)));
+    chats_action_->setIcon(navigation_menu_icon(u"chat"));
     contacts_action_ = main_menu->addAction(QStringLiteral("好友"));
     contacts_action_->setObjectName(QStringLiteral("showContactsAction"));
-    contacts_action_->setIcon(svg_icon(u"contacts", themed("text"), QSize(20, 20)));
+    contacts_action_->setIcon(navigation_menu_icon(u"contacts"));
     chats_action_->setCheckable(true);
     main_menu->addSeparator();
     auto* search_messages = new QAction(QStringLiteral("全局消息搜索"), this);
@@ -301,25 +309,27 @@ QWidget* chat_widget::create_sidebar()
     add_button->setAccessibleName(QStringLiteral("创建或添加"));
     add_button->setToolTip(add_button->accessibleName());
     add_button->setFixedSize(36, 36);
+    add_button->setIconSize(chat_theme::toolbar_icon);
     add_button->setPopupMode(QToolButton::InstantPopup);
     auto* add_menu = new QMenu(add_button);
+    style_menu_icons(*add_menu, chat_theme::menu_icon_size);
     resume_reading_after_menu(*add_menu);
     add_button->setMenu(add_menu);
     auto* create_group = add_menu->addAction(QStringLiteral("创建群聊"));
     create_group->setObjectName(QStringLiteral("createGroupAction"));
-    create_group->setIcon(svg_icon(u"groups", themed("text"), QSize(20, 20)));
+    create_group->setIcon(svg_icon(u"groups", themed("text"), {chat_theme::menu_icon_size, chat_theme::menu_icon_size}));
     auto* add_friend = add_menu->addAction(QStringLiteral("添加好友"));
     add_friend->setObjectName(QStringLiteral("addFriendAction"));
-    add_friend->setIcon(svg_icon(u"user-plus", themed("text"), QSize(20, 20)));
+    add_friend->setIcon(svg_icon(u"user-plus", themed("text"), {chat_theme::menu_icon_size, chat_theme::menu_icon_size}));
     auto* join_group = add_menu->addAction(QStringLiteral("加入群聊"));
     join_group->setObjectName(QStringLiteral("joinGroupAction"));
-    join_group->setIcon(svg_icon(u"groups", themed("text"), QSize(20, 20)));
+    join_group->setIcon(svg_icon(u"groups", themed("text"), {chat_theme::menu_icon_size, chat_theme::menu_icon_size}));
     self_profile_action_ = main_menu->addAction(QStringLiteral("我的资料"));
     self_profile_action_->setObjectName(QStringLiteral("selfProfileAction"));
     auto* settings = main_menu->addAction(QStringLiteral("设置"));
     settings->setObjectName(QStringLiteral("showSettingsAction"));
     settings->setToolTip(QStringLiteral("设置"));
-    settings->setIcon(svg_icon(u"settings", themed("text"), QSize(20, 20)));
+    settings->setIcon(navigation_menu_icon(u"settings"));
     connect(settings, &QAction::triggered, this, &chat_widget::settings_requested);
     main_menu_button_->setMenu(main_menu);
     main_menu_badge_ = new QLabel(main_menu_button_);
@@ -336,7 +346,7 @@ QWidget* chat_widget::create_sidebar()
     style_search_field(*conversation_search_);
     conversation_header_layout->addWidget(conversation_search_, 1);
     conversation_header_layout->addWidget(add_button);
-    auto recolor = [add_button] { add_button->setIcon(svg_icon(u"plus", themed("text_secondary"), QSize(20, 20))); };
+    auto recolor = [add_button] { add_button->setIcon(svg_icon(u"plus", themed("text_secondary"), chat_theme::toolbar_icon)); };
     recolor();
     connect(&theme_manager::instance(), &theme_manager::changed, add_button, recolor);
     conversation_layout->addWidget(conversation_header);
@@ -750,6 +760,7 @@ void chat_widget::show_conversation_menu(QPoint point)
                    [this, conversation, mark] { emit unread_mark_requested(conversation, mark); });
     menu.addSeparator();
     menu.addAction(QStringLiteral("隐藏会话"), [this, conversation] { emit history_view_requested(conversation, true); });
+    style_menu_icons(menu, chat_theme::menu_icon_size);
     menu.addAction(svg_icon(u"close", themed("danger")),
                    QStringLiteral("清空聊天记录"),
                    [this, conversation] { emit history_view_requested(conversation, false); });
@@ -1426,7 +1437,7 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
     auto* header = new QFrame(chat_panel);
     header->setObjectName(QStringLiteral("chatHeader"));
     auto* header_layout = new QHBoxLayout(header);
-    header_layout->setContentsMargins(chat_theme::message_side_margin, 8, 16, 8);
+    header_layout->setContentsMargins(chat_theme::message_side_margin, 7, 16, 7);
     header_layout->setSpacing(8);
 
     chat_title_ = new QPushButton(header);
@@ -1454,10 +1465,11 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
     search->setObjectName(QStringLiteral("searchChatButton"));
     search->setProperty("navigationTool", true);
     search->setToolTip(QStringLiteral("当前会话搜索 (Ctrl+F)"));
-    auto search_icon = [this] { message_search_action_->setIcon(svg_icon(u"search", themed("text"), QSize(20, 20))); };
+    auto search_icon = [this] { message_search_action_->setIcon(svg_icon(u"search", themed("text"), chat_theme::toolbar_icon)); };
     search_icon();
     connect(&theme_manager::instance(), &theme_manager::changed, search, search_icon);
-    search->setFixedSize(36, 36);
+    search->setFixedSize(40, 40);
+    search->setIconSize(chat_theme::toolbar_icon);
     header_layout->addWidget(search);
     connect(message_search_action_,
             &QAction::triggered,
@@ -1565,6 +1577,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     history_down_ = new QPushButton(messages_view_->viewport());
     history_down_->setObjectName(QStringLiteral("historyDownButton"));
     history_down_->setIcon(svg_icon(u"chevron-down", themed("text"), QSize(20, 20)));
+    history_down_->setIconSize(chat_theme::action_icon);
     history_down_->setAutoDefault(false);
     history_down_->hide();
     connect(history_down_, &QPushButton::clicked, this, &chat_widget::navigate_down);
@@ -1610,6 +1623,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
         button->setAccessibleName(text);
         button->setProperty("navigationTool", true);
         button->setFixedSize(38, 38);
+        button->setIconSize(chat_theme::action_icon);
         auto refresh = [button, icon, danger] { button->setIcon(svg_icon(icon, themed(danger ? "danger" : "text"))); };
         refresh();
         connect(&theme_manager::instance(), &theme_manager::changed, button, refresh);
@@ -1827,8 +1841,8 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     attachment_button_ = new QToolButton(input_bar);
     attachment_button_->setObjectName(QStringLiteral("sendAttachmentButton"));
     attachment_button_->setAccessibleName(QStringLiteral("附件"));
-    attachment_button_->setIcon(svg_icon(u"attach", themed("text"), QSize(22, 22)));
-    attachment_button_->setIconSize(QSize(22, 22));
+    attachment_button_->setIcon(svg_icon(u"attach", themed("text"), chat_theme::toolbar_icon));
+    attachment_button_->setIconSize(chat_theme::toolbar_icon);
     attachment_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
     attachment_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
     attachment_button_->setEnabled(false);
@@ -1841,8 +1855,8 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
         button->setObjectName(name);
         button->setToolTip(label);
         button->setAccessibleName(label);
-        button->setIcon(svg_icon(icon, themed("text"), QSize(22, 22)));
-        button->setIconSize(QSize(22, 22));
+        button->setIcon(svg_icon(icon, themed("text"), chat_theme::toolbar_icon));
+        button->setIconSize(chat_theme::toolbar_icon);
         button->setToolButtonStyle(Qt::ToolButtonIconOnly);
         button->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
         button->setCursor(Qt::PointingHandCursor);
@@ -1980,7 +1994,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     send_button_ = new QToolButton(input_bar);
     send_button_->setObjectName(QStringLiteral("sendButton"));
     send_button_->setIcon(composer_send_icon());
-    send_button_->setIconSize(QSize(20, 20));
+    send_button_->setIconSize(chat_theme::toolbar_icon);
     send_button_->setToolTip(QStringLiteral("发送消息（Enter）"));
     send_button_->setAccessibleName(QStringLiteral("发送消息"));
     send_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
@@ -2113,6 +2127,7 @@ void chat_widget::show_message_menu(QPoint position)
         return visit == conversation_visit_ && conversation == active_conversation_ && message_id > history_floor(conversation) &&
                target_index.isValid() && !target_index.data(message_model::deleted_role).toBool();
     };
+    style_menu_icons(menu, chat_theme::menu_icon_size);
     auto const ordinary = index.data(message_model::content_role).toString() == QStringLiteral("message");
     auto* reply = can_send() ? menu.addAction(QStringLiteral("回复")) : nullptr;
     auto* copy = !index.data(message_model::text_role).toString().isEmpty()
@@ -2504,7 +2519,7 @@ void chat_widget::connect_chat_controls()
             {
                 if (user == self_user_)
                 {
-                    self_profile_action_->setIcon(avatar_icon(self_username_, 24, avatars_.image(user)));
+                    self_profile_action_->setIcon(avatar_icon(self_username_, chat_theme::menu_avatar_size, avatars_.image(user)));
                 }
                 if (user == (active_group_ ? -active_conversation_ : active_peer_))
                 {
@@ -2636,7 +2651,7 @@ void chat_widget::set_user(QString const& username, qint64 user, QString const& 
     }
     conversations_->set_collapsed(std::move(collapsed));
     conversations_->set_folders({});
-    self_profile_action_->setIcon(avatar_icon(username, 24));
+    self_profile_action_->setIcon(avatar_icon(username, chat_theme::menu_avatar_size));
     self_profile_action_->setEnabled(user > 0);
     history_floors_.clear();
     reading_positions_.clear();
@@ -3442,7 +3457,6 @@ void chat_widget::set_friend_requests(QList<user_data> incoming, QList<user_data
     auto populate = [this](QListWidget* list, QList<user_data> const& users, QString const& hint)
     {
         auto const selected_user = list->currentItem() ? list->currentItem()->data(Qt::UserRole).toLongLong() : 0;
-        auto const selected_row = list->currentRow();
         auto const scroll_position = list->verticalScrollBar()->value();
         QSignalBlocker const blocked(list);
         list->clear();
@@ -3459,10 +3473,6 @@ void chat_widget::set_friend_requests(QList<user_data> incoming, QList<user_data
             {
                 list->setCurrentItem(item);
             }
-        }
-        if (!list->currentItem() && selected_row >= 0 && list->count() > 0)
-        {
-            list->setCurrentRow(std::min(selected_row, list->count() - 1));
         }
         list->setMaximumHeight(list->count() * chat_theme::user_row_height);
         auto* group = list->parentWidget();
@@ -3921,14 +3931,7 @@ void chat_widget::show_friend_requests()
 {
     contacts_pages_->setCurrentIndex(1);
     contacts_dialog_->setWindowTitle(QStringLiteral("好友申请"));
-    for (auto* list : {incoming_friends_, outgoing_friends_})
-    {
-        if (list->count() > 0 && !list->currentItem())
-        {
-            list->setCurrentRow(0);
-        }
-    }
-    incoming_friends_->setFocus();
+    contacts_dialog_->setFocus(Qt::OtherFocusReason);
 }
 
 void chat_widget::show_contacts_dialog()
@@ -4019,35 +4022,35 @@ void chat_widget::select_contact(QModelIndex const& index)
 
 void chat_widget::refresh_theme()
 {
-    main_menu_button_->setIcon(svg_icon(u"menu", themed("text_secondary"), QSize(22, 22)));
+    main_menu_button_->setIcon(svg_icon(u"menu", themed("text_secondary"), chat_theme::toolbar_icon));
     contacts_add_button_->setIcon(svg_icon(u"user-plus", themed("text_secondary"), QSize(20, 20)));
-    chats_action_->setIcon(svg_icon(u"chat", themed("text"), QSize(20, 20)));
-    contacts_action_->setIcon(svg_icon(u"contacts", themed("text"), QSize(20, 20)));
+    chats_action_->setIcon(navigation_menu_icon(u"chat"));
+    contacts_action_->setIcon(navigation_menu_icon(u"contacts"));
     contacts_requests_icon_->setPixmap(svg_icon(u"user-plus", themed("text_secondary"), QSize(22, 22)).pixmap(22, 22));
     contacts_requests_arrow_->setPixmap(svg_icon(u"chevron-right", themed("text_secondary"), QSize(16, 16)).pixmap(16, 16));
     cancel_reply_button_->setIcon(svg_icon(QStringLiteral("close"), themed("text"), QSize(20, 20)));
     send_button_->setIcon(composer_send_icon());
     history_down_->setIcon(svg_icon(u"chevron-down", themed("text"), QSize(20, 20)));
-    attachment_button_->setIcon(svg_icon(u"attach", themed("text"), QSize(22, 22)));
-    screenshot_button_->setIcon(svg_icon(u"screenshot", themed("text"), QSize(22, 22)));
-    emoji_button_->setIcon(svg_icon(u"emoji", themed("text"), QSize(22, 22)));
-    history_button_->setIcon(svg_icon(u"history", themed("text"), QSize(22, 22)));
+    attachment_button_->setIcon(svg_icon(u"attach", themed("text"), chat_theme::toolbar_icon));
+    screenshot_button_->setIcon(svg_icon(u"screenshot", themed("text"), chat_theme::toolbar_icon));
+    emoji_button_->setIcon(svg_icon(u"emoji", themed("text"), chat_theme::toolbar_icon));
+    history_button_->setIcon(svg_icon(u"history", themed("text"), chat_theme::toolbar_icon));
     for (auto* action : findChildren<QAction*>())
     {
         if (action->objectName() == QStringLiteral("addFriendAction"))
         {
-            action->setIcon(svg_icon(u"user-plus", themed("text"), QSize(20, 20)));
+            action->setIcon(svg_icon(u"user-plus", themed("text"), {chat_theme::menu_icon_size, chat_theme::menu_icon_size}));
         }
         else if (action->objectName() == QStringLiteral("showSettingsAction"))
         {
-            action->setIcon(svg_icon(u"settings", themed("text"), QSize(20, 20)));
+            action->setIcon(navigation_menu_icon(u"settings"));
         }
         else if (action->objectName() == QStringLiteral("createGroupAction") || action->objectName() == QStringLiteral("joinGroupAction"))
         {
-            action->setIcon(svg_icon(u"groups", themed("text"), QSize(20, 20)));
+            action->setIcon(svg_icon(u"groups", themed("text"), {chat_theme::menu_icon_size, chat_theme::menu_icon_size}));
         }
     }
-    self_profile_action_->setIcon(avatar_icon(self_username_, 24, avatars_.image(self_user_)));
+    self_profile_action_->setIcon(avatar_icon(self_username_, chat_theme::menu_avatar_size, avatars_.image(self_user_)));
     if (active_conversation_ > 0)
     {
         update_chat_header(active_username_);
@@ -5179,9 +5182,10 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     close_button->setObjectName(QStringLiteral("profileCloseButton"));
     close_button->setAccessibleName(QStringLiteral("关闭资料"));
     close_button->setToolTip(QStringLiteral("关闭资料"));
-    close_button->setIcon(svg_icon(QStringLiteral("close"), themed("text"), QSize(22, 22)));
-    close_button->setIconSize(QSize(22, 22));
+    close_button->setIcon(svg_icon(u"close", themed("text_secondary"), chat_theme::action_icon));
+    close_button->setIconSize(chat_theme::action_icon);
     close_button->setFixedSize(36, 36);
+    close_button->setFocusPolicy(Qt::TabFocus);
     close_button->setCursor(Qt::PointingHandCursor);
     top->addWidget(close_button);
     header_layout->addLayout(top);
@@ -5242,7 +5246,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
             &dialog,
             [this, close_button, message_button, copy_username_button, avatar, user, username]
             {
-                close_button->setIcon(svg_icon(u"close", themed("text"), QSize(22, 22)));
+                close_button->setIcon(svg_icon(u"close", themed("text_secondary"), chat_theme::action_icon));
                 message_button->setIcon(svg_icon(u"chat", themed("on_accent"), QSize(20, 20)));
                 copy_username_button->setIcon(svg_icon(u"copy", themed("accent"), QSize(20, 20)));
                 avatar->setPixmap(avatar_icon(username, 104, avatars_.image(user)).pixmap(104, 104));
@@ -5365,6 +5369,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
 
     connect(close_button, &QToolButton::clicked, &dialog, &QDialog::reject);
 
+    dialog.setFocus(Qt::OtherFocusReason);
     dialog.exec();
 }
 

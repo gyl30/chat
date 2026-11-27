@@ -54,6 +54,8 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     back_->setAccessibleName(QStringLiteral("返回设置首页"));
     back_->setToolTip(back_->accessibleName());
     back_->setFixedSize(40, 40);
+    back_->setIconSize(chat_theme::action_icon);
+    back_->setFocusPolicy(Qt::TabFocus);
     back_->setCursor(Qt::PointingHandCursor);
     header->addWidget(back_);
     title_ = dialog_title(*this, QStringLiteral("设置"));
@@ -64,6 +66,8 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     close_->setAccessibleName(QStringLiteral("关闭设置"));
     close_->setToolTip(close_->accessibleName());
     close_->setFixedSize(40, 40);
+    close_->setIconSize(chat_theme::action_icon);
+    close_->setFocusPolicy(Qt::TabFocus);
     close_->setCursor(Qt::PointingHandCursor);
     header->addWidget(close_);
     outer->addLayout(header);
@@ -304,21 +308,14 @@ void settings_dialog::show_page(int page)
     pages_->setCurrentIndex(page);
     title_->setText(page_title(page));
     back_->setVisible(page != 0);
-    if (page == 0)
-    {
-        account_->setFocus();
-    }
-    else
-    {
-        back_->setFocus();
-    }
+    setFocus(Qt::OtherFocusReason);
 }
 
 void settings_dialog::refresh_icons()
 {
-    close_->setIcon(svg_icon(u"close", themed("text_secondary"), QSize(20, 20)));
+    close_->setIcon(svg_icon(u"close", themed("text_secondary"), chat_theme::action_icon));
     auto const down = svg_icon(u"chevron-down", themed("text_secondary"), QSize(20, 20));
-    back_->setIcon(QIcon(down.pixmap(QSize(20, 20)).transformed(QTransform().rotate(90))));
+    back_->setIcon(svg_icon(u"back", themed("text_secondary"), chat_theme::action_icon));
     auto const right = down.pixmap(QSize(20, 20)).transformed(QTransform().rotate(-90));
     for (auto* arrow : findChildren<QLabel*>(QStringLiteral("settingsSectionArrow")))
     {

@@ -69,6 +69,11 @@ inline constexpr int message_date_height = 24;
 inline constexpr int message_date_margin_top = 14;
 inline constexpr int message_date_margin_bottom = 8;
 
+inline constexpr QSize toolbar_icon{24, 24};
+inline constexpr QSize action_icon{20, 20};
+inline constexpr int menu_icon_size = 22;
+inline constexpr int menu_avatar_size = 28;
+
 inline constexpr int compose_button_width = 40;
 inline constexpr int compose_button_height = 40;
 inline constexpr int compose_field_min_height = 44;

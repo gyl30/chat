@@ -173,6 +173,7 @@ message_search_dialog::message_search_dialog(
                     QGuiApplication::clipboard()->setText(index.data(message_model::text_role).toString());
                 }
             });
+    input_->setFocus(Qt::OtherFocusReason);
     refresh_count();
     if (!query.isEmpty())
     {

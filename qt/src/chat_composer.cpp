@@ -2,6 +2,7 @@
 #include "emoji_segments.hpp"
 #include "icons.hpp"
 #include "presence.hpp"
+#include "theme.hpp"
 #include "theme_manager.hpp"
 
 #include <algorithm>
@@ -183,6 +184,7 @@ class attachment_menu final : public QMenu
 void chat_widget::setup_attachment_menu()
 {
     attachment_menu_ = new attachment_menu(*attachment_button_, [this] { return active_group_ && can_send(); });
+    style_menu_icons(*attachment_menu_, chat_theme::menu_icon_size);
     auto* file = attachment_menu_->addAction(QStringLiteral("文件"), this,
                                              [this]
                                              {
@@ -202,8 +204,8 @@ void chat_widget::setup_attachment_menu()
     poll->setObjectName(QStringLiteral("createPollAction"));
     auto update_icons = [file, poll]
     {
-        file->setIcon(svg_icon(u"attach", themed("text_secondary"), {18, 18}));
-        poll->setIcon(svg_icon(u"poll", themed("text_secondary"), {18, 18}));
+        file->setIcon(svg_icon(u"attach", themed("text_secondary"), {chat_theme::menu_icon_size, chat_theme::menu_icon_size}));
+        poll->setIcon(svg_icon(u"poll", themed("text_secondary"), {chat_theme::menu_icon_size, chat_theme::menu_icon_size}));
     };
     update_icons();
     connect(&theme_manager::instance(), &theme_manager::changed, attachment_menu_, update_icons);

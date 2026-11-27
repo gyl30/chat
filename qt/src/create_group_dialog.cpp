@@ -89,6 +89,7 @@ create_group_dialog::create_group_dialog(QWidget* parent) : QDialog(parent)
                     list_->item(row)->setHidden(!list_->item(row)->data(user_model::search_role).toString().contains(query, Qt::CaseInsensitive));
                 }
             });
+    title_->setFocus(Qt::OtherFocusReason);
 }
 
 void create_group_dialog::update_selection()
