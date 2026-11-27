@@ -13,6 +13,7 @@ add_executable(client
     src/attachment_dialog.hpp
     src/avatar.hpp
     src/global_search_dialog.cpp
+    src/message_preview.cpp
     src/bookmarks_dialog.cpp
     src/chat_history_dialog.cpp
     src/chat_history_dialog.hpp

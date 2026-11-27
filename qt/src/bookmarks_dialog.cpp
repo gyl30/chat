@@ -4,26 +4,21 @@
 #include <QAbstractItemView>
 #include <QDateTime>
 #include <QHBoxLayout>
-#include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QTimer>
-#include <QTreeWidget>
+#include <QListWidget>
 #include <QVBoxLayout>
 
 #include "client_bridge.hpp"
 #include "global_search_dialog.hpp"
+#include "chat_widget.hpp"
+#include "message_preview.hpp"
 
 namespace
 {
-enum
-{
-    message_role = Qt::UserRole,
-    conversation_role,
-};
-
 QString local_time(qint64 milliseconds) { return QDateTime::fromMSecsSinceEpoch(milliseconds).toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")); }
 }    // namespace
 
@@ -32,7 +27,7 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, chat_widget& chat, QWi
       client_(client),
       chat_(chat),
       query_(new QLineEdit(this)),
-      results_(new QTreeWidget(this)),
+      results_(new QListWidget(this)),
       locate_(new QPushButton(QStringLiteral("定位原消息"), this)),
       remove_(new QPushButton(QStringLiteral("取消收藏"), this)),
       more_(new QPushButton(QStringLiteral("加载更多"), this)),
@@ -47,16 +42,8 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, chat_widget& chat, QWi
     style_search_field(*query_);
     query_->setPlaceholderText(QStringLiteral("搜索收藏"));
     results_->setObjectName(QStringLiteral("bookmarkResults"));
-    results_->setHeaderLabels(
-        {QStringLiteral("来源会话"), QStringLiteral("发送者"), QStringLiteral("原消息时间"), QStringLiteral("收藏时间"), QStringLiteral("消息摘要")});
-    results_->setRootIsDecorated(false);
-    results_->header()->setSectionResizeMode(QHeaderView::Interactive);
-    results_->setColumnWidth(0, 145);
-    results_->setColumnWidth(1, 95);
-    for (int i : {2, 3})
-    {
-        results_->setColumnWidth(i, 145);
-    }
+    results_->setAccessibleName(QStringLiteral("收藏消息"));
+    style_message_previews(*results_, *query_, &chat_.avatars());
     locate_->setObjectName(QStringLiteral("locateBookmark"));
     remove_->setObjectName(QStringLiteral("removeBookmark"));
     more_->setObjectName(QStringLiteral("moreBookmarks"));
@@ -93,8 +80,8 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, chat_widget& chat, QWi
                 refresh_->stop();
                 fetch(0);
             });
-    connect(results_, &QTreeWidget::itemSelectionChanged, this, &bookmarks_dialog::update_actions);
-    connect(results_, &QTreeWidget::itemActivated, this, &bookmarks_dialog::locate);
+    connect(results_, &QListWidget::itemSelectionChanged, this, &bookmarks_dialog::update_actions);
+    connect(results_, &QListWidget::itemActivated, this, &bookmarks_dialog::locate);
     connect(locate_, &QPushButton::clicked, this, &bookmarks_dialog::locate);
     connect(more_, &QPushButton::clicked, this, [this] { fetch(before_); });
     connect(results_->verticalScrollBar(),
@@ -117,7 +104,7 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, chat_widget& chat, QWi
                 {
                     return;
                 }
-                removing_ = item->data(0, message_role).toLongLong();
+                removing_ = item->data(preview_role::message).toLongLong();
                 update_actions();
                 feedback_->clear();
                 client_.set_message_bookmark(removing_, false);
@@ -148,9 +135,9 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, chat_widget& chat, QWi
             {
                 if (error.isEmpty())
                 {
-                    for (int i = 0; i < results_->topLevelItemCount(); ++i)
+                    for (int i = 0; i < results_->count(); ++i)
                     {
-                        if (results_->topLevelItem(i)->data(0, message_role).toLongLong() == message.id)
+                        if (results_->item(i)->data(preview_role::message).toLongLong() == message.id)
                         {
                             refresh();
                             return;
@@ -186,6 +173,7 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, chat_widget& chat, QWi
             });
     connect(&client_, &client_bridge::conversation_changed, this, [this] { refresh(); });
     connect(&client_, &client_bridge::disconnected, this, &QDialog::reject);
+    query_->setFocus(Qt::OtherFocusReason);
     refresh();
 }
 
@@ -222,28 +210,25 @@ void bookmarks_dialog::set_page(quint64 request, chat::bookmark_page const& page
     }
     for (auto const& bookmark : page.bookmarks)
     {
-        auto* item = new QTreeWidgetItem(results_);
-        item->setData(0, message_role, static_cast<qlonglong>(bookmark.message));
-        item->setText(3, local_time(bookmark.created_at));
+        auto* item = new QListWidgetItem(results_);
+        auto const saved = QStringLiteral("收藏于 %1").arg(local_time(bookmark.created_at));
         if (auto const& source = bookmark.source)
         {
-            item->setData(0, conversation_role, static_cast<qlonglong>(source->conversation));
-            item->setText(0, QString::fromStdString(source->title));
-            item->setText(1, QString::fromStdString(source->username));
-            item->setText(2, local_time(source->timestamp));
             auto const summary = bookmark.attachment_type.empty()                 ? QString::fromStdString(source->snippet)
                                  : bookmark.attachment_type.starts_with("image/") ? QStringLiteral("[图片]")
                                                                                   : QStringLiteral("[文件]");
-            item->setText(4, summary.simplified());
+            set_message_preview(*item, *source, summary, saved);
         }
         else
         {
-            item->setText(4, QStringLiteral("原消息已不可访问"));
+            item->setData(preview_role::message, qint64(bookmark.message));
+            item->setData(preview_role::note, saved);
+            set_preview_snippet(*item, QStringLiteral("原消息已不可访问"));
         }
     }
     request_ = 0;
     before_ = page.next_before.value_or(0);
-    status_->setText(results_->topLevelItemCount() ? QString{}
+    status_->setText(results_->count() ? QString{}
                      : query_->text().isEmpty()    ? QStringLiteral("暂无收藏")
                                                    : QStringLiteral("没有匹配的收藏消息"));
     update_actions();
@@ -252,7 +237,7 @@ void bookmarks_dialog::set_page(quint64 request, chat::bookmark_page const& page
 void bookmarks_dialog::update_actions()
 {
     auto const* item = results_->currentItem();
-    locate_->setEnabled(item && item->data(0, conversation_role).toLongLong());
+    locate_->setEnabled(item && item->data(preview_role::conversation).toLongLong());
     remove_->setEnabled(item && !removing_);
     more_->setVisible(before_ != 0);
     more_->setEnabled(before_ && !request_);
@@ -265,12 +250,12 @@ void bookmarks_dialog::locate()
     {
         return;
     }
-    auto const conversation = item->data(0, conversation_role).toLongLong();
-    auto const message = item->data(0, message_role).toLongLong();
+    auto const conversation = item->data(preview_role::conversation).toLongLong();
+    auto const message = item->data(preview_role::message).toLongLong();
     if (conversation)
     {
         global_search_dialog context(client_, chat_, this);
-        context.locate(conversation, message, [this] { refresh(); }, item->text(0));
+        context.locate(conversation, message, [this] { refresh(); }, item->data(preview_role::title).toString());
         context.exec();
     }
 }

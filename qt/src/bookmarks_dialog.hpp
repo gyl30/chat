@@ -11,7 +11,7 @@ class chat_widget;
 class QLabel;
 class QLineEdit;
 class QPushButton;
-class QTreeWidget;
+class QListWidget;
 class QTimer;
 
 class bookmarks_dialog final : public QDialog
@@ -29,7 +29,7 @@ class bookmarks_dialog final : public QDialog
     client_bridge& client_;
     chat_widget& chat_;
     QLineEdit* query_;
-    QTreeWidget* results_;
+    QListWidget* results_;
     QPushButton* locate_;
     QPushButton* remove_;
     QPushButton* more_;

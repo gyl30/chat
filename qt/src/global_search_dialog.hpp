@@ -15,8 +15,8 @@ class message_model;
 class chat_widget;
 class client_bridge;
 class QLineEdit;
-class QTreeWidget;
-class QTreeWidgetItem;
+class QListWidget;
+class QListWidgetItem;
 class QListView;
 class QPushButton;
 class QLabel;
@@ -41,7 +41,7 @@ class global_search_dialog final : public QDialog
     chat::message_search_filter search_filter() const;
     void set_status(QString message = {});
     void filter_changed();
-    void open_context(QTreeWidgetItem* item);
+    void open_context(QListWidgetItem* item);
     void show_context(qint64 conversation, qint64 anchor, QString const& title);
     void context_unavailable();
     void show_results();
@@ -75,7 +75,7 @@ class global_search_dialog final : public QDialog
     quint64 scope_request_ = 0;
     quint64 sender_request_ = 0;
     bool submitted_ = false;
-    QTreeWidget* results_;
+    QListWidget* results_;
     QListView* context_;
     message_model* messages_;
     QPushButton* more_;

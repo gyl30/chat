@@ -47,6 +47,7 @@
 #include <utility>
 #include "conversation_model.hpp"
 #include "conversation_delegate.hpp"
+#include "message_preview.hpp"
 #include "message_model.hpp"
 #include "user_model.hpp"
 #include "theme_manager.hpp"
@@ -962,7 +963,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             for (int i = 0; i < list->count(); ++i)
             {
                 auto* item = list->item(i);
-                rows.append(QJsonObject{{"id", item->data(Qt::UserRole).toLongLong()}, {"text", item->data(Qt::UserRole + 3).toString()}});
+                rows.append(QJsonObject{{"id", item->data(Qt::UserRole).toLongLong()}, {"text", item->text()}});
             }
             out["rows"] = rows;
             out["selected"] = list->currentItem() ? list->currentItem()->data(Qt::UserRole).toLongLong() : 0;
@@ -1495,17 +1496,17 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         auto* dialog = window.findChild<QDialog*>("bookmarksDialog");
         if (dialog && dialog->isVisible())
         {
-            auto* list = dialog->findChild<QTreeWidget*>("bookmarkResults");
+            auto* list = dialog->findChild<QListWidget*>("bookmarkResults");
             if (cmd.contains("query"))
             {
                 dialog->findChild<QLineEdit*>("bookmarkQuery")->setText(cmd["query"].toString());
             }
             if (cmd.contains("select"))
             {
-                for (int i = 0; i < list->topLevelItemCount(); ++i)
+                for (int i = 0; i < list->count(); ++i)
                 {
-                    auto* item = list->topLevelItem(i);
-                    if (item->data(0, Qt::UserRole).toLongLong() == cmd["select"].toInteger())
+                    auto* item = list->item(i);
+                    if (item->data(preview_role::message).toLongLong() == cmd["select"].toInteger())
                     {
                         list->setCurrentItem(item);
                         break;
@@ -1528,18 +1529,18 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 remove->click();
             }
             QJsonArray rows;
-            for (int i = 0; i < list->topLevelItemCount(); ++i)
+            for (int i = 0; i < list->count(); ++i)
             {
-                auto* item = list->topLevelItem(i);
-                rows.append(QJsonObject{{"id", item->data(0, Qt::UserRole).toLongLong()},
-                                        {"conversation", item->data(0, Qt::UserRole + 1).toLongLong()},
-                                        {"summary", item->text(4)}});
+                auto* item = list->item(i);
+                rows.append(QJsonObject{{"id", item->data(preview_role::message).toLongLong()},
+                                        {"conversation", item->data(preview_role::conversation).toLongLong()},
+                                        {"summary", item->text()}});
             }
             out["open"] = true;
             out["rows"] = rows;
             out["more"] = more->isVisible();
             out["locate"] = locate->isEnabled();
-            out["selected"] = list->currentItem() ? list->currentItem()->data(0, Qt::UserRole).toLongLong() : 0;
+            out["selected"] = list->currentItem() ? list->currentItem()->data(preview_role::message).toLongLong() : 0;
             out["status"] = dialog->findChild<QLabel*>("bookmarkStatus")->text();
             if (cmd["close"].toBool())
             {
@@ -1587,7 +1588,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         }
         else if (d)
         {
-            auto* l = d->findChild<QTreeWidget*>();
+            auto* l = d->findChild<QListWidget*>("globalSearchResults");
             auto* q = d->findChild<QLineEdit*>("globalSearchQuery");
             auto* ctx = d->findChild<QListView*>("searchContextMessages");
             if (l && q && ctx)
@@ -1654,27 +1655,29 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 if (cmd.contains("row"))
                 {
                     int i = cmd["row"].toInt();
-                    if (i < l->topLevelItemCount())
+                    if (i < l->count())
                     {
-                        auto* it = l->topLevelItem(i);
+                        auto* it = l->item(i);
                         l->scrollToItem(it);
                         l->setCurrentItem(it);
                         if (cmd["enter"].toBool())
                         {
-                            emit l->itemClicked(it, 0);
+                            emit l->itemClicked(it);
                         }
                     }
                 }
-                QJsonArray ids, snips;
-                for (int i = 0; i < l->topLevelItemCount(); ++i)
+                QJsonArray ids, snips, heights;
+                for (int i = 0; i < l->count(); ++i)
                 {
-                    ids << l->topLevelItem(i)->data(1, Qt::UserRole).toLongLong();
-                    snips << l->topLevelItem(i)->text(0);
+                    ids << l->item(i)->data(preview_role::message).toLongLong();
+                    snips << l->item(i)->text();
+                    heights << l->sizeHintForRow(i);
                 }
                 out["ids"] = ids;
                 out["snips"] = snips;
+                out["heights"] = heights;
                 out["scroll"] = l->verticalScrollBar()->value();
-                out["row"] = l->indexOfTopLevelItem(l->currentItem());
+                out["row"] = l->row(l->currentItem());
                 out["ctx"] = ctx->isVisible();
                 QJsonArray context_ids;
                 for (int i = 0; i < ctx->model()->rowCount(); ++i)
@@ -1695,7 +1698,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 out["contextIds"] = context_ids;
                 out["count"] = ctx->model()->rowCount();
                 out["anchor"] = ctx->currentIndex().data(message_model::id_role).toLongLong();
-                out["selected"] = l->currentItem() ? l->currentItem()->data(1, Qt::UserRole).toLongLong() : 0;
+                out["selected"] = l->currentItem() ? l->currentItem()->data(preview_role::message).toLongLong() : 0;
                 if (cmd["close"].toBool())
                 {
                     d->reject();
@@ -1771,30 +1774,35 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     else if (op == "sidebar_search")
     {
         auto* input = window.findChild<QLineEdit*>("conversationSearchEdit");
-        auto* more = window.findChild<QPushButton*>("sidebarMoreResults");
         if (cmd.contains("query"))
         {
             input->setText(cmd["query"].toString());
         }
-        if (cmd["open"].toBool() && more && more->isVisible())
-        {
-            QTimer::singleShot(0, more, &QPushButton::click);
-        }
-        auto* hits = window.findChild<QListWidget*>("sidebarMessageHits");
+        auto* results = window.findChild<QListWidget*>("sidebarSearchResults");
         QJsonArray ids;
-        if (hits->isVisible())
+        bool more = false;
+        if (results->isVisible())
         {
-            for (int row = 0; row < hits->count(); ++row)
+            for (int row = 0; row < results->count(); ++row)
             {
-                auto const id = hits->item(row)->data(Qt::UserRole + 1).toLongLong();
+                auto* item = results->item(row);
+                auto const id = item->data(preview_role::message).toLongLong();
                 if (id)
                 {
                     ids.append(id);
                 }
+                if (item->data(preview_role::more).toBool())
+                {
+                    more = true;
+                    if (cmd["open"].toBool())
+                    {
+                        QTimer::singleShot(0, results, [results, row] { emit results->itemActivated(results->item(row)); });
+                    }
+                }
             }
         }
         out["ids"] = ids;
-        out["more"] = more && more->isVisible();
+        out["more"] = more;
         out["rooms"] = conv->isVisible();
         out["query"] = input->text();
     }
@@ -1805,12 +1813,12 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             window.findChild<QLineEdit*>("conversationSearchEdit")->setText(cmd["query"].toString());
         }
         QJsonArray names;
-        auto* directory = window.findChild<QListWidget*>("searchDirectory");
+        auto* directory = window.findChild<QListWidget*>("sidebarSearchResults");
         if (directory && directory->isVisible())
         {
             for (int i = 0; i < directory->count(); ++i)
             {
-                if (directory->item(i)->data(Qt::UserRole).toLongLong())
+                if (directory->item(i)->data(preview_role::directory).toLongLong())
                 {
                     names << directory->item(i)->text();
                 }

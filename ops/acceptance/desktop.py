@@ -163,10 +163,13 @@ async def sidebar_search_cases(ui, gate, sender, conversation):
         query = f"侧栏{size}条"
         ids = []
         for n in range(size):
+            text = f"{query} {n}"
+            if size == 6 and n == 0:
+                text = "长英文NoBreakToken" * 90 + "\n\n中文 😃\n" * 60 + f"{query} {query}"
             reply = await sender.ok(
                 "send_message",
                 conversation=conversation,
-                text=f"{query} {n}",
+                text=text,
                 client_id=7000 + size * 10 + n,
             )
             ids.append(reply["id"])
@@ -185,7 +188,9 @@ async def sidebar_search_cases(ui, gate, sender, conversation):
 
     query = "侧栏6条"
     await ui.call("sidebar_search", open=True)
-    await ui.wait("searchui", lambda r: r.get("ids") == buckets[query])
+    preview = await ui.wait("searchui", lambda r: r.get("ids") == buckets[query])
+    assert preview["heights"] == [70] * 6, preview["heights"]
+    assert preview["snips"][-1].count(query) == 2 and "\n" not in preview["snips"][-1], preview["snips"][-1]
     await ui.call("searchui", close=True)
     state = await ui.call("sidebar_search")
     assert state["query"] == query and state["ids"] == buckets[query][:5], state

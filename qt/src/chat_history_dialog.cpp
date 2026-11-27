@@ -6,50 +6,24 @@
 
 #include <QAction>
 #include <QClipboard>
-#include <QDateTime>
-#include <QFontMetrics>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
-#include <QPainter>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSignalBlocker>
-#include <QStyledItemDelegate>
 #include <QTabBar>
 #include <QVBoxLayout>
 
-#include "avatar.hpp"
+#include "message_preview.hpp"
 #include "theme.hpp"
 #include "theme_manager.hpp"
 
 namespace
 {
-
-constexpr int id_role = Qt::UserRole;
-constexpr int sender_role = Qt::UserRole + 1;
-constexpr int time_role = Qt::UserRole + 2;
-constexpr int content_role = Qt::UserRole + 3;
-constexpr int from_role = Qt::UserRole + 4;
-constexpr int row_height = 70;
-
-QString time_text(qint64 timestamp)
-{
-    auto const value = QDateTime::fromMSecsSinceEpoch(timestamp);
-    auto const today = QDate::currentDate();
-    if (value.date() == today)
-    {
-        return value.toString(QStringLiteral("HH:mm"));
-    }
-    if (value.date().year() == today.year())
-    {
-        return value.toString(QStringLiteral("M月d日 HH:mm"));
-    }
-    return value.toString(QStringLiteral("yyyy年M月d日 HH:mm"));
-}
 
 QString size_text(qint64 bytes)
 {
@@ -75,76 +49,19 @@ QString content_text(message_data const& message)
     return message.text.simplified();
 }
 
-void set_row(QListWidgetItem& item, message_data const& message)
+void set_row(QListWidgetItem& item, message_data const& message, QString const& query)
 {
-    item.setData(id_role, message.id);
-    item.setData(sender_role, message.username);
-    item.setData(from_role, message.from);
-    item.setData(time_role, time_text(message.timestamp));
-    item.setData(content_role, content_text(message));
-    item.setData(Qt::AccessibleTextRole,
-                 message.username + QStringLiteral("，") + time_text(message.timestamp) + QStringLiteral("：") + content_text(message));
-    item.setToolTip(content_text(message));
+    chat::message_search_hit const hit{message.conversation, message.id, message.from, message.timestamp, {}, message.username.toStdString(), {}};
+    auto summary = message.attachment ? content_text(message) : matched_message_excerpt(message.text, query);
+    set_message_preview(item, hit, std::move(summary));
 }
 
 bool supersedes(message_data const& change, message_data const& old) { return !old.deleted && (change.deleted || change.edited_at > old.edited_at); }
 
-// One record per row, as in WeChat's history: avatar, sender and time, then the content.
-class history_delegate final : public QStyledItemDelegate
-{
-   public:
-    history_delegate(avatar_cache* avatars, QObject* parent) : QStyledItemDelegate(parent), avatars_(avatars) {}
-
-    void paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const override
-    {
-        painter->save();
-        painter->setRenderHint(QPainter::Antialiasing);
-        auto const rect = option.rect;
-        if (option.state & (QStyle::State_Selected | QStyle::State_MouseOver))
-        {
-            painter->fillRect(rect, option.state & QStyle::State_Selected ? themed("selected") : themed("canvas_hover"));
-        }
-        auto const sender = index.data(sender_role).toString();
-        auto const from = index.data(from_role).toLongLong();
-        QRect avatar(rect.left() + 14, rect.top() + 12, 36, 36);
-        paint_avatar(*painter, avatar, sender, 15, avatars_ ? avatars_->image(from) : QPixmap{});
-        auto const left = avatar.right() + 12;
-        auto const right = rect.right() - 14;
-        QFont name_font = option.font;
-        name_font.setPixelSize(13);
-        name_font.setBold(true);
-        QFont time_font = option.font;
-        time_font.setPixelSize(12);
-        auto const time = index.data(time_role).toString();
-        auto const time_width = QFontMetrics(time_font).horizontalAdvance(time);
-        painter->setFont(time_font);
-        painter->setPen(themed("text_muted"));
-        painter->drawText(QRect(right - time_width, rect.top() + 12, time_width, 18), Qt::AlignRight | Qt::AlignVCenter, time);
-        painter->setFont(name_font);
-        painter->setPen(themed("text_secondary"));
-        QRect name(left, rect.top() + 12, right - time_width - 12 - left, 18);
-        painter->drawText(name, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics(name_font).elidedText(sender, Qt::ElideRight, name.width()));
-        QFont content_font = option.font;
-        content_font.setPixelSize(14);
-        painter->setFont(content_font);
-        painter->setPen(themed("text"));
-        QRect content(left, rect.top() + 34, right - left, 22);
-        painter->drawText(content,
-                          Qt::AlignLeft | Qt::AlignVCenter,
-                          QFontMetrics(content_font).elidedText(index.data(content_role).toString(), Qt::ElideRight, content.width()));
-        painter->restore();
-    }
-
-    QSize sizeHint(QStyleOptionViewItem const&, QModelIndex const&) const override { return {480, row_height}; }
-
-   private:
-    avatar_cache* avatars_;
-};
-
 }    // namespace
 
 chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& title, QWidget* parent, avatar_cache* avatars)
-    : QDialog(parent), conversation_(conversation), avatars_(avatars)
+    : QDialog(parent), conversation_(conversation)
 {
     setObjectName(QStringLiteral("chatHistoryDialog"));
     setWindowTitle(QStringLiteral("聊天记录 · %1").arg(title));
@@ -175,12 +92,9 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     list_ = new QListWidget(this);
     list_->setObjectName(QStringLiteral("historyList"));
     list_->setAccessibleName(QStringLiteral("聊天记录"));
-    list_->setItemDelegate(new history_delegate(avatars_, list_));
+    style_message_previews(*list_, *search, avatars);
     list_->setFrameShape(QFrame::NoFrame);
     list_->setUniformItemSizes(true);
-    list_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-    list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    list_->setMouseTracking(true);
     connect(&theme_manager::instance(),
             &theme_manager::changed,
             this,
@@ -217,12 +131,9 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
                     request_more();
                 }
             });
-    connect(list_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) { emit message_activated(item->data(id_role).toLongLong()); });
+    connect(list_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) { emit message_activated(item->data(preview_role::message).toLongLong()); });
     connect(list_, &QListWidget::customContextMenuRequested, this, [this](QPoint position) { show_menu(position); });
-    if (avatars_)
-    {
-        connect(avatars_, &avatar_cache::changed, list_->viewport(), [this] { list_->viewport()->update(); });
-    }
+    search->setFocus(Qt::OtherFocusReason);
     update_status();
 }
 
@@ -310,7 +221,7 @@ void chat_history_dialog::add_messages(QList<message_data> messages, bool has_mo
             }
             message = *edited;
         }
-        set_row(*new QListWidgetItem(list_), message);
+        set_row(*new QListWidgetItem(list_), message, query_);
         messages_.push_back(std::move(message));
     }
     page_updates_.clear();
@@ -375,7 +286,7 @@ void chat_history_dialog::update_message(qint64 conversation, message_data messa
     if (matches(message))
     {
         *found = std::move(message);
-        set_row(*list_->item(row), *found);
+        set_row(*list_->item(row), *found, query_);
     }
     else
     {
@@ -420,7 +331,7 @@ void chat_history_dialog::show_menu(QPoint position)
         return;
     }
     list_->setCurrentItem(item);
-    auto const id = item->data(id_role).toLongLong();
+    auto const id = item->data(preview_role::message).toLongLong();
     auto const found = std::ranges::find(messages_, id, &message_data::id);
     QMenu menu(this);
     connect(this, &QDialog::finished, &menu, &QMenu::close);

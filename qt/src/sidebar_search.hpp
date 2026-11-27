@@ -10,7 +10,6 @@ class conversation_model;
 class user_model;
 class QLineEdit;
 class QListWidget;
-class QPushButton;
 
 class sidebar_search final : public QWidget
 {
@@ -33,9 +32,7 @@ class sidebar_search final : public QWidget
     user_model& contacts_;
     conversation_model& rooms_;
     avatar_cache& avatars_;
-    QListWidget* directory_;
-    QListWidget* hits_;
-    QPushButton* more_;
+    QListWidget* results_;
     QTimer debounce_;
     quint64 request_ = 0;
 };

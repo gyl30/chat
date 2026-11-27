@@ -45,7 +45,6 @@ class chat_history_dialog final : public QDialog
     void show_menu(QPoint position);
 
     qint64 conversation_;
-    avatar_cache* avatars_;
     QTabBar* tabs_ = nullptr;
     QListWidget* list_ = nullptr;
     QLabel* status_ = nullptr;
