@@ -59,7 +59,16 @@ QToolButton* download_tasks::source_button(QWidget* parent, std::function<downlo
         button->setText(label);
         button->setToolTip(label);
     };
-    connect(this, &download_tasks::changed, button, update);
+    connect(this,
+            &download_tasks::changed,
+            button,
+            [source, update](QList<download_source> const& sources)
+            {
+                if (sources.isEmpty() || sources.contains(source()))
+                {
+                    update();
+                }
+            });
     connect(menu,
             &QMenu::aboutToShow,
             button,
@@ -141,9 +150,9 @@ void download_tasks::start(qint64 id, task& value)
     value.status = state::running;
     value.progress.clear();
     value.error.clear();
-    auto const& src = value.source;
+    const auto src = value.source;
     client_.start_download(id, ++value.attempt, src.conversation, src.message, src.key, value.path, value.control, value.replace, src.item);
-    emit changed();
+    emit changed({src});
 }
 void download_tasks::finish(qint64 id, quint64 attempt, QString const& error)
 {
@@ -154,6 +163,7 @@ void download_tasks::finish(qint64 id, quint64 attempt, QString const& error)
     }
     it->status = error.isEmpty() ? state::completed : state::failed;
     it->error = error;
+    QList<download_source> affected{it->source};
     if (error.isEmpty())
     {
         for (auto& other : tasks_)
@@ -161,6 +171,10 @@ void download_tasks::finish(qint64 id, quint64 attempt, QString const& error)
             if (&other != &it.value() && other.status == state::completed && other.path == it->path)
             {
                 other.status = state::replaced;
+                if (!affected.contains(other.source))
+                {
+                    affected.append(other.source);
+                }
             }
         }
     }
@@ -177,7 +191,7 @@ void download_tasks::finish(qint64 id, quint64 attempt, QString const& error)
         }
         emit client_.file_downloaded(it->source.conversation, it->source.key, it->path, result);
     }
-    emit changed();
+    emit changed(affected);
 }
 void download_tasks::progress(qint64 id, quint64 attempt, qint64 bytes, qint64 total)
 {
@@ -186,9 +200,13 @@ void download_tasks::progress(qint64 id, quint64 attempt, qint64 bytes, qint64 t
     {
         return;
     }
-    QLocale locale;
-    it->progress = QStringLiteral("%1 / %2").arg(locale.formattedDataSize(bytes), locale.formattedDataSize(total));
-    emit changed();
+    const QLocale locale;
+    auto progress = QStringLiteral("%1 / %2").arg(locale.formattedDataSize(bytes), locale.formattedDataSize(total));
+    if (it->progress != progress)
+    {
+        it->progress = std::move(progress);
+        emit changed({it->source});
+    }
 }
 bool download_tasks::path_busy(QString const& path) const
 {
@@ -202,6 +220,7 @@ void download_tasks::cancel(qint64 id)
         return;
     }
     it->status = state::cancelled;
+    const auto source = it->source;
     auto status = it->description();
     if (it->source.message)
     {
@@ -211,7 +230,7 @@ void download_tasks::cancel(qint64 id)
     {
         emit client_.file_downloaded(it->source.conversation, it->source.key, it->path, status);
     }
-    emit changed();
+    emit changed({source});
 }
 void download_tasks::retry(qint64 id, QWidget* parent)
 {
@@ -242,6 +261,9 @@ void download_tasks::clear_tasks()
             item.control->cancel();
         }
     }
-    tasks_.clear();
-    emit changed();
+    if (!tasks_.isEmpty())
+    {
+        tasks_.clear();
+        emit changed({});
+    }
 }

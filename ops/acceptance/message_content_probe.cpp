@@ -1,6 +1,8 @@
 // Exercise the actual bubble delegate and context menu without opening an external browser.
 #include "chat_widget.hpp"
 #include "conversation_model.hpp"
+#include "client_bridge.hpp"
+#include "download_tasks.hpp"
 #include "message_delegate.hpp"
 #include "message_card.hpp"
 #include <QPainter>
@@ -155,6 +157,56 @@ static void check_history_merge_notifications()
     model.merge_messages({stale, reply});
     assert(changed == 0 && selected.data(message_model::text_role) == "new quote");
     assert(model.message_index(400).data(message_model::reply_text_role).toString().endsWith("new quote"));
+}
+
+static void check_download_notification_scope()
+{
+    client_bridge client;
+    auto& tasks = client.downloads();
+    message_model model;
+    model.reset(9);
+    model.set_downloads(tasks);
+    for (int id = 1; id <= 3; ++id)
+    {
+        message_data message;
+        message.id = id;
+        message.conversation = 9;
+        message.attachment = attachment_data{QStringLiteral("file.txt"), QStringLiteral("application/octet-stream"), 1024, QString{}};
+        assert(model.add_message(std::move(message)));
+    }
+    download_tasks::task running{};
+    running.source = {9, 2, 0, {}};
+    running.path = "same.txt";
+    auto completed = running;
+    completed.source.message = 1;
+    completed.status = download_tasks::state::completed;
+    tasks.tasks_.insert(1, completed);
+    tasks.tasks_.insert(2, running);
+    QList<qint64> notified;
+    QObject::connect(&model,
+                     &QAbstractItemModel::dataChanged,
+                     [&notified](auto const& from, auto const&) { notified.push_back(from.data(message_model::id_role).toLongLong()); });
+
+    tasks.progress(2, 0, 10'000'000, 900'000'000);
+    tasks.progress(2, 0, 10'000'001, 900'000'000);
+    std::cout << "Downloads: 3 file rows, notifications for two equivalent samples=" << notified.size() << std::endl;
+    assert(notified == QList<qint64>{2});
+    notified.clear();
+    tasks.finish(2, 0, {});
+    std::ranges::sort(notified);
+    assert((notified == QList<qint64>{1, 2}));
+    assert(tasks.tasks_.value(1).status == download_tasks::state::replaced);
+    // A bundled child or a group file never causes a message bubble to relayout.
+    running.source.item = 1;
+    tasks.tasks_.insert(3, running);
+    running.source = {9, 0, 0, QStringLiteral("group-file")};
+    tasks.tasks_.insert(4, running);
+    notified.clear();
+    for (qint64 id : {3, 4})
+    {
+        tasks.progress(id, 0, 100, 1000);
+    }
+    assert(notified.isEmpty());
 }
 
 static void check_display_roles()
@@ -416,6 +468,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     check_display_roles();
     check_history_merge_notifications();
+    check_download_notification_scope();
     check_search_menu_copy();
     QCoreApplication::setOrganizationName("acceptance");
     QCoreApplication::setApplicationName("message-content");

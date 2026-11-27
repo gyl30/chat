@@ -29,7 +29,8 @@ class download_tasks final : public QObject
     void add_actions(QMenu& menu, download_source const& source);
     QToolButton* source_button(QWidget* parent, std::function<download_source()> source);
    signals:
-    void changed();
+    // Empty sources denotes a cleared task list.
+    void changed(QList<download_source> const& sources);
 
    private:
     enum class state

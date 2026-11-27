@@ -128,13 +128,28 @@ void message_model::set_downloads(download_tasks& downloads)
     connect(&downloads,
             &download_tasks::changed,
             this,
-            [this]
+            [this](QList<download_source> const& sources)
             {
-                for (int row = 0; row < messages_.size(); ++row)
+                auto notify_attachment = [this](QModelIndex row)
                 {
-                    if (messages_[row].attachment && !messages_[row].deleted)
+                    if (row.isValid() && messages_.at(row.row()).attachment && !messages_.at(row.row()).deleted)
                     {
-                        emit dataChanged(index(row), index(row), {download_status_role});
+                        emit dataChanged(row, row, {download_status_role});
+                    }
+                };
+                if (sources.isEmpty())
+                {
+                    for (int row = 0; row < messages_.size(); ++row)
+                    {
+                        notify_attachment(index(row));
+                    }
+                    return;
+                }
+                for (auto const& source : sources)
+                {
+                    if (source.conversation == conversation_ && source.message && !source.item && source.key.isEmpty())
+                    {
+                        notify_attachment(message_index(source.message));
                     }
                 }
             });
