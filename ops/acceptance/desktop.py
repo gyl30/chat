@@ -500,12 +500,13 @@ async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
 
         await until(lambda: first_parts() == {(cid, 1) for cid in ids.values()}, "each transfer has exactly one confirmed part")
 
-        async def label(prefix):
-            state = await ui.wait("transfers", lambda r: any(x.startswith(prefix + " · ") for x in r["labels"]))
-            return next(x for x in state["labels"] if x.startswith(prefix + " · "))
+        async def label(prefix, *, ready=False):
+            field = "resumable" if ready else "labels"
+            state = await ui.wait("transfers", lambda r: any(x.startswith(prefix + " · ") for x in r[field]))
+            return next(x for x in state[field] if x.startswith(prefix + " · "))
 
         async def action(prefix, name):
-            row = await label(prefix)
+            row = await label(prefix, ready=name == "继续上传")
             assert path.name in row
             assert (await ui.call("transfers", label=row, action=name)).get("triggered")
 
