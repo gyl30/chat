@@ -5,11 +5,13 @@
 #include <QAction>
 #include <QApplication>
 #include <QLayout>
+#include <QGraphicsEffect>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QMenu>
+#include <QPainter>
 #include <QPainterPath>
 #include <QToolButton>
 #include <QWindow>
@@ -18,6 +20,10 @@
 #include <QPushButton>
 #include <QStyle>
 #include <utility>
+#if defined(Q_OS_LINUX) && QT_CONFIG(xcb)
+#include <QScopedPointer>
+#include <xcb/xcb.h>
+#endif
 
 class accessible_feedback_notification final : public QAccessibleObject
 {
@@ -96,11 +102,76 @@ QLabel* dialog_title(QDialog& dialog, QString title)
 
 namespace
 {
+bool has_x11_compositor()
+{
+#if defined(Q_OS_LINUX) && QT_CONFIG(xcb)
+    auto* x11 = qApp->nativeInterface<QNativeInterface::QX11Application>();
+    auto* connection = x11->connection();
+    auto const display = qgetenv("DISPLAY");
+    auto const suffix = display.indexOf('.', display.lastIndexOf(':') + 1);
+    auto const screen = suffix < 0 ? 0 : display.mid(suffix + 1).toInt();
+    auto const selection = QByteArrayLiteral("_NET_WM_CM_S") + QByteArray::number(screen);
+    auto const cookie = xcb_intern_atom(connection, 1, selection.size(), selection.constData());
+    QScopedPointer<xcb_intern_atom_reply_t, QScopedPointerPodDeleter> const atom(xcb_intern_atom_reply(connection, cookie, nullptr));
+    if (!atom || atom->atom == XCB_ATOM_NONE)
+    {
+        return false;
+    }
+    QScopedPointer<xcb_get_selection_owner_reply_t, QScopedPointerPodDeleter> const owner(
+        xcb_get_selection_owner_reply(connection, xcb_get_selection_owner(connection, atom->atom), nullptr));
+    return owner && owner->owner != XCB_WINDOW_NONE;
+#else
+    return false;
+#endif
+}
+
+class rounded_window_effect final : public QGraphicsEffect
+{
+   public:
+    explicit rounded_window_effect(int radius) : radius_(radius) {}
+
+   private:
+    void draw(QPainter* painter) override
+    {
+        QPoint offset;
+        auto pixmap = sourcePixmap(Qt::LogicalCoordinates, &offset, NoPad);
+        if (pixmap.isNull())
+        {
+            return;
+        }
+        {
+            QPainter surface(&pixmap);
+            auto const rect = QRectF(QPointF{}, pixmap.deviceIndependentSize());
+            // Some styles leave a translucent dialog's backing surface unfilled.
+            surface.setCompositionMode(QPainter::CompositionMode_DestinationOver);
+            surface.fillRect(rect, themed("panel"));
+            QPainterPath corners;
+            corners.addRect(rect);
+            corners.addRoundedRect(rect, radius_, radius_);
+            surface.setRenderHint(QPainter::Antialiasing);
+            surface.setCompositionMode(QPainter::CompositionMode_DestinationOut);
+            surface.fillPath(corners, Qt::black);
+        }
+        painter->save();
+        painter->setCompositionMode(QPainter::CompositionMode_Source);
+        painter->drawPixmap(offset, pixmap);
+        painter->restore();
+    }
+
+    int radius_;
+};
+
 class window_shape final : public QObject
 {
    public:
     window_shape(QWidget& window, int radius) : QObject(&window), window_(window), radius_(radius)
     {
+        if (has_x11_compositor())
+        {
+            window_.setAttribute(Qt::WA_TranslucentBackground);
+            effect_ = new rounded_window_effect(radius_);
+            window_.setGraphicsEffect(effect_);
+        }
         window_.installEventFilter(this);
     }
 
@@ -112,18 +183,24 @@ class window_shape final : public QObject
             case QEvent::Show:
             case QEvent::Resize:
             case QEvent::WindowStateChange:
-                if (window_.isMaximized() || window_.isFullScreen())
+            {
+                auto const rounded = !window_.isMaximized() && !window_.isFullScreen();
+                if (effect_)
                 {
-                    window_.clearMask();
+                    effect_->setEnabled(rounded);
                 }
-                else
+                else if (rounded)
                 {
-                    // The native X11 shape clips all descendants and also works without a compositor.
                     QPainterPath outline;
                     outline.addRoundedRect(QRectF(window_.rect()), radius_, radius_);
                     window_.setMask(QRegion(outline.toFillPolygon().toPolygon()));
                 }
+                else
+                {
+                    window_.clearMask();
+                }
                 break;
+            }
             default:
                 break;
         }
@@ -132,6 +209,7 @@ class window_shape final : public QObject
 
     QWidget& window_;
     int radius_;
+    rounded_window_effect* effect_ = nullptr;
 };
 
 class popup_shapes final : public QObject

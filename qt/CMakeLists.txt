@@ -143,7 +143,8 @@ target_link_libraries(client
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_libraries(client PRIVATE Qt6::DBus)
+    find_library(chat_xcb_library NAMES xcb REQUIRED)
+    target_link_libraries(client PRIVATE Qt6::DBus "${chat_xcb_library}")
     configure_file(io.github.gyl30.Chat.desktop.in io.github.gyl30.Chat.desktop @ONLY)
 endif()
 
