@@ -204,6 +204,7 @@ global_search_dialog::global_search_dialog(
     layout->addWidget(results_);
     context_ = new QListView(this);
     context_->setObjectName(QStringLiteral("searchContextMessages"));
+    context_->setFrameShape(QFrame::NoFrame);
     context_->setAccessibleName(QStringLiteral("消息上下文"));
     context_->setSelectionMode(QAbstractItemView::NoSelection);
     context_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);

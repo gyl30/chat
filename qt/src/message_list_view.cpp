@@ -10,6 +10,7 @@
 
 message_list_view::message_list_view(QWidget* parent) : QListView(parent), overlay_(Qt::Vertical, this)
 {
+    setFrameShape(QFrame::NoFrame);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     auto& themes = theme_manager::instance();
     connect(&themes, &theme_manager::background_changed, viewport(), qOverload<>(&QWidget::update));

@@ -423,6 +423,7 @@ class chat_widget final : public QWidget
     QHash<qint64, peer_typing> typing_users_;
     QToolButton* connection_status_ = nullptr;
     QLabel* message_status_ = nullptr;
+    QLabel* empty_conversation_hint_ = nullptr;
     QStackedWidget* chat_headers_ = nullptr;
     QWidget* selection_bar_ = nullptr;
     QLabel* selection_count_ = nullptr;

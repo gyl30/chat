@@ -107,8 +107,8 @@ QString local_file_path(QUrl url)
 QIcon composer_send_icon()
 {
     constexpr QSize size{20, 20};
-    auto icon = svg_icon(u"send", themed("on_accent"), size);
-    icon.addPixmap(svg_icon(u"send", themed("text_secondary"), size).pixmap(size), QIcon::Disabled);
+    auto icon = svg_icon(u"send", themed("accent"), size);
+    icon.addPixmap(svg_icon(u"send", themed("text_muted"), size).pixmap(size), QIcon::Disabled);
     return icon;
 }
 
@@ -1466,6 +1466,7 @@ QWidget* chat_widget::create_chat_panel()
     setup_chat_header(chat_layout);
     setup_message_list(chat_layout);
     setup_composer(chat_layout);
+    update_chat_header({});
     return chat_panel;
 }
 
@@ -1531,8 +1532,7 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
     unpin_message_button_->setText(QStringLiteral("取消置顶消息"));
     pinned_layout->addWidget(pinned_message_button_, 1);
     pinned_layout->addWidget(unpin_message_button_);
-    pinned_message_button_->hide();
-    unpin_message_button_->hide();
+    pinned_row->hide();
     chat_layout->addWidget(pinned_row);
     connect(pinned_message_button_,
             &QPushButton::clicked,
@@ -1556,16 +1556,12 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
                 }
             });
 
-    auto* chat_line = new QFrame(chat_panel);
-    chat_line->setFrameShape(QFrame::HLine);
-    chat_line->setObjectName(QStringLiteral("horizontalSeparator"));
-    chat_layout->addWidget(chat_line);
-
-    message_status_ = new QLabel(QStringLiteral("选择一个会话开始聊天"), chat_panel);
+    message_status_ = new QLabel(chat_panel);
     message_status_->setObjectName(QStringLiteral("subtleText"));
     message_status_->setTextFormat(Qt::PlainText);
     message_status_->setAlignment(Qt::AlignCenter);
     message_status_->setContentsMargins(0, 6, 0, 6);
+    message_status_->hide();
     chat_layout->addWidget(message_status_);
     connect(chat_title_,
             &QPushButton::clicked,
@@ -1603,6 +1599,13 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     auto* list = new message_list_view(chat_panel);
     messages_view_ = list;
     list->preserve_layout = [this](const auto& update) { preserve_reading(update); };
+    auto* hint_layout = new QGridLayout(list->viewport());
+    hint_layout->setContentsMargins(0, 0, 0, 0);
+    empty_conversation_hint_ = new QLabel(QStringLiteral("选择一个会话开始聊天"), list->viewport());
+    empty_conversation_hint_->setObjectName(QStringLiteral("emptyConversationHint"));
+    empty_conversation_hint_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    empty_conversation_hint_->setAlignment(Qt::AlignCenter);
+    hint_layout->addWidget(empty_conversation_hint_, 0, 0, Qt::AlignCenter);
     history_down_ = new QPushButton(messages_view_->viewport());
     history_down_->setObjectName(QStringLiteral("historyDownButton"));
     history_down_->setAutoDefault(false);
@@ -1705,7 +1708,10 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     update_message_selection();
     chat_headers_->addWidget(selection_bar_);
     reply_bar_ = new QWidget(chat_panel);
+    reply_bar_->setObjectName(QStringLiteral("replyBar"));
+    reply_bar_->setAttribute(Qt::WA_StyledBackground);
     auto* reply_layout = new QHBoxLayout(reply_bar_);
+    reply_layout->setContentsMargins(12, 4, 12, 4);
     reply_preview_ = new emoji_label(reply_bar_);
     reply_preview_->setObjectName(QStringLiteral("replyPreview"));
     auto* cancel_reply = new QToolButton(reply_bar_);
@@ -1818,10 +1824,11 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     input_bar->installEventFilter(this);
     input_bar->hide();
     input_bar->setObjectName(QStringLiteral("inputBar"));
-    input_bar->setMinimumHeight(chat_theme::compose_height);
     auto* rows = new QBoxLayout(QBoxLayout::LeftToRight, input_bar);
-    rows->setContentsMargins(12, 7, 10, 7);
-    rows->setSpacing(6);
+    rows->setContentsMargins(10, 4, 10, 4);
+    rows->setSpacing(4);
+    auto* field_layout = new QHBoxLayout;
+    field_layout->setSpacing(4);
     auto* input_layout = new QHBoxLayout;
     input_layout->setSpacing(3);
     message_edit_ = new QPlainTextEdit(input_bar);
@@ -1837,9 +1844,9 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     message_edit_->viewport()->installEventFilter(this);
     message_edit_->setEnabled(false);
     new emoji_highlighter(message_edit_);
-    rows->addWidget(message_edit_, 1, Qt::AlignVCenter);
+    field_layout->addWidget(message_edit_, 1, Qt::AlignVCenter);
+    rows->addLayout(field_layout, 1);
     rows->addLayout(input_layout);
-    rows->setAlignment(input_layout, Qt::AlignBottom);
     auto const resize_composer = [this]
     {
         auto* document = message_edit_->document();
@@ -1870,7 +1877,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     attachment_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
     attachment_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
     attachment_button_->setEnabled(false);
-    input_layout->addWidget(attachment_button_, 0, Qt::AlignVCenter);
+    field_layout->insertWidget(0, attachment_button_, 0, Qt::AlignVCenter);
     input_layout->addStretch();
     auto make_composer_button = [input_bar](QString const& name, QStringView icon, QString const& label)
     {
@@ -2034,7 +2041,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     send_button_->setIconSize(QSize(20, 20));
     send_button_->setToolTip(QStringLiteral("发送消息（Enter）"));
     send_button_->setAccessibleName(QStringLiteral("发送消息"));
-    send_button_->setFixedSize(46, 42);
+    send_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
     send_button_->setEnabled(false);
     send_button_->setCursor(Qt::PointingHandCursor);
     input_layout->addWidget(send_button_, 0, Qt::AlignVCenter);
@@ -2724,11 +2731,8 @@ void chat_widget::set_user(QString const& username, qint64 user, QString const& 
     add_user_search_->clear();
     add_users_status_->setText(QStringLiteral("输入用户名后按 Enter 查找"));
     show_conversations_section();
-    chat_title_->setAccessibleName(QStringLiteral("聊天"));
-    chat_title_->setToolTip({});
-    chat_title_->setIcon(QIcon{});
-    chat_title_->setEnabled(false);
-    set_message_status(QStringLiteral("选择一个会话开始聊天"));
+    update_chat_header({});
+    set_message_status({});
     message_edit_->clear();
     message_edit_->setEnabled(false);
     send_button_->setEnabled(false);
@@ -2896,32 +2900,27 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
             return true;
         }
     }
-    if (object == input_bar_ && event->type() == QEvent::Resize)
+    if (object == input_bar_ && (event->type() == QEvent::Resize || event->type() == QEvent::LayoutRequest))
     {
-        // Change only the layout direction: the editor keeps its focus, selection and input context.
         auto* rows = static_cast<QBoxLayout*>(input_bar_->layout());
-        rows->setDirection(input_bar_->contentsRect().width() < chat_theme::compose_single_row_min_width ? QBoxLayout::TopToBottom
-                                                                                                         : QBoxLayout::LeftToRight);
+        auto const margins = rows->contentsMargins();
+        auto const required = margins.left() + rows->itemAt(0)->minimumSize().width() + rows->spacing() +
+                              rows->itemAt(1)->minimumSize().width() + margins.right();
+        // Keep the same editor and buttons when the visible tools need a second row.
+        rows->setDirection(required > input_bar_->contentsRect().width() ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
     }
     // The scroll areas deliver drag events to their viewport children.
     if ((object == input_bar_ || object->parent() == messages_view_ || object->parent() == message_edit_) && handle_file_drop(event))
     {
         return true;
     }
-    if (object == message_edit_ && (event->type() == QEvent::FocusIn || event->type() == QEvent::FocusOut))
+    if (object == message_edit_ && event->type() == QEvent::FocusOut && static_cast<QFocusEvent*>(event)->reason() == Qt::PopupFocusReason)
     {
-        input_bar_->setProperty("editorFocused", event->type() == QEvent::FocusIn);
-        input_bar_->style()->unpolish(input_bar_);
-        input_bar_->style()->polish(input_bar_);
-        input_bar_->update();
-        if (event->type() == QEvent::FocusOut && static_cast<QFocusEvent*>(event)->reason() == Qt::PopupFocusReason)
+        // Hook the editor's own standard menu, not Chat menus that already have a close handler.
+        auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+        if (menu && (menu->parentWidget() == message_edit_ || menu->parentWidget() == message_edit_->viewport()))
         {
-            // Hook the editor's own standard menu, not Chat menus that already have a close handler.
-            auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
-            if (menu && (menu->parentWidget() == message_edit_ || menu->parentWidget() == message_edit_->viewport()))
-            {
-                resume_reading_after_menu(*menu);
-            }
+            resume_reading_after_menu(*menu);
         }
     }
     if ((object == contacts_requests_button_ || object == incoming_accept_button_ || object == incoming_reject_button_ ||
@@ -3101,10 +3100,6 @@ void chat_widget::set_loading()
     contacts_status_->show();
     update_request_actions();
     set_list_status(QStringLiteral("正在加载…"));
-    if (active_conversation_ == 0)
-    {
-        set_message_status(QStringLiteral("正在加载会话…"));
-    }
 }
 
 void chat_widget::set_error(QString message)
@@ -3122,11 +3117,7 @@ void chat_widget::set_error(QString message)
 
 void chat_widget::set_conversations_error(QString message)
 {
-    set_list_status(message);
-    if (active_conversation_ == 0)
-    {
-        set_message_status(std::move(message));
-    }
+    set_list_status(std::move(message));
 }
 
 // The status row takes space only while it has something to say.
@@ -3230,16 +3221,10 @@ void chat_widget::set_connection_available(bool available)
 
 void chat_widget::set_connection_status(QString text, bool retry_enabled)
 {
-    if (text.isEmpty())
-    {
-        connection_status_->hide();
-        return;
-    }
-
     connection_status_->setText(std::move(text));
     connection_status_->setEnabled(retry_enabled);
     connection_status_->setCursor(retry_enabled ? Qt::PointingHandCursor : Qt::ArrowCursor);
-    connection_status_->show();
+    connection_status_->setVisible(active_conversation_ > 0 && !connection_status_->text().isEmpty());
 }
 
 void chat_widget::set_conversations(QList<conversation_data> conversations)
@@ -3296,10 +3281,6 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
     {
         set_list_status(QStringLiteral("暂无会话"));
         conversations_view_->setCurrentIndex({});
-        if (active_conversation_ == 0)
-        {
-            set_message_status(QStringLiteral("暂无会话，可从搜索框旁的“+”添加联系人或创建群聊"));
-        }
         return;
     }
 
@@ -3326,7 +3307,6 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
     // Opening a conversation reports it read; only the user's own choice may do that.
     conversations_view_->setCurrentIndex({});
     conversations_view_->clearSelection();
-    set_message_status(QStringLiteral("选择一个会话开始聊天"));
 }
 
 void chat_widget::update_author(qint64 user, QString const& name)
@@ -4662,18 +4642,14 @@ void chat_widget::leave_conversation(qint64 conversation)
     images_.remove(conversation);
     conversations_view_->setCurrentIndex({});
     conversations_view_->clearSelection();
-    chat_title_->setAccessibleName(QStringLiteral("聊天"));
-    chat_title_->setToolTip({});
-    chat_title_->setIcon({});
-    chat_title_->setEnabled(false);
+    update_chat_header({});
     message_edit_->clear();
     message_edit_->setEnabled(false);
     send_button_->setEnabled(false);
     message_search_action_->setEnabled(false);
     history_button_->setEnabled(false);
     attachment_button_->setEnabled(false);
-    set_message_status(conversations_->rowCount() == 0 ? QStringLiteral("暂无会话，可从搜索框旁的“+”添加联系人或创建群聊")
-                                                       : QStringLiteral("选择一个会话开始聊天"));
+    set_message_status({});
     update_compose_state();
 }
 
@@ -4681,6 +4657,7 @@ void chat_widget::update_pinned_message()
 {
     auto const item = conversation(active_conversation_);
     auto const visible = active_group_ && item && item->pinned_message.id > 0;
+    pinned_message_button_->parentWidget()->setVisible(visible);
     pinned_message_button_->setVisible(visible);
     unpin_message_button_->setVisible(visible && messages_->can_manage_group());
     pinned_message_button_->setEnabled(connection_available_);
@@ -5667,11 +5644,19 @@ void chat_widget::setup_profile_avatar(QDialog& dialog, QVBoxLayout* info_layout
 void chat_widget::set_message_status(QString message)
 {
     message_status_->setText(std::move(message));
-    message_status_->setVisible(!message_status_->text().isEmpty());
+    message_status_->setVisible(active_conversation_ > 0 && !message_status_->text().isEmpty());
 }
 
 void chat_widget::update_chat_header(QString const& username)
 {
+    auto const active = active_conversation_ > 0;
+    chat_headers_->setVisible(active);
+    empty_conversation_hint_->setVisible(!active);
+    connection_status_->setVisible(active && !connection_status_->text().isEmpty());
+    if (!active)
+    {
+        return;
+    }
     auto const item = conversation(active_conversation_);
     chat_title_->setAccessibleName(item ? item->display_name() : username);
     chat_title_->setToolTip(chat_title_->accessibleName());

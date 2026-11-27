@@ -275,7 +275,6 @@ QMainWindow {
         }
         QWidget#windowFrame {
             background: ${canvas};
-            border: 1px solid ${border};
         }
         QWidget#windowFrame[login="true"] {
             background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
@@ -435,6 +434,7 @@ QMainWindow {
         }
         QFrame#chatHeader, QWidget#messageSelectionBar {
             background: ${chat_header};
+            border-bottom: 1px solid ${border};
         }
         QPushButton#chatHeaderButton {
             padding: 0;
@@ -673,8 +673,18 @@ QMainWindow {
             border: 1px solid ${focus};
         }
         QListView#messageList, QListView#searchContextMessages {
-            padding: 0 2px 6px 2px;
+            margin: 0;
+            padding: 0;
             font-size: 18px;
+        }
+        QLabel#emptyConversationHint {
+            background: ${day_pill};
+            color: ${text_secondary};
+            border-radius: 12px;
+            min-height: 24px;
+            padding: 0 10px;
+            font-size: 13px;
+            font-weight: bold;
         }
         QListView#searchContextMessages {
             background: ${canvas};
@@ -703,19 +713,12 @@ QMainWindow {
         QScrollBar:horizontal {
             height: 0;
         }
-        QFrame#horizontalSeparator {
-            background: ${canvas_hover};
-            border: 0;
-            max-height: 1px;
-        }
-        QFrame#inputBar {
-            margin: 8px 24px 16px 24px;
+        QFrame#inputBar, QWidget#replyBar, QLabel#groupSpeechNotice {
             background: ${composer_surface};
-            border: 1px solid ${composer_border};
-            border-radius: 16px;
+            border-top: 1px solid ${composer_border};
         }
-        QFrame#inputBar[editorFocused="true"] {
-            border-color: ${focus};
+        QLabel#groupSpeechNotice {
+            padding: 4px 12px;
         }
         QPlainTextEdit#messageEdit, QPlainTextEdit#messageEdit:focus {
             font-family: "Noto Sans CJK SC", sans-serif;
@@ -841,20 +844,15 @@ QMainWindow {
             background: ${canvas_hover};
         }
         QToolButton#sendButton {
-            margin-left: 3px;
             border: 1px solid transparent;
-            border-radius: 13px;
-            background: ${accent};
+            border-radius: 18px;
+            background: transparent;
         }
         QToolButton#sendButton:hover:enabled {
-            background: ${accent_hover};
+            background: ${canvas_hover};
         }
         QToolButton#sendButton:pressed:enabled {
-            background: ${accent_pressed};
-        }
-        QToolButton#sendButton:disabled {
-            background: ${subtle};
-            border-color: ${border};
+            background: ${selected};
         }
         QLineEdit#historySearchEdit {
             min-height: 34px;
@@ -898,7 +896,7 @@ QPushButton:focus, QToolButton:focus { border-color: ${focus}; }
 QPushButton:disabled, QToolButton:disabled { color: ${text_muted}; }
 
 QPushButton#loginButton:disabled, QPushButton#registrationSubmitButton:disabled { color: ${text_secondary}; }
-QPushButton#loginButton:focus, QPushButton#registrationSubmitButton:focus, QToolButton#sendButton:focus { border: 2px solid ${on_accent}; }
+QPushButton#loginButton:focus, QPushButton#registrationSubmitButton:focus { border: 2px solid ${on_accent}; }
 
 QToolButton#profileActionButton[primary="true"]:focus,
 QDialog#profileDialog QPushButton#changeAvatarButton:focus { border-color: ${on_accent}; }

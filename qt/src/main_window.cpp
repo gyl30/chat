@@ -147,9 +147,8 @@ void main_window::setup_window_frame()
     frame_ = new QWidget(this);
     frame_->setObjectName(QStringLiteral("windowFrame"));
     frame_->setAttribute(Qt::WA_StyledBackground);
-    // The frame's margin is the resize border that a frameless window no longer gets from the platform.
     frame_->installEventFilter(this);
-    // Separate grips own the resize cursors, so the content never inherits one.
+    // The grips overlay the frame instead of taking space from its layout.
     for (auto const edges : {Qt::Edges(Qt::LeftEdge),
                              Qt::Edges(Qt::RightEdge),
                              Qt::Edges(Qt::TopEdge),
@@ -162,6 +161,7 @@ void main_window::setup_window_frame()
         resize_grips_.push_back(new resize_grip(frame_, edges));
     }
     auto* frame_layout = new QVBoxLayout(frame_);
+    frame_layout->setContentsMargins(0, 0, 0, 0);
     frame_layout->setSpacing(0);
     setCentralWidget(frame_);
     title_bar_ = new title_bar(frame_);
@@ -1907,11 +1907,10 @@ void main_window::update_window_chrome()
     title_bar_->set_title_visible(chatting);
     title_bar_->set_maximizable(chatting);
     server_settings_->setVisible(!chatting);
-    auto const border = isMaximized() || isFullScreen() ? 0 : chat_theme::window_resize_border;
-    frame_->layout()->setContentsMargins(border, border, border, border);
+    auto const resizable = !isMaximized() && !isFullScreen();
     for (auto* grip : resize_grips_)
     {
-        grip->setVisible(border > 0);
+        grip->setVisible(resizable);
     }
     place_resize_grips();
     for (auto* widget : {frame_, static_cast<QWidget*>(title_bar_)})
