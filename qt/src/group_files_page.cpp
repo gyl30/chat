@@ -180,7 +180,7 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
                                                       category_name(f.category),
                                                       QLocale().formattedDataSize(f.size),
                                                       QString::fromStdString(f.username),
-                                                      QLocale().toString(QDateTime::fromMSecsSinceEpoch(f.created_at), QLocale::ShortFormat)});
+                                                      QDateTime::fromMSecsSinceEpoch(f.created_at).toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"))});
                     item->setToolTip(0, item->text(0));
                     item->setData(0, key_role, QString::fromStdString(f.object_key));
                     item->setData(0, created_role, static_cast<qint64>(f.created_at));
