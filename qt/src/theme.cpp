@@ -9,6 +9,8 @@
 #include <QInputDialog>
 #include <QLineEdit>
 #include <QMouseEvent>
+#include <QMenu>
+#include <QPainterPath>
 #include <QToolButton>
 #include <QWindow>
 #include "icons.hpp"
@@ -92,10 +94,89 @@ QLabel* dialog_title(QDialog& dialog, QString title)
     return label;
 }
 
+namespace
+{
+class window_shape final : public QObject
+{
+   public:
+    window_shape(QWidget& window, int radius) : QObject(&window), window_(window), radius_(radius)
+    {
+        window_.installEventFilter(this);
+    }
+
+   private:
+    bool eventFilter(QObject*, QEvent* event) override
+    {
+        switch (event->type())
+        {
+            case QEvent::Show:
+            case QEvent::Resize:
+            case QEvent::WindowStateChange:
+                if (window_.isMaximized() || window_.isFullScreen())
+                {
+                    window_.clearMask();
+                }
+                else
+                {
+                    // The native X11 shape clips all descendants and also works without a compositor.
+                    QPainterPath outline;
+                    outline.addRoundedRect(QRectF(window_.rect()), radius_, radius_);
+                    window_.setMask(QRegion(outline.toFillPolygon().toPolygon()));
+                }
+                break;
+            default:
+                break;
+        }
+        return false;
+    }
+
+    QWidget& window_;
+    int radius_;
+};
+
+class menu_shapes final : public QObject
+{
+   public:
+    using QObject::QObject;
+
+   private:
+    bool eventFilter(QObject* object, QEvent* event) override
+    {
+        if (event->type() == QEvent::Polish)
+        {
+            if (auto* menu = qobject_cast<QMenu*>(object))
+            {
+                round_window(*menu, chat_theme::menu_radius);
+            }
+        }
+        return false;
+    }
+};
+
+bool supports_window_shape() { return QGuiApplication::platformName() == QStringLiteral("xcb"); }
+}    // namespace
+
+void round_window(QWidget& window, int radius)
+{
+    if (supports_window_shape())
+    {
+        new window_shape(window, radius);
+    }
+}
+
+void round_menus()
+{
+    if (supports_window_shape())
+    {
+        qApp->installEventFilter(new menu_shapes(qApp));
+    }
+}
+
 void frame_dialog(QDialog& dialog, bool resizable)
 {
     dialog.setWindowFlag(Qt::FramelessWindowHint);
     dialog.setProperty("chatPopup", true);
+    round_window(dialog, chat_theme::dialog_radius);
     auto* bar = new QWidget(&dialog);
     auto* row = new QHBoxLayout(bar);
     row->setContentsMargins(16, 6, 8, 4);

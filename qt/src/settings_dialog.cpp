@@ -38,6 +38,7 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     setWindowTitle(QStringLiteral("设置"));
     setAccessibleName(QStringLiteral("设置"));
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
+    round_window(*this, chat_theme::dialog_radius);
     setWindowModality(Qt::WindowModal);
     resize(520, 580);
     setMinimumSize(420, 400);

@@ -672,7 +672,7 @@ QMainWindow {
         QFrame#emojiPicker {
             background: ${surface};
             border: 1px solid ${border};
-            border-radius: 12px;
+            border-radius: 10px;
         }
         QToolButton#emojiChoice {
             border: 0;
@@ -771,7 +771,7 @@ QToolButton#profileActionButton[primary="true"]:focus { border-color: ${on_accen
 
 /* Settings uses the same compact dialog surfaces and focus language as Contacts. */
 QDialog#settingsDialog {
-    background: ${panel}; border: 1px solid ${border};
+    background: ${panel}; border: 1px solid ${border}; border-radius: 12px;
 }
 QDialog#settingsDialog QScrollArea, QStackedWidget#settingsPages {
     background: ${panel}; border: 0;
@@ -847,7 +847,7 @@ QTextBrowser#snapshotBody { background: transparent; border: 0; padding: 0; }
 QLabel#pollFeedback { color: ${text_secondary}; }
 
 QDialog[chatPopup="true"] {
-    background: ${panel}; border: 1px solid ${border}; border-radius: 10px;
+    background: ${panel}; border: 1px solid ${border}; border-radius: 12px;
 }
 QToolButton#popupCloseButton, QToolButton#profileCloseButton, QToolButton#settingsCloseButton, QToolButton#settingsBackButton {
     background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 0;

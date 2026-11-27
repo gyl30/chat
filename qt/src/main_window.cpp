@@ -144,6 +144,7 @@ void main_window::setup_window_frame()
     setStyleSheet(chat_style_sheet());
 
     setWindowFlag(Qt::FramelessWindowHint);
+    round_window(*this, chat_theme::window_radius);
     frame_ = new QWidget(this);
     frame_->setObjectName(QStringLiteral("windowFrame"));
     frame_->setAttribute(Qt::WA_StyledBackground);
@@ -1962,6 +1963,7 @@ bool main_window::nativeEventFilter(QByteArray const& event_type, void* message,
 void main_window::place_resize_grips()
 {
     auto const border = chat_theme::window_resize_border;
+    auto const corner = chat_theme::window_radius + border;
     auto const width = frame_->width();
     auto const height = frame_->height();
     for (auto* grip : resize_grips_)
@@ -1971,11 +1973,21 @@ void main_window::place_resize_grips()
         auto const right = edges.testFlag(Qt::RightEdge);
         auto const top = edges.testFlag(Qt::TopEdge);
         auto const bottom = edges.testFlag(Qt::BottomEdge);
-        auto const x = left ? 0 : right ? width - border : border;
-        auto const y = top ? 0 : bottom ? height - border : border;
-        auto const w = left || right ? border : width - 2 * border;
-        auto const h = top || bottom ? border : height - 2 * border;
+        auto const horizontal = left || right;
+        auto const vertical = top || bottom;
+        auto const diagonal = horizontal && vertical;
+        auto const depth = diagonal ? corner : border;
+        auto const x = left ? 0 : right ? width - depth : corner;
+        auto const y = top ? 0 : bottom ? height - depth : corner;
+        auto const w = horizontal ? depth : width - 2 * corner;
+        auto const h = vertical ? depth : height - 2 * corner;
         grip->setGeometry(x, y, w, h);
+        if (diagonal)
+        {
+            auto const edge_x = left ? 0 : corner - border;
+            auto const edge_y = top ? 0 : corner - border;
+            grip->setMask(QRegion(edge_x, 0, border, corner) | QRegion(0, edge_y, corner, border));
+        }
         grip->raise();
     }
 }

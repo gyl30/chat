@@ -24,6 +24,10 @@ namespace chat_theme
 {
 
 inline constexpr int window_resize_border = 5;
+inline constexpr int window_radius = 10;
+inline constexpr int dialog_radius = 12;
+inline constexpr int menu_radius = 8;
+inline constexpr int popup_radius = 10;
 inline constexpr QSize login_window_size{380, 540};
 inline constexpr int auth_card_width = login_window_size.width() - 2 * window_resize_border;
 inline constexpr int auth_padding = 36;
@@ -73,6 +77,8 @@ inline constexpr int compose_field_min_height = 44;
 
 QString chat_style_sheet();
 QLabel* dialog_title(QDialog& dialog, QString title);
+void round_window(QWidget& window, int radius);
+void round_menus();
 void frame_dialog(QDialog& dialog, bool resizable = true);
 void style_search_field(QLineEdit& field);
 QString prompt_text(QWidget* parent, QString const& title, QString const& label, QString const& initial, bool& accepted, bool multiline = false);

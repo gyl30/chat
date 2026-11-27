@@ -4286,6 +4286,7 @@ void chat_widget::show_emoji_picker()
         QStringLiteral("🔥"), QStringLiteral("🎉"), QStringLiteral("✨"), QStringLiteral("🌹"), QStringLiteral("☕"), QStringLiteral("🍻")};
     auto* picker = new QFrame(this, Qt::Popup);
     picker->setObjectName(QStringLiteral("emojiPicker"));
+    round_window(*picker, chat_theme::popup_radius);
     picker->setAttribute(Qt::WA_DeleteOnClose);
     auto* grid = new QGridLayout(picker);
     grid->setContentsMargins(8, 8, 8, 8);
@@ -5184,6 +5185,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     dialog.setObjectName(QStringLiteral("profileDialog"));
     dialog.setWindowTitle(username);
     dialog.setWindowFlag(Qt::FramelessWindowHint);
+    round_window(dialog, chat_theme::dialog_radius);
     dialog.setModal(true);
     dialog.setFixedWidth(520);
 
