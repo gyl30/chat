@@ -23,8 +23,8 @@ MUTED = -32015
 
 
 @contextmanager
-def hold_silo_completion(storage):
-    """Forward signed requests to real Silo and hold the successful Complete response."""
+def hold_silo_multipart(storage, method):
+    """Forward signed requests to Silo and park one successful multipart response."""
     origin = storage["CHAT_S3_ENDPOINT"]
     armed, completed, release = Event(), Event(), Event()
 
@@ -41,13 +41,13 @@ def hold_silo_completion(storage):
                 data = response.read()
                 if (
                     armed.is_set()
-                    and self.command == "POST"
+                    and self.command == method
                     and response.status == 200
                     and "uploadId" in parse_qs(urlsplit(self.path).query)
                 ):
                     armed.clear()
                     completed.set()
-                    assert release.wait(10), "test did not release Silo Complete"
+                    assert release.wait(10), "test did not release multipart response"
                 self.send_response(response.status)
                 for key, value in response.getheaders():
                     if key.lower() not in {
@@ -84,8 +84,104 @@ def hold_silo_completion(storage):
             thread.join()
 
 
+async def confirmation_race(root, storage, api, bucket):
+    with hold_silo_multipart(storage, "GET") as (endpoint, armed, listed, release):
+        db = root / "confirmation.sqlite3"
+        with chat(db, endpoint) as url:
+            async with AsyncExitStack() as stack:
+                owner = await login(stack, url, "a", "a", True)
+                sender = await login(stack, url, "b", "b", True)
+                same_device = await login(stack, url, "b", "b")
+                other_device = await login(stack, url, "b", "c")
+                await contact(owner, 1, sender, 2)
+                room = (
+                    await owner.ok("create_group", title="分片确认屏障", members=[2])
+                )["conversation"]
+                for cid, operation, body in (
+                    (911, "pause", b""),
+                    (912, "cancel", b"multipart"),
+                    (913, "mute", b"permission"),
+                ):
+                    part = await begin(sender, room, cid, body)
+                    [(key, mpu)] = read(
+                        db,
+                        "SELECT object_key,multipart FROM attachment_uploads WHERE client_id=?",
+                        cid,
+                    )
+                    etag = await asyncio.to_thread(put, part["url"], body)
+                    assert "error" in await other_device.ask(
+                        "resume_attachment", upload=cid
+                    )
+                    listed.clear()
+                    release.clear()
+                    armed.set()
+                    confirmation = asyncio.create_task(
+                        sender.ask(
+                            "confirm_attachment", upload=cid, number=1, etag=etag
+                        )
+                    )
+                    try:
+                        await until(
+                            listed.is_set, "Silo ListParts succeeded and is held"
+                        )
+                        if operation == "mute":
+                            await muted(owner, room, 2, -1)
+                        else:
+                            await same_device.ok(operation + "_attachment", upload=cid)
+                    finally:
+                        release.set()
+                    reply = await confirmation
+                    state = read(
+                        db,
+                        """SELECT u.state,p.etag FROM attachment_uploads u
+                                      JOIN attachment_parts p ON p.upload=u.id WHERE u.client_id=?""",
+                        cid,
+                    )
+                    print("ListParts", operation, reply.get("error"), state, flush=True)
+                    assert reply.get("error", {}).get("code") == (
+                        MUTED if operation == "mute" else -32008
+                    ), reply
+                    if operation == "cancel":
+                        assert not state
+                        assert not any(
+                            u["UploadId"] == mpu
+                            for u in api.list_multipart_uploads(Bucket=bucket).get(
+                                "Uploads", []
+                            )
+                        )
+                        continue
+                    assert state == [
+                        ("paused" if operation == "pause" else "active", None)
+                    ], state
+                    assert (
+                        api.list_parts(Bucket=bucket, Key=key, UploadId=mpu)["Parts"][
+                            0
+                        ]["ETag"].strip('"')
+                        == etag
+                    )
+                    if operation == "mute":
+                        await muted(owner, room, 2, 0)
+                    assert (await same_device.ok("resume_attachment", upload=cid))[
+                        "number"
+                    ] == 0
+                    assert (
+                        read(
+                            db,
+                            """SELECT u.state,p.etag FROM attachment_uploads u
+                                       JOIN attachment_parts p ON p.upload=u.id WHERE u.client_id=?""",
+                            cid,
+                        )
+                        == [("active", etag)]
+                    )
+                    await same_device.ok("cancel_attachment", upload=cid)
+                print(
+                    "PASS same-device pause/cancel and mute during actual Silo ListParts, SQL state and legal reconciliation",
+                    flush=True,
+                )
+
+
 async def publication_race(root, storage, api, bucket):
-    with hold_silo_completion(storage) as (endpoint, armed, completed, release):
+    with hold_silo_multipart(storage, "POST") as (endpoint, armed, completed, release):
         db = root / "race.sqlite3"
         with chat(db, endpoint) as url:
             async with AsyncExitStack() as stack:
@@ -741,9 +837,9 @@ async def qt_scenarios(root, probe, url, owner, member, db):
             await ui.wait("recover_local", lambda r: row in r["rows"])
             gate.hold.add("send_message")
             fault = await ui.call("recover_local", row=row, action="重新发送")
-            assert fault.get("triggered"), (
-                "hidden muted task has a manual retry (server decides)"
-            )
+            assert fault.get(
+                "triggered"
+            ), "hidden muted task has a manual retry (server decides)"
             await gate.caught("send_message")
             denial = next(r for k, r in gate.held if k == "send_message")
             assert denial["error"]["code"] == MUTED
@@ -819,12 +915,15 @@ async def qt_scenarios(root, probe, url, owner, member, db):
                 )
 
             label = await transfer_label(path.name + " · 群聊禁言", f"会话 #{conv}")
-            assert not (await ui.call("transfers", label=label, action="继续上传")).get("triggered")
+            assert not (await ui.call("transfers", label=label, action="继续上传")).get(
+                "triggered"
+            )
             # The directory now includes hidden memberships. Hold its refresh after
             # unmuting so the server can revoke speech before this device retries.
             await muted(owner, conv, 3, 0)
-            available = await ui.wait("transfers", lambda r: any(
-                path.name in v for v in r["resumable"]))
+            available = await ui.wait(
+                "transfers", lambda r: any(path.name in v for v in r["resumable"])
+            )
             label = next(v for v in available["resumable"] if path.name in v)
             gate.hold.add("get_conversations")
             await muted(owner, conv, 3, -1)
@@ -845,7 +944,9 @@ async def qt_scenarios(root, probe, url, owner, member, db):
             label = await transfer_label(path.name + " · 群聊禁言", f"会话 #{conv}")
 
             await muted(owner, conv, 3, 0)
-            available = await ui.wait("transfers", lambda r: any(path.name in v for v in r["resumable"]))
+            available = await ui.wait(
+                "transfers", lambda r: any(path.name in v for v in r["resumable"])
+            )
             label = next(v for v in available["resumable"] if path.name in v)
             assert (await ui.call("transfers", label=label, action="继续上传"))[
                 "triggered"
@@ -1064,6 +1165,7 @@ async def run(root, probe):
     store = Store()
     with store.node(root / "silo") as (api, storage):
         api.create_bucket(Bucket=store.bucket)
+        await confirmation_race(root, storage, api, store.bucket)
         await publication_race(root, storage, api, store.bucket)
         with chat(db, storage) as url:
             async with AsyncExitStack() as stack:

@@ -55,6 +55,20 @@ std::expected<bool, sqlite_error> write_one(sqlite_database& db, std::string_vie
     }
     return db.changes() == 1;
 }
+std::expected<send_access, sqlite_error> active_upload(sqlite_database& db, multipart_upload const& upload, std::int64_t user)
+{
+    auto row = db.prepare("SELECT 1 FROM attachment_uploads WHERE id=? AND state='active' AND multipart=?", upload.id, upload.multipart);
+    if (!row)
+    {
+        return std::unexpected(row.error());
+    }
+    auto found = row->step();
+    if (!found)
+    {
+        return std::unexpected(found.error());
+    }
+    return *found ? can_send_to_conversation(db, upload.conversation, user) : std::expected<send_access, sqlite_error>(send_access::unavailable);
+}
 }    // namespace
 
 boost::capy::task<simdjson::error_code> chat_session::download_attachment(simdjson::ondemand::document& doc,
@@ -360,12 +374,19 @@ boost::capy::task<simdjson::error_code> chat_session::grant_attachment_part(
         };
         co_return serialize_json_rpc_value(status{t.state, part == t.parts.end() ? t.size : part->offset, t.size}, std::move(request.id), response);
     }
-    auto touch = co_await run_db(
-        [&](sqlite_database& db)
+    const auto user = *user_id_;
+    auto refused = [&](std::expected<send_access, sqlite_error> const& access)
+    {
+        if (!access)
         {
-            return write_one(
-                db, "UPDATE attachment_uploads SET touched=?,state='active' WHERE id=? AND state<>'discarding'", epoch_milliseconds(), t.id);
-        });
+            return fail(-32000, "Server error");
+        }
+        return *access == send_access::muted ? fail(chat::group_speech_muted, "Group speech is muted") : fail(-32008, "Upload unavailable");
+    };
+    const auto touch_sql = request.method == "resume_attachment"
+                               ? "UPDATE attachment_uploads SET touched=?,state='active' WHERE id=? AND state IN ('active','paused')"
+                               : "UPDATE attachment_uploads SET touched=? WHERE id=? AND state='active'";
+    auto touch = co_await run_db([&](sqlite_database& db) { return write_one(db, touch_sql, epoch_milliseconds(), t.id); });
     if (!touch)
     {
         co_return fail(-32000, "Server error");
@@ -430,18 +451,44 @@ boost::capy::task<simdjson::error_code> chat_session::grant_attachment_part(
         if (matches)
         {
             auto saved = co_await run_db(
-                [&](sqlite_database& db)
+                [&](sqlite_database& db) -> std::expected<send_access, sqlite_error>
                 {
-                    return write_one(db,
-                                     "UPDATE attachment_parts SET etag=?,confirmed_at=? WHERE upload=? AND number=? AND etag IS NULL",
-                                     (**stored).second,
-                                     epoch_milliseconds(),
-                                     t.id,
-                                     part->number);
+                    auto tx = sqlite_transaction::begin_immediate(db);
+                    if (!tx)
+                    {
+                        return std::unexpected(tx.error());
+                    }
+                    auto access = active_upload(db, t, user);
+                    if (!access || *access != send_access::allowed)
+                    {
+                        return access;
+                    }
+                    auto const& tag = (**stored).second;
+                    auto written = write_one(db,
+                                             "UPDATE attachment_parts SET etag=?,confirmed_at=COALESCE(confirmed_at,?) "
+                                             "WHERE upload=? AND number=? AND (etag IS NULL OR etag=?)",
+                                             tag,
+                                             epoch_milliseconds(),
+                                             t.id,
+                                             part->number,
+                                             tag);
+                    if (!written)
+                    {
+                        return std::unexpected(written.error());
+                    }
+                    if (!*written)
+                    {
+                        return send_access::unavailable;
+                    }
+                    if (auto e = tx->commit(); e)
+                    {
+                        return std::unexpected(e);
+                    }
+                    return send_access::allowed;
                 });
-            if (!saved || !*saved)
+            if (!saved || *saved != send_access::allowed)
             {
-                co_return fail(-32000, "Could not confirm part");
+                co_return refused(saved);
             }
             ++part;
         }
@@ -458,6 +505,12 @@ boost::capy::task<simdjson::error_code> chat_session::grant_attachment_part(
         g.offset = part->offset;
         g.length = part->length;
         g.url = std::move(*url);
+    }
+    // Signing and reconciliation can suspend on another worker.
+    auto available = co_await run_db([&](sqlite_database& db) { return active_upload(db, t, user); });
+    if (!available || *available != send_access::allowed)
+    {
+        co_return refused(available);
     }
     co_return serialize_json_rpc_value(g, std::move(request.id), response);
 }
