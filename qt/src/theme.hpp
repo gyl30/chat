@@ -7,6 +7,7 @@
 
 class QWidget;
 class QDialog;
+class QLineEdit;
 
 class feedback_label final : public QLabel
 {
@@ -43,6 +44,7 @@ inline constexpr int dialog_name_top = 12;
 inline constexpr int dialog_preview_top = 36;
 inline constexpr int dialog_right = 15;
 inline constexpr int dialog_unread_height = 19;
+inline constexpr int user_row_height = 56;
 
 inline constexpr int message_max_width = 544;
 inline constexpr int message_avatar_size = 45;
@@ -72,6 +74,7 @@ inline constexpr int compose_field_min_height = 44;
 QString chat_style_sheet();
 QLabel* dialog_title(QDialog& dialog, QString title);
 void frame_dialog(QDialog& dialog, bool resizable = true);
+void style_search_field(QLineEdit& field);
 QString prompt_text(QWidget* parent, QString const& title, QString const& label, QString const& initial, bool& accepted, bool multiline = false);
 bool confirm_action(QWidget* parent, QString const& title, QString const& text, QString const& action);
 

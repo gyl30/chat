@@ -367,7 +367,6 @@ class chat_widget final : public QWidget
     QToolButton* attachment_button_ = nullptr;
     QDialog* contacts_dialog_ = nullptr;
     QStackedWidget* contacts_pages_ = nullptr;
-    QLabel* contacts_title_ = nullptr;
     QPushButton* contacts_requests_button_ = nullptr;
     QLabel* contacts_requests_icon_ = nullptr;
     QLabel* contacts_requests_arrow_ = nullptr;

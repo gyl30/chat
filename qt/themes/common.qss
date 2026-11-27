@@ -73,7 +73,7 @@ QMainWindow {
             color: ${text_secondary};
             border: 0;
             border-bottom: 2px solid transparent;
-            padding: 10px 12px;
+            padding: 8px 14px;
         }
         QTabWidget#contactCategories QTabBar::tab:selected, QTabWidget#groupTabs QTabBar::tab:selected {
             color: ${accent};
@@ -669,17 +669,6 @@ QMainWindow {
         QListView#conversationList, QListView#userList {
             padding: 0;
         }
-        QLineEdit#userSearchEdit {
-            margin: 0 12px 0 12px;
-            min-height: 36px;
-            background: ${canvas_hover};
-            border: 0;
-            border-radius: 18px;
-            padding: 0 14px;
-        }
-        QLineEdit#userSearchEdit:focus {
-            border: 1px solid ${focus};
-        }
         QListView#messageList, QListView#searchContextMessages {
             margin: 0;
             padding: 0;
@@ -746,25 +735,20 @@ QMainWindow {
         QToolButton#cancelReplyButton:focus {
             border-color: ${focus};
         }
-        QLineEdit#conversationSearchEdit, QLineEdit#userSearchEdit[header="true"] {
-            margin: 0;
-            min-height: 34px;
-            padding: 0 10px 0 4px;
-            background: ${canvas_hover};
-            border: 1px solid transparent;
-            border-radius: 17px;
-            font-size: 13px;
-        }
-        QLineEdit#conversationSearchEdit {
+        QLineEdit[searchField="true"] {
             min-height: 36px;
             padding: 0 12px 0 6px;
             background: ${chat_sidebar_search};
-            border-color: ${border};
+            border: 1px solid ${border};
             border-radius: 12px;
+            font-size: 13px;
         }
-        QLineEdit#conversationSearchEdit:focus, QLineEdit#userSearchEdit[header="true"]:focus {
-            background: ${surface};
-            border-color: ${focus};
+        QLineEdit[searchField="true"]:hover:!focus {
+            border-color: ${input_hover};
+        }
+        QLineEdit[searchField="true"]:focus {
+            background: ${chat_sidebar_search};
+            border-color: rgba(${focus.rgb}, 0.65);
         }
         QToolButton#sendAttachmentButton,
         QToolButton#screenshotButton, QToolButton#emojiButton, QToolButton#chatHistoryButton {
@@ -947,18 +931,18 @@ QDialog#contactsDialog, QDialog#addContactDialog {
     background: ${panel};
     border: 1px solid ${border};
 }
-QLabel#dialogTitle, QLabel#contactsTitle { color: ${text}; font-size: 20px; font-weight: 700; }
+QLabel#dialogTitle { color: ${text}; font-size: 20px; font-weight: 700; }
 QLabel#contactsStatus, QLabel#addUsersStatus { color: ${text_secondary}; font-size: 13px; }
-QToolButton#contactDialogCloseButton, QToolButton#contactsAddButton {
+QToolButton#contactsAddButton {
     background: transparent; border: 1px solid transparent; border-radius: 8px;
 }
-QToolButton#contactDialogCloseButton:hover, QToolButton#contactsAddButton:hover {
+QToolButton#contactsAddButton:hover {
     background: ${subtle};
 }
-QToolButton#contactDialogCloseButton:pressed, QToolButton#contactsAddButton:pressed {
+QToolButton#contactsAddButton:pressed {
     background: ${selected};
 }
-QToolButton#contactDialogCloseButton:focus, QToolButton#contactsAddButton:focus {
+QToolButton#contactsAddButton:focus {
     border-color: ${focus};
 }
 QPushButton#addContactSearchButton, QPushButton#pollSubmit {
@@ -1031,9 +1015,9 @@ QLabel#settingsSectionLabel { color: ${text}; font-size: 15px; }
 /* Friend requests share the contacts row rhythm and existing semantic colors. */
 QPushButton#contactsRequestsButton {
     background: transparent; border: 1px solid transparent; border-radius: 0;
-    padding: 0; min-height: 62px; max-height: 62px; text-align: left;
+    padding: 0; min-height: 54px; text-align: left;
 }
-QPushButton#contactsRequestsButton:hover { background: ${subtle}; }
+QPushButton#contactsRequestsButton:hover { background: ${canvas_hover}; }
 QPushButton#contactsRequestsButton:pressed { background: ${selected}; }
 QPushButton#contactsRequestsButton:focus { border-color: ${focus}; }
 QPushButton#contactsRequestsButton QLabel { background: transparent; border: none; }

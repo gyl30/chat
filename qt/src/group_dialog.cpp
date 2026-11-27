@@ -956,7 +956,7 @@ void group_dialog::set_members(qint64 conversation, QList<member_data> members, 
         }
     }
     filter_members();
-    preview_->setFixedHeight(preview_->count() * chat_theme::dialog_row_height);
+    preview_->setFixedHeight(preview_->count() * chat_theme::user_row_height);
     available_ = true;
     status_->clear();
     refresh_speech();

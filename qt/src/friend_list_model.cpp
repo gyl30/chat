@@ -205,9 +205,14 @@ void friend_list_delegate::paint(QPainter* painter, QStyleOptionViewItem const& 
     }
     painter->save();
     auto row = option.rect;
-    if (option.state & (QStyle::State_MouseOver | QStyle::State_HasFocus))
+    if (option.state.testFlag(QStyle::State_MouseOver))
     {
-        painter->fillRect(row, themed("subtle"));
+        painter->fillRect(row, themed("canvas_hover"));
+    }
+    if (option.state.testFlag(QStyle::State_HasFocus))
+    {
+        painter->setPen(themed("focus"));
+        painter->drawRect(row.adjusted(0, 0, -1, -1));
     }
     auto color = themed("text_secondary");
     svg_icon(index.data(friend_list_model::collapsed_role).toBool() ? u"chevron-right" : u"chevron-down", color, {16, 16})
@@ -217,7 +222,11 @@ void friend_list_delegate::paint(QPainter* painter, QStyleOptionViewItem const& 
     QString count = QString::number(index.data(friend_list_model::count_role).toInt());
     painter->drawText(label, Qt::AlignRight | Qt::AlignVCenter, count);
     label.adjust(0, 0, -option.fontMetrics.horizontalAdvance(count) - 12, 0);
-    painter->drawText(label, Qt::AlignLeft | Qt::AlignVCenter, option.fontMetrics.elidedText(index.data().toString(), Qt::ElideRight, label.width()));
+    auto font = option.font;
+    font.setWeight(QFont::DemiBold);
+    painter->setFont(font);
+    painter->setPen(themed("text"));
+    painter->drawText(label, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics(font).elidedText(index.data().toString(), Qt::ElideRight, label.width()));
     painter->restore();
 }
 

@@ -2,10 +2,12 @@
 #include "theme_manager.hpp"
 #include <QAbstractButton>
 #include <QAccessibleObject>
+#include <QAction>
 #include <QApplication>
 #include <QLayout>
 #include <QHBoxLayout>
 #include <QInputDialog>
+#include <QLineEdit>
 #include <QMouseEvent>
 #include <QToolButton>
 #include <QWindow>
@@ -114,6 +116,15 @@ void frame_dialog(QDialog& dialog, bool resizable)
     row->addWidget(close);
     dialog.layout()->setMenuBar(bar);
     dialog.setSizeGripEnabled(resizable);
+}
+
+void style_search_field(QLineEdit& field)
+{
+    field.setProperty("searchField", true);
+    auto* action = field.addAction(QIcon{}, QLineEdit::LeadingPosition);
+    auto recolor = [action] { action->setIcon(svg_icon(u"search", themed("text_muted"), {16, 16})); };
+    recolor();
+    QObject::connect(&theme_manager::instance(), &theme_manager::changed, action, recolor);
 }
 
 QString prompt_text(QWidget* parent, QString const& title, QString const& label, QString const& initial, bool& accepted, bool multiline)
