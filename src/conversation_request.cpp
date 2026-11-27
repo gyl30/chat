@@ -103,6 +103,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_members(json_rp
         std::string_view role;
         std::int64_t speech_until;
         std::string nickname, remark;
+        std::int64_t joined_message_id;
     };
     struct result
     {
@@ -120,7 +121,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_members(json_rp
                                  role,
                                  member.speech_until,
                                  std::move(member.nickname),
-                                 std::move(member.remark)});
+                                 std::move(member.remark),
+                                 member.joined_message_id});
     }
     co_return serialize_json_rpc_value(value, std::move(request.id), response);
 }

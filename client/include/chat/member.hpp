@@ -24,6 +24,7 @@ struct conversation_member
     std::int64_t speech_until = 0;
     std::string nickname{};
     std::string remark{};
+    std::int64_t joined_message_id = 0;
 };
 
 }    // namespace chat

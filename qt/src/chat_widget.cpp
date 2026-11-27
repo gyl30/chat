@@ -3187,7 +3187,7 @@ void chat_widget::set_connection_available(bool available)
     }
     if (!available && active_group_)
     {
-        messages_->set_read_positions({{self_user_, messages_->read_position(self_user_)}});
+        invalidate_members(active_conversation_);
     }
     for (auto* action : findChildren<QAction*>())
     {
@@ -3739,11 +3739,13 @@ void chat_widget::set_read_message(qint64 conversation, qint64 user, qint64 mess
     }
 }
 
-void chat_widget::reset_read_positions(qint64 conversation)
+void chat_widget::invalidate_members(qint64 conversation)
 {
     if (conversation == active_conversation_ && active_group_)
     {
-        messages_->set_read_positions({{self_user_, messages_->read_position(self_user_)}});
+        // Reads can arrive before the replacement roster. Keep their watermarks,
+        // but wait for the latest join boundaries before using them as receipts.
+        messages_->set_members({});
     }
 }
 
@@ -4736,7 +4738,8 @@ void chat_widget::show_read_details(qint64 conversation, qint64 message)
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     auto refresh = [this, &dialog, conversation, message, list]
     {
-        if (active_conversation_ != conversation || !messages_->message_index(message).data(message_model::read_members_role).toBool())
+        const auto row = messages_->message_index(message);
+        if (active_conversation_ != conversation || !row.isValid() || row.data(message_model::deleted_role).toBool())
         {
             dialog.reject();
             return false;
@@ -4761,7 +4764,18 @@ void chat_widget::show_read_details(qint64 conversation, qint64 message)
         list->verticalScrollBar()->setValue(scroll);
         return true;
     };
-    connect(messages_, &QAbstractItemModel::dataChanged, &dialog, refresh);
+    connect(messages_, &message_model::readers_changed, &dialog, refresh);
+    connect(messages_,
+            &QAbstractItemModel::dataChanged,
+            &dialog,
+            [this, message, refresh](QModelIndex const& first, QModelIndex const& last, QList<int> const& roles)
+            {
+                const auto target = messages_->message_index(message);
+                if (roles.isEmpty() && target.row() >= first.row() && target.row() <= last.row())
+                {
+                    refresh();
+                }
+            });
     connect(messages_, &QAbstractItemModel::modelReset, &dialog, refresh);
     connect(messages_, &QAbstractItemModel::rowsRemoved, &dialog, refresh);
     connect(&avatars_, &avatar_cache::changed, &dialog, refresh);

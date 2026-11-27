@@ -128,6 +128,8 @@ struct completion_barrier
 struct probe_controls
 {
     QJsonObject deliveries;
+    bool trace_receipts = false;
+    QJsonArray receipt_changes;
     completion_barrier<qint64, QString> text_save;
     completion_barrier<qint64, quint64, QString> download;
 };
@@ -2070,6 +2072,61 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         out["read"] = chat->messages_->read_position(chat->self_user());
         out["status"] = chat->message_status_->text();
     }
+    else if (op == "receipts")
+    {
+        if (cmd.contains("trace"))
+        {
+            controls.trace_receipts = cmd["trace"].toBool();
+            controls.receipt_changes = {};
+        }
+        if (auto user = cmd["reader"].toInteger())
+        {
+            chat->set_read_message(chat->active_conversation(), user, cmd["through"].toInteger());
+        }
+        if (auto peer = cmd["peer"].toInteger())
+        {
+            out["watermark"] = chat->messages_->read_position(peer);
+        }
+        if (cmd["refreshMembers"].toBool())
+        {
+            window.client_->get_members(chat->active_conversation());
+        }
+        if (auto id = cmd["show"].toInteger())
+        {
+            auto const target = chat->messages_->message_index(id);
+            view->scrollTo(target);
+            const auto point = view->visualRect(target).center();
+            QTimer::singleShot(0, view, [view, point] { choose_menu_action(view, point, QStringLiteral("已读成员")); });
+        }
+        if (auto* dialog = window.findChild<QDialog*>("readDetailsDialog"))
+        {
+            auto const* list = dialog->findChild<QListWidget*>("readMembersList");
+            QJsonArray readers;
+            for (int row = 0; row < list->count(); ++row)
+            {
+                readers.append(list->item(row)->data(Qt::UserRole).toLongLong());
+            }
+            out["dialogReaders"] = readers;
+            if (cmd["close"].toBool())
+            {
+                dialog->reject();
+            }
+        }
+        QJsonArray rows;
+        for (auto const& value : cmd["messages"].toArray())
+        {
+            auto const id = value.toInteger();
+            auto const row = chat->messages_->message_index(id);
+            QJsonArray readers;
+            for (auto const& member : chat->messages_->read_members(id))
+            {
+                readers.append(member.id);
+            }
+            rows.append(QJsonObject{{"shown", row.isValid()}, {"read", row.data(message_model::read_role).toBool()}, {"readers", readers}});
+        }
+        out["rows"] = rows;
+        out["changes"] = controls.receipt_changes;
+    }
     else if (op == "state")
     {
         out["user"] = chat->self_user();
@@ -2146,6 +2203,18 @@ int main(int argc, char** argv)
     auto* chat = window.findChild<chat_widget*>();
     auto* bridge = window.client_.get();
     probe_controls controls;
+    QObject::connect(chat->messages_,
+                     &QAbstractItemModel::dataChanged,
+                     &window,
+                     [&](auto const& first, auto const& last, auto const& roles)
+                     {
+                         if (controls.trace_receipts && roles.contains(message_model::read_role))
+                         {
+                             controls.receipt_changes.append(QJsonArray{first.data(message_model::id_role).toLongLong(),
+                                                                       last.data(message_model::id_role).toLongLong(),
+                                                                       last.row() - first.row() + 1});
+                         }
+                     });
     auto observe = [&](auto signal, QString key)
     { QObject::connect(bridge, signal, &window, [&, key] { controls.deliveries[key] = controls.deliveries.value(key).toInt() + 1; }); };
     observe(&client_bridge::poll_changed, "update");
@@ -2155,6 +2224,7 @@ int main(int argc, char** argv)
     observe(&client_bridge::bundle_image_received, "image");
     observe(&client_bridge::notifications_changed, "preference");
     observe(&client_bridge::message_updated, "edit");
+    observe(&client_bridge::members_received, "members");
     observe(&client_bridge::reaction_changed, "reaction");
     observe(&client_bridge::messages_received, "history");
     observe(&client_bridge::message_received, "new");

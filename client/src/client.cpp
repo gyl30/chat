@@ -961,7 +961,8 @@ struct client::impl
                              user person;
                              auto role = find_field(value, "role");
                              auto speech_until = find_field(value, "speech_until");
-                             if (!speech_until || !speech_until->is_int64() || !role || !role->is_string() ||
+                             auto joined = integer_field(value, "joined_message_id");
+                             if (!joined || *joined < 0 || !speech_until || !speech_until->is_int64() || !role || !role->is_string() ||
                                  !parse_user(value.get_object().value_unsafe(), person) ||
                                  (role->get_string().value_unsafe() != "owner" && role->get_string().value_unsafe() != "admin" &&
                                   role->get_string().value_unsafe() != "member"))
@@ -977,7 +978,8 @@ struct client::impl
                                                 person.avatar,
                                                 speech_until->get_int64().value_unsafe(),
                                                 std::move(person.nickname),
-                                                string_field(value.get_object().value_unsafe(), "remark")});
+                                                string_field(value.get_object().value_unsafe(), "remark"),
+                                                *joined});
                          }
                          handler(std::move(members));
                      });

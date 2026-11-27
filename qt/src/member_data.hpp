@@ -16,6 +16,8 @@ struct member_data
     chat::avatar_state avatar;
     qint64 speech_until = 0;
     QString nickname{}, remark{};
+    qint64 joined_message_id = 0;
+    bool operator==(member_data const&) const = default;
     QString display_name() const { return user_display_name(username, nickname, remark); }
 };
 

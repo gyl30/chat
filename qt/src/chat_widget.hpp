@@ -104,7 +104,7 @@ class chat_widget final : public QWidget
                       bool has_newer,
                       std::optional<qint64> first_unread);
     void set_read_message(qint64 conversation, qint64 user, qint64 message);
-    void reset_read_positions(qint64 conversation);
+    void invalidate_members(qint64 conversation);
     void set_typing(qint64 conversation, qint64 user, QString username, bool typing);
     void open_poll_results(client_bridge& client, qint64 room, qint64 message);
     void finish_poll_write(qint64 room, qint64 message, QString error);

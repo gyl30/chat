@@ -300,6 +300,8 @@ class client_bridge final : public QObject
     std::uint64_t conversations_generation_ = 0;
     quint64 files_request_ = 0;
     std::uint64_t contacts_generation_ = 0;
+    quint64 member_request_ = 0;
+    QHash<qint64, quint64> member_requests_;
     std::uint64_t friend_requests_generation_ = 0;
     std::uint64_t messages_generation_ = 0;
     std::uint64_t search_generation_ = 0;

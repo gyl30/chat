@@ -1411,7 +1411,7 @@ void main_window::connect_group_actions()
             }
             if (conversation == chat_page_->active_conversation())
             {
-                chat_page_->reset_read_positions(conversation);
+                chat_page_->invalidate_members(conversation);
                 chat_page_->begin_history_refresh();
             }
         },

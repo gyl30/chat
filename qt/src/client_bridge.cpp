@@ -286,12 +286,14 @@ client_bridge::~client_bridge() { client_.reset(); }
 void client_bridge::connect_to_server(QString const& url)
 {
     ++connection_generation_;
+    member_requests_.clear();
     client_->connect(to_utf8(url));
 }
 
 void client_bridge::close(bool keep_local_account)
 {
     ++connection_generation_;
+    member_requests_.clear();
     client_->close(keep_local_account);
 }
 
@@ -730,12 +732,19 @@ void client_bridge::respond_group_join_request(qint64 conversation, qint64 user,
 void client_bridge::get_members(qint64 conversation)
 {
     auto const generation = connection_generation_.load();
+    auto const request = ++member_request_;
+    member_requests_.insert(conversation, request);
     client_->get_members(conversation,
-                         [this, conversation, generation](auto result)
+                         [this, conversation, generation, request](auto result)
                          {
                              post_result(generation,
-                                         [this, conversation, result = std::move(result)]
+                                         [this, conversation, request, result = std::move(result)]
                                          {
+                                             if (member_requests_.value(conversation) != request)
+                                             {
+                                                 return;
+                                             }
+                                             member_requests_.remove(conversation);
                                              if (!result)
                                              {
                                                  emit members_received(conversation, {}, display_error(result.error()));
@@ -750,7 +759,8 @@ void client_bridge::get_members(qint64 conversation)
                                                                               user.avatar,
                                                                               user.speech_until,
                                                                               from_utf8(user.nickname),
-                                                                              from_utf8(user.remark)});
+                                                                              from_utf8(user.remark),
+                                                                              user.joined_message_id});
                                              }
                                              emit members_received(conversation, std::move(values), {});
                                          });

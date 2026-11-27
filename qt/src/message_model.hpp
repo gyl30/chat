@@ -1,6 +1,8 @@
 #ifndef CHAT_QT_SRC_MESSAGE_MODEL_HPP
 #define CHAT_QT_SRC_MESSAGE_MODEL_HPP
 
+#include <limits>
+
 #include <QAbstractListModel>
 #include <QList>
 #include <QSet>
@@ -15,6 +17,8 @@ class message_images;
 
 class message_model final : public QAbstractListModel
 {
+    Q_OBJECT
+
    public:
     enum role
     {
@@ -110,7 +114,14 @@ class message_model final : public QAbstractListModel
     qint64 first_message_id() const;
     qint64 last_message_id() const;
 
+   signals:
+    void readers_changed();
+
    private:
+    void notify_read_changes(read_positions const& previous,
+                             QList<member_data> const& previous_members,
+                             qint64 after = 0,
+                             qint64 through = std::numeric_limits<qint64>::max());
     download_tasks* downloads_ = nullptr;
     std::optional<QHash<qint64, message_data>> page_changes_;
     QString participant_name(qint64 id) const;
