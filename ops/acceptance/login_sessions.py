@@ -15,7 +15,7 @@ from websockets.exceptions import ConnectionClosed
 
 from desktop import Desktop, Gate, until
 from fixture import Client
-from group_moderation import hold_silo_completion, read
+from group_moderation import hold_silo_multipart, read
 from isolated import Store, begin, chat, put
 
 INVALID = -32016
@@ -185,7 +185,7 @@ async def rpc_acceptance(db, storage):
 
 
 async def revoke_during_publish(root, storage, api, bucket):
-    with hold_silo_completion(storage) as (endpoint, armed, completed, release):
+    with hold_silo_multipart(storage, "POST") as (endpoint, armed, completed, release):
         db = root / "publish.sqlite3"
         with chat(db, endpoint) as url:
             async with AsyncExitStack() as stack:
