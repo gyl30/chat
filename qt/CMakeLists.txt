@@ -128,6 +128,7 @@ qt_add_resources(client chat_icons
 )
 
 set_target_properties(client PROPERTIES AUTOMOC ON)
+target_compile_options(client PRIVATE -Wall -Wextra -Wpedantic)
 target_include_directories(client PRIVATE "${chat_unicode_include}")
 
 target_link_libraries(client

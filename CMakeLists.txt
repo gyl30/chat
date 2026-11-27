@@ -94,6 +94,7 @@ add_library(sdk STATIC
 )
 
 target_include_directories(sdk PUBLIC client/include PRIVATE src)
+target_compile_options(sdk PRIVATE -Wall -Wextra -Wpedantic)
 
 target_link_libraries(sdk
     PRIVATE
@@ -113,12 +114,6 @@ target_link_libraries(sdk
 )
 
 add_subdirectory(third/lodepng EXCLUDE_FROM_ALL)
-
-add_compile_options(
-    -Wall
-    -Wextra
-    -Wpedantic
-)
 
 option(CHAT_BUILD_CLIENT "Build Qt Widgets client" OFF)
 include(cmake/chat_unicode.cmake)
@@ -186,6 +181,7 @@ add_executable(server
 )
 
 target_include_directories(server PRIVATE src client/include)
+target_compile_options(server PRIVATE -Wall -Wextra -Wpedantic)
 
 target_link_libraries(server
     PRIVATE
