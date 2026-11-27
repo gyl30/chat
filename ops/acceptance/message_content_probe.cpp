@@ -101,6 +101,62 @@ static void check_search_menu_copy()
     }
 }
 
+static void check_history_merge_notifications()
+{
+    auto make_message = [](qint64 id)
+    {
+        message_data message;
+        message.id = id;
+        message.conversation = 7;
+        message.from = 2;
+        message.text = QString::number(id);
+        return message;
+    };
+    message_model model;
+    model.reset(7);
+    QList<message_data> recent;
+    for (int id = 101; id <= 340; ++id)
+    {
+        recent.push_back(make_message(id));
+    }
+    model.merge_messages(std::move(recent));
+    QPersistentModelIndex selected(model.message_index(150));
+    int insertions = 0, inserted = 0, changed = 0;
+    QObject::connect(&model,
+                     &QAbstractItemModel::rowsInserted,
+                     [&insertions, &inserted](auto const&, int first, int last)
+                     {
+                         ++insertions;
+                         inserted += last - first + 1;
+                     });
+    QObject::connect(
+        &model, &QAbstractItemModel::dataChanged, [&changed](auto const& first, auto const& last) { changed += last.row() - first.row() + 1; });
+    QList<message_data> previous;
+    for (int id = 61; id <= 120; ++id)
+    {
+        previous.push_back(make_message(id));
+    }
+    model.merge_messages(std::move(previous));
+    std::cout << "History: 240 loaded + 60 page, insert notifications=" << insertions << ", rows inserted=" << inserted
+              << ", notified existing rows=" << changed << std::endl;
+    assert(insertions == 1 && inserted == 40 && changed <= 2);
+    assert(selected.isValid() && selected.row() == 89 && selected.data(message_model::id_role).toLongLong() == 150);
+
+    auto reply = make_message(400);
+    reply.reply = {150, "peer", "150", 0, false, 2};
+    assert(model.add_message(reply));
+    auto edit = make_message(150);
+    edit.edited_at = 20;
+    edit.text = "new quote";
+    model.begin_page();
+    model.update_message(edit);
+    changed = 0;
+    auto stale = make_message(150);
+    model.merge_messages({stale, reply});
+    assert(changed == 0 && selected.data(message_model::text_role) == "new quote");
+    assert(model.message_index(400).data(message_model::reply_text_role).toString().endsWith("new quote"));
+}
+
 static void check_display_roles()
 {
     message_model model;
@@ -359,6 +415,7 @@ int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
     check_display_roles();
+    check_history_merge_notifications();
     check_search_menu_copy();
     QCoreApplication::setOrganizationName("acceptance");
     QCoreApplication::setApplicationName("message-content");

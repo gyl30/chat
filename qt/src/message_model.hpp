@@ -115,6 +115,8 @@ class message_model final : public QAbstractListModel
     std::optional<QHash<qint64, message_data>> page_changes_;
     QString participant_name(qint64 id) const;
     void reconcile_page_row(message_data& message) const;
+    void observe_avatars(message_data const& message);
+    bool apply_update(message_data& current, message_data const& update);
     avatar_cache* avatars_;
     message_images* images_;
     QList<message_data> messages_;

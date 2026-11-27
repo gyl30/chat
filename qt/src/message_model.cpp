@@ -551,55 +551,129 @@ void message_model::discard_stored_rows()
     }
 }
 
-void message_model::merge_messages(QList<message_data> messages)
+void message_model::observe_avatars(message_data const& message)
 {
-    for (auto& message : messages)
-    {
-        reconcile_page_row(message);
-    }
-    end_page();
-    for (auto const& message : messages)
-    {
-        update_message(message);
-    }
-    auto merged = messages_;
-    for (auto& message : messages)
-    {
-        if (message.conversation != conversation_)
-        {
-            continue;
-        }
-        if (!std::ranges::binary_search(messages_, message.id, {}, &message_data::id))
-        {
-            merged.push_back(std::move(message));
-        }
-    }
-
-    if (merged.size() == messages_.size())
+    if (!avatars_)
     {
         return;
     }
-
-    std::sort(merged.begin(), merged.end(), [](message_data const& lhs, message_data const& rhs) { return lhs.id < rhs.id; });
-    for (auto& message : merged)
+    avatars_->observe(message.from, message.avatar);
+    if (message.poll)
     {
-        merge_reply(message.reply, merged);
-    }
-    // History adds messages; existing IDs and their persistent keyboard indexes survive.
-    for (int row = 0; row < merged.size(); ++row)
-    {
-        if (row < messages_.size() && messages_[row].id == merged[row].id)
+        for (const auto& voter : message.poll->recent)
         {
-            messages_[row] = std::move(merged[row]);
+            avatars_->observe(voter.id, voter.avatar);
+        }
+    }
+}
+
+bool message_model::apply_update(message_data& current, message_data const& update)
+{
+    if (!merge_update(current, update))
+    {
+        return false;
+    }
+    if (current.deleted || (current.poll && (current.poll->closed || current.poll->selection)))
+    {
+        poll_drafts_.remove(current.id);
+    }
+    return true;
+}
+
+void message_model::merge_messages(QList<message_data> page)
+{
+    page.removeIf([this](message_data const& message) { return message.conversation != conversation_; });
+    Q_ASSERT(std::ranges::is_sorted(page, {}, &message_data::id));
+    QSet<qint64> quote_sources;
+    for (auto& message : page)
+    {
+        reconcile_page_row(message);
+        observe_avatars(message);
+        if (message.deleted && images_)
+        {
+            images_->remove(message.conversation, message.id);
+        }
+        if (message.deleted || message.edited_at)
+        {
+            quote_sources.insert(message.id);
+        }
+    }
+    end_page();
+    for (auto& message : page)
+    {
+        merge_reply(message.reply, messages_);
+        merge_reply(message.reply, page);
+    }
+
+    QSet<qint64> changed;
+    QSet<qint64> layout_neighbours;
+    int next_row = 0;
+    for (int i = 0; i < page.size();)
+    {
+        auto const found = std::ranges::lower_bound(messages_.cbegin() + next_row, messages_.cend(), page[i].id, {}, &message_data::id);
+        const int row = found - messages_.cbegin();
+        if (found != messages_.cend() && found->id == page[i].id)
+        {
+            if (apply_update(messages_[row], page[i]))
+            {
+                changed.insert(page[i].id);
+            }
+            ++i;
+            next_row = row + 1;
+            continue;
+        }
+
+        const int first = i++;
+        if (found == messages_.cend())
+        {
+            i = page.size();
         }
         else
         {
-            beginInsertRows({}, row, row);
-            messages_.insert(row, std::move(merged[row]));
-            endInsertRows();
+            while (i < page.size() && page[i].id < found->id)
+            {
+                ++i;
+            }
+            layout_neighbours.insert(found->id);
+        }
+        if (row > 0)
+        {
+            layout_neighbours.insert(messages_[row - 1].id);
+        }
+        const int count = i - first;
+        beginInsertRows({}, row, row + count - 1);
+        messages_.insert(row, count, message_data{});
+        std::move(page.begin() + first, page.begin() + i, messages_.begin() + row);
+        endInsertRows();
+        next_row = row + count;
+    }
+
+    if (!quote_sources.isEmpty())
+    {
+        for (int row = 0; row < messages_.size(); ++row)
+        {
+            auto& reply = messages_[row].reply;
+            if (quote_sources.contains(reply.id))
+            {
+                auto source = message_index(reply.id);
+                if (source.isValid() && update_quote(reply, messages_.at(source.row())) && !changed.contains(messages_[row].id))
+                {
+                    emit dataChanged(index(row), index(row), {reply_text_role, reply_target_role, Qt::AccessibleTextRole});
+                }
+            }
         }
     }
-    emit dataChanged(index(0, 0), index(messages_.size() - 1, 0));
+    for (auto id : changed)
+    {
+        auto row = message_index(id);
+        emit dataChanged(row, row);
+    }
+    layout_neighbours.subtract(changed);
+    for (auto id : layout_neighbours)
+    {
+        auto row = message_index(id);
+        emit dataChanged(row, row, {Qt::SizeHintRole});
+    }
 }
 
 bool message_model::add_message(message_data message)
@@ -608,28 +682,15 @@ bool message_model::add_message(message_data message)
     {
         return false;
     }
-    if (avatars_)
-    {
-        avatars_->observe(message.from, message.avatar);
-        if (message.poll)
-        {
-            for (const auto& voter : message.poll->recent)
-            {
-                avatars_->observe(voter.id, voter.avatar);
-            }
-        }
-    }
+    observe_avatars(message);
     reconcile_page_row(message);
-    auto found = std::find_if(messages_.cbegin(), messages_.cend(), [id = message.id](message_data const& value) { return value.id == id; });
-    if (found != messages_.cend())
+    auto const position = std::ranges::lower_bound(messages_.cbegin(), messages_.cend(), message.id, {}, &message_data::id);
+    if (position != messages_.cend() && position->id == message.id)
     {
         return false;
     }
-
     merge_reply(message.reply, messages_);
-    auto position =
-        std::lower_bound(messages_.cbegin(), messages_.cend(), message.id, [](message_data const& value, qint64 id) { return value.id < id; });
-    auto const row = static_cast<int>(std::distance(messages_.cbegin(), position));
+    const int row = position - messages_.cbegin();
     beginInsertRows({}, row, row);
     messages_.insert(row, std::move(message));
     endInsertRows();
@@ -641,10 +702,10 @@ void message_model::update_message(message_data const& message)
     if (message.deleted)
     {
         poll_drafts_.remove(message.id);
-    }
-    if (message.deleted && images_)
-    {
-        images_->remove(message.conversation, message.id);
+        if (images_)
+        {
+            images_->remove(message.conversation, message.id);
+        }
     }
     if (message.conversation != conversation_)
     {
@@ -661,29 +722,20 @@ void message_model::update_message(message_data const& message)
         }
         merge_update(change, message);
     }
-    if (avatars_)
+    observe_avatars(message);
+    const auto own = message_index(message.id);
+    if (own.isValid() && apply_update(messages_[own.row()], message))
     {
-        avatars_->observe(message.from, message.avatar);
-        if (message.poll)
-        {
-            for (const auto& voter : message.poll->recent)
-            {
-                avatars_->observe(voter.id, voter.avatar);
-            }
-        }
+        emit dataChanged(own, own);
     }
-    for (int row = 0; row < messages_.size(); ++row)
+    if (message.deleted || message.edited_at)
     {
-        auto& current = messages_[row];
-        bool changed = current.id == message.id && merge_update(current, message);
-        if (changed && current.poll && (current.poll->closed || current.poll->selection))
+        for (int row = 0; row < messages_.size(); ++row)
         {
-            poll_drafts_.remove(current.id);
-        }
-        changed = update_quote(current.reply, message) || changed;
-        if (changed)
-        {
-            emit dataChanged(index(row, 0), index(row, 0));
+            if (update_quote(messages_[row].reply, message))
+            {
+                emit dataChanged(index(row), index(row), {reply_text_role, reply_target_role, Qt::AccessibleTextRole});
+            }
         }
     }
 }
