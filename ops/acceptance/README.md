@@ -7,7 +7,9 @@ ops/build-sqlite-runtime.sh "$SQLITE_PREFIX"
 ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-release
 ```
 
-脚本构建三个生产目标，在临时目录链接 Qt 驱动。驱动操作实际主窗口、菜单和模型，使用生产 SDK、资源和主题。验收创建临时账号、SQLite、Silo 卷、私有会话总线及 Qt 应用目录；测试客户端连接本机随机端口。失败返回非零。请使用普通的 Python 运行模式，以执行断言。
+脚本构建三个生产目标，在临时目录链接 Qt 驱动。驱动操作实际主窗口、菜单和模型，使用生产 SDK、资源和主题。验收创建临时账号、SQLite、Silo 卷、私有会话总线及 Qt 应用目录；测试客户端连接本机随机端口。多选与转发、分组拖放和收藏分别使用隔离的 Xvfb 和 D-Bus，无需登录桌面。安装 xauth 和 libXtst 以运行虚拟桌面交互验收。失败返回非零。请使用普通的 Python 运行模式，以执行断言。
+
+下面列出的功能脚本可以单独运行。标准回归外的 SDK 协议验收、S3 传输及 4 GiB 边界、WAL 与性能测量、平台实测继续使用各自入口。
 
 | 入口 | 观察的结果 |
 |---|---|
@@ -26,7 +28,7 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 | `clear.py` | 重试相同 H 后，后续未读消息与手工标记保留，实际已读位置保持，已提交任务得到无正文确认 |
 | `login_sessions.py [Qt 驱动]` | 真实登录凭证及安装绑定、同会话多连接、并发改密、服务端重启和已撤销 token 拒绝；真实 Silo 完成回包被扣住时撤销，拒绝后续数据库发布；Qt 设备列表与确认、无密码重连、撤销通知／确认延迟、草稿保存窗口、Outbox 对账和原安装续传 |
 | `group_moderation.py [Qt 驱动]` | 禁言角色、水位、时钟、幂等确认，真实 Silo 完成与 Chat 发布之间的竞态；解散的原成员通知、归档隔离、重启回收和共享对象；传入驱动时验证 Qt 多端、隐藏会话手动重试、禁言拒绝、失权任务不可恢复、原设备续传，以及重新入群前后的搜索迟到回包 |
-| `desktop.py` | 真实 RPC 代理延迟或丢弃指定回包，验证 Qt 草稿、Outbox、通知、三页搜索游标与迟到上下文；验证图片和保存子窗口、群资料置顶、多目标上传菜单和真实 SDK 附件下载；暂停并重启后从菜单恢复隐藏私聊和隐藏群文件任务 |
+| `desktop.py` | 真实 RPC 代理延迟或丢弃指定回包，验证 Qt 草稿、Outbox 双会话队首和去重、通知、三页搜索游标与迟到上下文；验证群文件搜索防抖、50/51 页边界、Unicode 文件名与失权；覆盖图片和保存子窗口、群资料置顶、多个上传目标、隐藏会话上传恢复和真实 SDK 下载 |
 | `recovery.py` | 停止隔离 Chat 与 Silo，分别备份数据库、月档及整个对象卷；启动独立恢复实例，用原 Qt 安装的任务日志从第 2 片继续，再检查消息权限与对象引用 |
 | `wal.py` | 验证静态服务端与私有 Python 的 SQLite 身份、WAL 并发 checkpoint 和搜索分页 |
 | `history.py` | 真实 Qt 覆盖 3,100 条较新消息后的分类和 around；`--baseline` 可用旧服务端、旧版 Qt 测试驱动复现自动补页上限 |
@@ -41,7 +43,7 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 | `history_filter_perf.py` | 对照两个 Release 服务端的稀疏历史、全局搜索及其他连接的发送确认；输出原始端到端样本 |
 | `search_bench.py` | 在独立磁盘 WAL 库测量真实搜索与发送 RPC，输出每组延迟、CPU、内存、归档读取次数和被动 checkpoint |
 
-默认项目构建不运行上述验收。查询 GitHub 时，仓库有 0 个注册的自托管 runner 和 0 个已有 workflow；本次 GCC 16、Boost 1.92 环境的执行证据来自本机。
+默认项目构建只生成产物。使用 `linux.sh` 主动运行标准回归，或用各脚本复查特定场景。
 
 ## SDK JSON-RPC 和 Unicode 定向验收
 
@@ -68,6 +70,7 @@ python3 ops/acceptance/sdk_json.py "$work/sdk-qa"
 - `message_selection.py <probe>`：在真实 xcb 菜单打开期间由另一设备编辑或撤回，检查复制的是当前正文，已撤回项不覆盖剪贴板。转发目标窗口保持打开时，分别撤回首条、中间、末条和全部选中项，并覆盖单条转发、个人清空、失权、账号切换和取消。探针核对真实 RPC 顺序、返回及目标会话 SQLite 中的 `forward_source`，无发送场景使用同连接请求作屏障。
 - `bookmarks.py --probe <probe>`：在已加载两页并选中末行时，未收藏消息的编辑不重置列表；未加载的收藏编辑后仍可新命中。
 - `desktop.py <probe> contacts`：好友申请、拒绝、接受、移除、备注与账户名搜索、资料和分组在第二设备变化时同步。单独使用新账号夹具，不与默认文件任务场景共享。
+- `desktop.py <probe> file-search` 或 `desktop.py <probe> outbox`：独立重跑群文件搜索或待发调度，场景也纳入 `linux.sh`。
 - `downloads.py <probe>`：保存窗口打开后，用原有群文件操作移除所选对象并等待列表刷新，确认保存不再产生无效任务或下载授权请求。另用 `--stalls` 验证 TCP 取消和共享工作器。
 
 ## S3 与附件定向回归
