@@ -328,6 +328,11 @@ static void check_display_roles()
         assert(sent.data(message_model::send_state_role).toInt() == message_model::sent);
         assert(sent.data(message_model::read_role).isValid() && !sent.data(message_model::read_role).toBool());
         model.set_read_message(2, m.id);
+        if (group)
+        {
+            assert(!sent.data(message_model::read_role).toBool());
+            model.set_members({member_data{.id = 2, .username = "bob", .avatar = {}}});
+        }
         assert(sent.data(message_model::read_role).toBool());
     }
 }
