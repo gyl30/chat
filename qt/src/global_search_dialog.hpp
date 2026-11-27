@@ -72,6 +72,7 @@ class global_search_dialog final : public QDialog
     quint64 sender_request_ = 0;
     bool submitted_ = false;
     QTreeWidget* results_;
+    QLabel* empty_query_hint_;
     QListView* context_;
     message_model* messages_;
     QPushButton* more_;

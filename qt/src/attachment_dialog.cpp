@@ -27,7 +27,7 @@ attachment_dialog::attachment_dialog(
       preview_image_(std::move(image))
 {
     setObjectName(QStringLiteral("attachmentDialog"));
-    setWindowTitle(filename_);
+    setWindowTitle(preview ? QStringLiteral("图片预览") : QStringLiteral("附件详情"));
     resize(preview ? QSize(700, 600) : QSize(500, 180));
     auto* layout = new QVBoxLayout(this);
     frame_dialog(*this);
@@ -49,13 +49,10 @@ attachment_dialog::attachment_dialog(
     layout->addWidget(image_, 1);
     save_button_ = new QPushButton(QStringLiteral("保存文件"), this);
     save_button_->setObjectName(QStringLiteral("saveAttachmentButton"));
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+    auto* buttons = new QDialogButtonBox(this);
     buttons->addButton(save_button_, QDialogButtonBox::ActionRole);
-    buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
-    buttons->button(QDialogButtonBox::Close)->setIcon({});
     layout->addWidget(downloads.source_button(this, [=] { return download_source{conversation, message, item, {}}; }));
     layout->addWidget(buttons);
-    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(save_button_,
             &QPushButton::clicked,
             this,

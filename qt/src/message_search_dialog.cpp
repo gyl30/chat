@@ -104,12 +104,9 @@ message_search_dialog::message_search_dialog(
     more_button_ = new QPushButton(QStringLiteral("更早的结果"), this);
     more_button_->setObjectName(QStringLiteral("moreSearchResultsButton"));
     more_button_->setEnabled(false);
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+    auto* buttons = new QDialogButtonBox(this);
     buttons->addButton(more_button_, QDialogButtonBox::ActionRole);
-    buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
-    buttons->button(QDialogButtonBox::Close)->setIcon({});
     layout->addWidget(buttons);
-    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(search_button, &QPushButton::clicked, this, [this] { request_search(false); });
     auto const activate = [this](QModelIndex const& index)
     {

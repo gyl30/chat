@@ -4721,11 +4721,6 @@ void chat_widget::show_read_details(qint64 conversation, qint64 message)
     list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     list->setMouseTracking(true);
     layout->addWidget(list);
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-    buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
-    buttons->button(QDialogButtonBox::Close)->setIcon({});
-    layout->addWidget(buttons);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     auto refresh = [this, &dialog, conversation, message, list]
     {
         const auto row = messages_->message_index(message);

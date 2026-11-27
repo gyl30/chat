@@ -201,6 +201,12 @@ global_search_dialog::global_search_dialog(
     results_->header()->setStretchLastSection(false);
     results_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     results_->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    auto* hint_layout = new QGridLayout(results_->viewport());
+    hint_layout->setContentsMargins(0, 0, 0, 0);
+    empty_query_hint_ = new QLabel(QStringLiteral("输入关键词或设置筛选条件"), results_->viewport());
+    empty_query_hint_->setObjectName(QStringLiteral("subtleText"));
+    empty_query_hint_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    hint_layout->addWidget(empty_query_hint_, 0, 0, Qt::AlignCenter);
     layout->addWidget(results_);
     context_ = new QListView(this);
     context_->setObjectName(QStringLiteral("searchContextMessages"));
@@ -388,6 +394,7 @@ void global_search_dialog::show_results()
     context_->hide();
     back_->hide();
     header_->show();
+    empty_query_hint_->setVisible(!submitted_);
     filters_->setVisible(toggle_filters_->isChecked());
     results_->show();
     more_->setVisible(next_before_ != 0);
@@ -451,6 +458,7 @@ void global_search_dialog::search(qint64 before)
             return;
         }
         submitted_ = true;
+        empty_query_hint_->hide();
     }
     else
     {

@@ -71,11 +71,6 @@ group_dialog::group_dialog(client_bridge& client,
                     files_->refresh();
                 }
             });
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
-    buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
-    buttons->button(QDialogButtonBox::Close)->setIcon({});
-    outer->addWidget(buttons);
-    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect_member_actions();
     connect_approval_actions();
     connect_group_settings();
@@ -178,11 +173,6 @@ void group_dialog::setup_overview()
                 text->setReadOnly(true);
                 text->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
                 layout->addWidget(text);
-                auto* close = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-                close->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
-                close->button(QDialogButtonBox::Close)->setIcon({});
-                connect(close, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-                layout->addWidget(close);
                 dialog.exec();
             });
     overview_pin_ = new QLabel(QStringLiteral("暂无置顶消息"), overview);
