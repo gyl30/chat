@@ -14,22 +14,21 @@
 
 namespace
 {
-constexpr int avatar_size = 40;
-
-QRect user_avatar_rect(QRect const& row)
+QRect user_avatar_rect(QRect const& row, user_delegate::layout mode)
 {
+    auto const avatar_size = mode == user_delegate::layout::compact ? 40 : 48;
     return {row.left() + chat_theme::dialog_left, row.top() + (row.height() - avatar_size) / 2, avatar_size, avatar_size};
 }
-}
+}    // namespace
 
-user_delegate::user_delegate(QObject* parent, std::function<QString(QModelIndex const&)> status)
-    : QStyledItemDelegate(parent), status_(std::move(status))
+user_delegate::user_delegate(QObject* parent, std::function<QString(QModelIndex const&)> status, layout mode)
+    : QStyledItemDelegate(parent), status_(std::move(status)), mode_(mode)
 {
 }
 
 bool user_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QStyleOptionViewItem const& option, QModelIndex const& index)
 {
-    if (event->type() != QEvent::MouseButtonRelease)
+    if (mode_ == layout::picker || event->type() != QEvent::MouseButtonRelease)
     {
         return QStyledItemDelegate::editorEvent(event, model, option, index);
     }
@@ -38,7 +37,7 @@ bool user_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QStyle
     {
         return false;
     }
-    if (user_avatar_rect(option.rect).contains(mouse->position().toPoint()))
+    if (user_avatar_rect(option.rect, mode_).contains(mouse->position().toPoint()))
     {
         emit avatar_clicked(index);
     }
@@ -55,7 +54,7 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
     painter->setRenderHint(QPainter::Antialiasing);
 
     auto const rect = option.rect;
-    const bool selected = option.state.testFlag(QStyle::State_Selected);
+    const bool selected = mode_ != layout::picker && option.state.testFlag(QStyle::State_Selected);
     const bool hovered = option.state.testFlag(QStyle::State_MouseOver);
     const auto surface = themed(selected ? "selected" : hovered ? "canvas_hover" : "panel");
     if (selected || hovered)
@@ -66,8 +65,8 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
     auto const username = index.data(Qt::DisplayRole).toString();
     auto const online = index.data(user_model::online_role).toBool();
     auto const last_seen = index.data(user_model::last_seen_role).toLongLong();
-    const auto avatar_rect = user_avatar_rect(rect);
-    paint_avatar(*painter, avatar_rect, username, 17, index.data(Qt::DecorationRole).value<QPixmap>());
+    const auto avatar_rect = user_avatar_rect(rect, mode_);
+    paint_avatar(*painter, avatar_rect, username, mode_ == layout::compact ? 17 : 19, index.data(Qt::DecorationRole).value<QPixmap>());
     if (online)
     {
         painter->setPen(QPen(surface, 2));
@@ -82,15 +81,30 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
     const auto status = status_ ? status_(index) : request_status.isValid() ? request_status.toString() : presence_text(online, last_seen);
 
     QFont username_font = option.font;
-    username_font.setBold(true);
-    username_font.setPixelSize(14);
+    username_font.setWeight(mode_ == layout::compact ? QFont::Bold : QFont::Medium);
+    username_font.setPixelSize(mode_ == layout::compact ? 14 : 15);
     QFont status_font = option.font;
     status_font.setPixelSize(13);
     if (!badge.isEmpty())
     {
         auto const width = QFontMetrics(status_font).horizontalAdvance(badge);
-        paint_emoji_line(*painter, {right - width, rect.top(), width + 1, rect.height()}, badge, status_font, themed("accent"));
+        paint_emoji_line(*painter, {right - width, rect.top(), width + 1, rect.height()}, badge, status_font, themed("text_secondary"));
         right -= width + 12;
+    }
+    if (mode_ == layout::picker)
+    {
+        auto const center = QPointF(right - 11, rect.center().y());
+        bool const checked = index.data(chosen_role).toBool();
+        painter->setPen(QPen(themed(checked ? "accent" : "text_muted"), 1.4));
+        painter->setBrush(checked ? QBrush(themed("accent")) : Qt::NoBrush);
+        painter->drawEllipse(center, 9.5, 9.5);
+        if (checked)
+        {
+            painter->setPen(QPen(themed("on_accent"), 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            QPointF const path[]{center + QPointF(-4, 0), center + QPointF(-1, 3), center + QPointF(4.5, -3)};
+            painter->drawPolyline(path, 3);
+        }
+        right -= 35;
     }
     const auto name_height = QFontMetrics(username_font).height();
     const auto status_height = status.isEmpty() ? 0 : QFontMetrics(status_font).height();
@@ -115,5 +129,5 @@ QSize user_delegate::sizeHint(QStyleOptionViewItem const& option, QModelIndex co
 {
     (void)option;
     (void)index;
-    return {314, chat_theme::user_row_height};
+    return {314, mode_ == layout::compact ? chat_theme::user_row_height : chat_theme::member_row_height};
 }

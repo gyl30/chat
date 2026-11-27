@@ -49,6 +49,7 @@ inline constexpr int dialog_preview_top = 36;
 inline constexpr int dialog_right = 15;
 inline constexpr int dialog_unread_height = 19;
 inline constexpr int user_row_height = 56;
+inline constexpr int member_row_height = 62;
 
 inline constexpr int message_max_width = 544;
 inline constexpr int message_avatar_size = 45;

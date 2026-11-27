@@ -12,6 +12,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPushButton;
+class QResizeEvent;
 
 class create_group_dialog final : public QDialog
 {
@@ -22,9 +23,14 @@ class create_group_dialog final : public QDialog
     QString group_title() const;
     QList<qint64> selected_members() const;
 
+   protected:
+    void resizeEvent(QResizeEvent* event) override;
+
    private:
     void update_selection();
     void filter_contacts();
+    void update_proceed();
+    void update_chip_height();
 
     QLineEdit* search_;
     QLabel* selected_count_;
@@ -33,5 +39,6 @@ class create_group_dialog final : public QDialog
     empty_state* empty_;
     QLineEdit* title_;
     QPushButton* proceed_;
+    bool sized_ = false;
 };
 #endif

@@ -158,8 +158,6 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
     ok->setObjectName("pollSubmit");
     ok->setProperty("primary", true);
     ok->setAutoDefault(false);
-    ok->setIcon({});
-    buttons->button(QDialogButtonBox::Cancel)->setIcon({});
     buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
     outer->addWidget(buttons);
     QButtonGroup answers(&dialog);

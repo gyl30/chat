@@ -149,29 +149,10 @@ QMainWindow {
             border: 0;
             outline: 0;
         }
-        QListWidget#groupContactPicker::item, QListWidget#forwardTargets::item {
-            padding: 0 8px;
-        }
-        QListWidget#groupContactPicker::item:hover:!selected, QListWidget#forwardTargets::item:hover:!selected { background: ${canvas_hover}; }
-        QListWidget#groupContactPicker::item:selected, QListWidget#forwardTargets::item:selected { background: ${selected}; color: ${text}; }
-        QListWidget#groupContactPicker::indicator, QDialog#groupInviteDialog QListWidget::indicator {
-            width: 16px;
-            height: 16px;
-            border: 1px solid ${border_strong};
-            border-radius: 4px;
-            background: ${surface};
-        }
-        QListWidget#groupContactPicker::indicator:checked, QDialog#groupInviteDialog QListWidget::indicator:checked {
-            background: ${accent};
-            border-color: ${accent};
-            image: url("${check_icon}");
-        }
-        QListWidget#groupSelectedContacts::item {
-            background: ${selected};
-            color: ${text};
-            border-radius: 8px;
-            padding: 0 8px;
-        }
+        QDialogButtonBox { dialogbuttonbox-buttons-have-icons: 0; }
+        QListWidget#forwardTargets::item { padding: 0 8px; }
+        QListWidget#forwardTargets::item:hover:!selected { background: ${canvas_hover}; }
+        QListWidget#forwardTargets::item:selected { background: ${selected}; color: ${text}; }
         QDialog#confirmationDialog QPushButton#confirmationActionButton {
             background: ${danger};
             color: ${on_accent};
