@@ -22,11 +22,12 @@ class sidebar_search final : public QWidget
     void contact_requested(qint64 user, QString username);
     void room_requested(qint64 conversation);
     void message_requested(qint64 conversation, qint64 message);
+    void more_requested(QString query);
 
    private:
     void refresh_directory();
     void restart();
-    void search(qint64 before);
+    void search();
     client_bridge& client_;
     QLineEdit& input_;
     user_model& contacts_;
@@ -37,6 +38,5 @@ class sidebar_search final : public QWidget
     QPushButton* more_;
     QTimer debounce_;
     quint64 request_ = 0;
-    qint64 next_ = 0;
 };
 #endif

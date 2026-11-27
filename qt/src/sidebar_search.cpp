@@ -14,9 +14,12 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QVBoxLayout>
+#include <algorithm>
 
 namespace
 {
+constexpr std::size_t preview_count = 5;
+
 class search_result_delegate final : public QStyledItemDelegate
 {
    public:
@@ -90,22 +93,14 @@ sidebar_search::sidebar_search(
     hits_->setObjectName(QStringLiteral("sidebarMessageHits"));
     hits_->setItemDelegate(new search_result_delegate(input, hits_));
     layout->addWidget(hits_, 2);
-    more_ = new QPushButton(QStringLiteral("更多聊天记录"), this);
+    more_ = new QPushButton(QStringLiteral("更多搜索结果"), this);
+    more_->setObjectName(QStringLiteral("sidebarMoreResults"));
     layout->addWidget(more_);
     more_->hide();
-    connect(more_,
-            &QPushButton::clicked,
-            this,
-            [this]
-            {
-                if (next_ && !request_)
-                {
-                    search(next_);
-                }
-            });
+    connect(more_, &QPushButton::clicked, this, [this] { emit more_requested(input_.text()); });
     debounce_.setSingleShot(true);
     debounce_.setInterval(220);
-    connect(&debounce_, &QTimer::timeout, this, [this] { search(0); });
+    connect(&debounce_, &QTimer::timeout, this, &sidebar_search::search);
     connect(&input_,
             &QLineEdit::textChanged,
             this,
@@ -155,13 +150,15 @@ sidebar_search::sidebar_search(
                     return;
                 }
                 request_ = 0;
-                if (!error.isEmpty() || (page.messages.empty() && !hits_->count()))
+                if (!error.isEmpty() || page.messages.empty())
                 {
                     auto* row = new QListWidgetItem(error.isEmpty() ? QStringLiteral("没有找到相关消息") : error, hits_);
                     row->setFlags(Qt::NoItemFlags);
                 }
-                for (auto const& hit : page.messages)
+                auto const count = std::min(preview_count, page.messages.size());
+                for (std::size_t i = 0; i < count; ++i)
                 {
+                    auto const& hit = page.messages[i];
                     auto const snippet = QString::fromStdString(hit.snippet).simplified();
                     auto const details = QStringLiteral("%1 · %2 · %3")
                                              .arg(QString::fromStdString(hit.title),
@@ -173,11 +170,7 @@ sidebar_search::sidebar_search(
                     row->setData(Qt::UserRole, qint64(hit.conversation));
                     row->setData(Qt::UserRole + 1, qint64(hit.id));
                 }
-                if (error.isEmpty())
-                {
-                    next_ = page.next_before.value_or(0);
-                }
-                more_->setVisible(next_ > 0);
+                more_->setVisible(error.isEmpty() && (page.messages.size() > preview_count || page.next_before.has_value()));
             });
     // Drop the pending page before a new request can race with a withdrawal or loss of visibility.
     connect(&client_,
@@ -275,7 +268,7 @@ void sidebar_search::refresh_directory()
 }
 void sidebar_search::restart()
 {
-    request_ = next_ = 0;
+    request_ = 0;
     debounce_.stop();
     hits_->clear();
     more_->hide();
@@ -284,10 +277,10 @@ void sidebar_search::restart()
         debounce_.start();
     }
 }
-void sidebar_search::search(qint64 before)
+void sidebar_search::search()
 {
     chat::message_search_filter filter;
     filter.query = input_.text().toStdString();
-    request_ = client_.search_all_messages(filter, before);
+    request_ = client_.search_all_messages(filter, 0);
     more_->hide();
 }

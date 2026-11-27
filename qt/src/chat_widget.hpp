@@ -200,7 +200,7 @@ class chat_widget final : public QWidget
     void logout_requested(QWidget* parent);
     void bookmark_menu_requested(qint64 message, QAction* action);
     void bookmark_requested(qint64 message, bool bookmarked);
-    void global_search_requested(QString query);
+    void global_search_requested(QString query, bool submit);
     void message_context_requested(qint64 conversation, qint64 anchor);
     void chat_history_requested(qint64 conversation, QString title);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);

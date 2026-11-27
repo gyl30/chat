@@ -57,7 +57,7 @@ QString search_snippet(QString const& body, QString const& query)
 }    // namespace
 
 global_search_dialog::global_search_dialog(
-    client_bridge& client, chat_widget& chat, QWidget* parent, QString const& self_name, bool mentions_me, QString const& query)
+    client_bridge& client, chat_widget& chat, QWidget* parent, QString const& self_name, bool mentions_me, QString const& query, bool submit_query)
     : QDialog(parent), client_(client), chat_(chat), self_(chat.self_user())
 {
     setWindowTitle(QStringLiteral("全局消息搜索"));
@@ -379,7 +379,7 @@ global_search_dialog::global_search_dialog(
     {
         scope_request_ = client_.get_message_search_scopes();
     }
-    if (mentions_me)
+    if (mentions_me || submit_query)
     {
         search(0);
     }

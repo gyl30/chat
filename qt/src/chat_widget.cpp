@@ -285,7 +285,7 @@ QWidget* chat_widget::create_sidebar()
     auto* search_messages = new QAction(QStringLiteral("全局消息搜索"), this);
     search_messages->setObjectName(QStringLiteral("globalSearchAction"));
     search_messages->setEnabled(connection_available_);
-    connect(search_messages, &QAction::triggered, this, [this] { emit global_search_requested(conversation_search_->text()); });
+    connect(search_messages, &QAction::triggered, this, [this] { emit global_search_requested(conversation_search_->text(), false); });
     search_messages->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F));
     search_messages->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     addAction(search_messages);
@@ -527,6 +527,7 @@ void chat_widget::setup_unified_search(client_bridge& client)
     auto* layout = qobject_cast<QVBoxLayout*>(rooms->parentWidget()->layout());
     auto* panel = new sidebar_search(client, *conversation_search_, *contacts_, *conversations_, avatars_, rooms->parentWidget());
     layout->addWidget(panel);
+    connect(panel, &sidebar_search::more_requested, this, [this](QString query) { emit global_search_requested(std::move(query), true); });
     auto update = [this, rooms, panel]
     {
         auto const empty = conversation_search_->text().isEmpty();

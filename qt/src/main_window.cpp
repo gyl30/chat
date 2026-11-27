@@ -1264,11 +1264,11 @@ void main_window::connect_group_actions()
     connect(chat_page_,
             &chat_widget::global_search_requested,
             this,
-            [this](QString const& query)
+            [this](QString const& query, bool submit)
             {
                 if (connected_ && !reconnecting_)
                 {
-                    global_search_dialog dialog(*client_, *chat_page_, this, session_username_, false, query);
+                    global_search_dialog dialog(*client_, *chat_page_, this, session_username_, false, query, submit);
                     dialog.exec();
                 }
             });

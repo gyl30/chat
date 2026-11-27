@@ -32,7 +32,8 @@ class global_search_dialog final : public QDialog
                          QWidget* parent,
                          QString const& self_name = {},
                          bool mentions_me = false,
-                         QString const& query = {});
+                         QString const& query = {},
+                         bool submit_query = false);
     void locate(qint64 conversation, qint64 anchor, std::function<void()> unavailable = {}, QString const& title = {});
 
    private:
