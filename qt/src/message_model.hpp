@@ -33,7 +33,6 @@ class message_model final : public QAbstractListModel
         poll_pending_role,
         poll_draft_role,
         outgoing_role,
-        group_role,
         sender_name_role,
         show_sender_role,
         forwarded_from_role,

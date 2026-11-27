@@ -139,11 +139,11 @@ int choice_gutter(QStyleOptionViewItem const& option)
     return view && view->selectionMode() == QAbstractItemView::ExtendedSelection ? 30 : 0;
 }
 
-int maximum_bubble_width(QStyleOptionViewItem const& option, int avatar_space)
+int maximum_bubble_width(QStyleOptionViewItem const& option, int gutter)
 {
     auto const width = std::max(320, option.rect.width());
-    auto const reserved = chat_theme::message_side_margin * 2 + avatar_space;
-    return std::max(180, std::min(chat_theme::message_max_width, width - reserved - choice_gutter(option)));
+    constexpr auto reserved = chat_theme::message_side_margin * 2 + chat_theme::message_avatar_skip;
+    return std::max(180, std::min(chat_theme::message_max_width, width - reserved - gutter));
 }
 
 struct message_layout
@@ -159,7 +159,6 @@ struct message_layout
     int forward_height = 0;
     QString time;
     bool outgoing = false;
-    bool incoming_group = false;
     bool show_avatar = false;
     bool read = false;
     bool day_start = false;
@@ -193,7 +192,7 @@ struct message_layout
 
     QRect bubble_rect(QRect const& row) const
     {
-        int const margin = chat_theme::message_side_margin + (incoming_group ? chat_theme::message_avatar_skip : 0);
+        constexpr int margin = chat_theme::message_side_margin + chat_theme::message_avatar_skip;
         int const x = outgoing ? row.right() - margin - bubble_width + 1 : row.left() + margin + gutter;
         return {x, row.top() + day_height + unread_height + top_margin, bubble_width, bubble_height};
     }
@@ -205,7 +204,7 @@ struct message_layout
             return {};
         }
         constexpr int size = chat_theme::message_avatar_size;
-        auto const x = row.left() + chat_theme::message_side_margin + gutter;
+        auto const x = outgoing ? row.right() - chat_theme::message_side_margin - size + 1 : row.left() + chat_theme::message_side_margin + gutter;
         return {x, bubble_rect(row).bottom() - size + 1, size, size};
     }
 
@@ -296,9 +295,8 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         result.poll = poll.value<chat::poll_summary>();
     }
     result.outgoing = outgoing_at(index);
-    result.incoming_group = !result.outgoing && index.data(message_model::group_role).toBool();
     result.gutter = choice_gutter(option);
-    auto const bubble_max = maximum_bubble_width(option, result.incoming_group ? chat_theme::message_avatar_skip : 0);
+    auto const bubble_max = maximum_bubble_width(option, result.gutter);
     auto const inner_max = std::max(80, bubble_max - chat_theme::message_padding_horizontal * 2);
 
     if (!index.data(message_model::attachment_name_role).toString().isEmpty())
@@ -352,7 +350,7 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     result.day_start = starts_day(index);
     result.group_start = starts_group(index);
     result.group_end = ends_group(index);
-    result.show_avatar = result.incoming_group && result.group_end && !deleted;
+    result.show_avatar = result.group_end && !deleted;
     if (result.group_start && index.data(message_model::show_sender_role).toBool())
     {
         const QFontMetrics name_metrics(sender_font(option));

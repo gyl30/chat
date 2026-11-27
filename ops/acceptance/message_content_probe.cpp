@@ -13,6 +13,7 @@
 #include "message_model.hpp"
 #include "message_search_dialog.hpp"
 #include "theme_manager.hpp"
+#include "theme.hpp"
 #include <QApplication>
 #include <QClipboard>
 #include <QDesktopServices>
@@ -374,6 +375,56 @@ static void check_code_cards(QFont const& font)
     assert(number == expected.size() && doc.size().width() <= 240);
 }
 
+static void check_message_avatars(QListView& view, message_delegate& delegate)
+{
+    int clicks = 0;
+    auto connection = QObject::connect(&delegate, &message_delegate::avatar_clicked, [&] { ++clicks; });
+    view.setSelectionMode(QAbstractItemView::NoSelection);
+    for (bool group : {false, true})
+    {
+        message_model model;
+        model.set_self_user(1);
+        model.reset(7, group);
+        for (int i = 0; i < 5; ++i)
+        {
+            message_data item;
+            item.id = i + 1;
+            item.conversation = 7;
+            item.from = i < 2 || i == 4 ? 1 : 2;
+            item.timestamp = 1700000000000LL + i;
+            item.username = item.from == 1 ? QStringLiteral("alice") : QStringLiteral("bob");
+            item.text = QStringLiteral("连续消息");
+            item.deleted = i == 4;
+            assert(model.add_message(item));
+        }
+        for (int i = 0; i < model.rowCount(); ++i)
+        {
+            const auto index = model.index(i, 0);
+            QStyleOptionViewItem option;
+            option.initFrom(&view);
+            option.widget = &view;
+            option.rect = QRect(0, 0, 420, 1);
+            option.rect.setHeight(delegate.sizeHint(option, index).height());
+            const int half = chat_theme::message_avatar_size / 2;
+            const int left = chat_theme::message_side_margin + half;
+            const QPoint point(index.data(message_model::outgoing_role).toBool() ? option.rect.right() - left : left,
+                               option.rect.bottom() - chat_theme::message_margin_bottom - half);
+            const bool visible = i == 1 || i == 3;
+            const auto before = clicks;
+            QMouseEvent release(QEvent::MouseButtonRelease, point, view.viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            assert(delegate.editorEvent(&release, &model, option, index) == visible && clicks == before + visible);
+
+            QImage image(option.rect.size(), QImage::Format_RGB32);
+            image.fill(themed("canvas"));
+            QPainter painter(&image);
+            delegate.paint(&painter, option, index);
+            painter.end();
+            assert((image.pixelColor(point) != themed("canvas")) == visible);
+        }
+    }
+    QObject::disconnect(connection);
+}
+
 static void check_card_actions(QListView& view, message_delegate& delegate)
 {
     message_model model;
@@ -722,6 +773,7 @@ int main(int argc, char** argv)
            guide_image.pixelColor(qRound(outer.blockFormat().leftMargin()) + 2, nested_y) == themed("border_strong"));
     assert(quotation.find(QStringLiteral("code")).charFormat().background().color() == themed("subtle"));
     message_delegate card_delegate;
+    check_message_avatars(*view, card_delegate);
     check_card_actions(*view, card_delegate);
     check_code_cards(view->font());
     check_sidebar_status(chat, conversation);

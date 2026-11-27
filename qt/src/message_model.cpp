@@ -376,8 +376,6 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return QString{};
         case outgoing_role:
             return outgoing;
-        case group_role:
-            return group_;
         case mentions_role:
             return QVariant::fromValue(message.deleted ? QList<mention_data>{} : message.mentions);
         case mention_all_role:
