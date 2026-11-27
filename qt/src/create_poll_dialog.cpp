@@ -156,6 +156,7 @@ void compose_poll(client_bridge& client, chat_widget& chat, qint64 room)
     auto* ok = buttons->button(QDialogButtonBox::Ok);
     ok->setText(QStringLiteral("创建"));
     ok->setObjectName("pollSubmit");
+    ok->setProperty("primary", true);
     ok->setAutoDefault(false);
     ok->setIcon({});
     buttons->button(QDialogButtonBox::Cancel)->setIcon({});

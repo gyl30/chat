@@ -267,6 +267,7 @@ void main_window::setup_login_page(QString server_url)
 
     login_button_ = new QPushButton(QStringLiteral("登录"), login_card);
     login_button_->setObjectName(QStringLiteral("loginButton"));
+    login_button_->setProperty("primary", true);
     login_button_->setDefault(true);
     login_layout->addWidget(login_button_);
     register_button_ = new QPushButton(QStringLiteral("注册账号"), login_card);
@@ -320,14 +321,6 @@ void main_window::setup_registration_dialog()
     registration_layout->setContentsMargins(chat_theme::auth_padding, chat_theme::auth_padding, chat_theme::auth_padding, chat_theme::auth_padding);
     registration_layout->setSpacing(chat_theme::auth_spacing);
 
-    auto* registration_title = new QLabel(QStringLiteral("创建账号"), registration_dialog_);
-    registration_title->setObjectName(QStringLiteral("registrationTitle"));
-    registration_layout->addWidget(registration_title);
-    auto* registration_subtitle = new QLabel(QStringLiteral("用用户名找到朋友，也让朋友找到你。"), registration_dialog_);
-    registration_subtitle->setObjectName(QStringLiteral("authSubtitle"));
-    registration_subtitle->setWordWrap(true);
-    registration_layout->addWidget(registration_subtitle);
-
     auto* registration_form = new QFormLayout;
     registration_form->setRowWrapPolicy(QFormLayout::WrapAllRows);
     registration_form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
@@ -356,6 +349,7 @@ void main_window::setup_registration_dialog()
 
     registration_submit_button_ = new QPushButton(QStringLiteral("创建账号"), registration_dialog_);
     registration_submit_button_->setObjectName(QStringLiteral("registrationSubmitButton"));
+    registration_submit_button_->setProperty("primary", true);
     registration_submit_button_->setDefault(true);
     registration_layout->addWidget(registration_submit_button_);
     registration_cancel_button_ = new QPushButton(QStringLiteral("返回登录"), registration_dialog_);

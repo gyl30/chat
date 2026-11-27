@@ -65,6 +65,7 @@ global_search_dialog::global_search_dialog(
     auto* layout = new QVBoxLayout(this);
     frame_dialog(*this);
     query_ = new QLineEdit(this);
+    style_search_field(*query_);
     query_->setPlaceholderText(QStringLiteral("输入关键词，按回车搜索全部聊天记录"));
     query_->setObjectName(QStringLiteral("globalSearchQuery"));
     query_->setClearButtonEnabled(true);
@@ -75,6 +76,7 @@ global_search_dialog::global_search_dialog(
     header->addWidget(query_, 1);
     auto* submit = new QPushButton(QStringLiteral("搜索"), header_);
     submit->setObjectName(QStringLiteral("submitGlobalSearch"));
+    submit->setProperty("primary", true);
     header->addWidget(submit);
     toggle_filters_ = new QPushButton(QStringLiteral("筛选条件"), header_);
     toggle_filters_->setObjectName(QStringLiteral("toggleSearchFilters"));

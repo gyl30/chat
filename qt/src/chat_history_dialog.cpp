@@ -23,7 +23,6 @@
 #include <QVBoxLayout>
 
 #include "avatar.hpp"
-#include "icons.hpp"
 #include "theme.hpp"
 #include "theme_manager.hpp"
 
@@ -103,9 +102,7 @@ class history_delegate final : public QStyledItemDelegate
         auto const rect = option.rect;
         if (option.state & (QStyle::State_Selected | QStyle::State_MouseOver))
         {
-            painter->setPen(Qt::NoPen);
-            painter->setBrush(option.state & QStyle::State_Selected ? themed("selected") : themed("subtle"));
-            painter->drawRoundedRect(QRectF(rect).adjusted(4, 2, -4, -2), 10, 10);
+            painter->fillRect(rect, option.state & QStyle::State_Selected ? themed("selected") : themed("canvas_hover"));
         }
         auto const sender = index.data(sender_role).toString();
         auto const from = index.data(from_role).toLongLong();
@@ -158,10 +155,10 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     layout->setSpacing(chat_theme::dialog_spacing);
     auto* search = new QLineEdit(this);
     search->setObjectName(QStringLiteral("historySearchEdit"));
+    style_search_field(*search);
     search->setPlaceholderText(QStringLiteral("搜索"));
     search->setAccessibleName(QStringLiteral("搜索聊天记录"));
     search->setClearButtonEnabled(true);
-    auto* search_icon = search->addAction(svg_icon(u"search", themed("text_muted"), QSize(16, 16)), QLineEdit::LeadingPosition);
     layout->addWidget(search);
     tabs_ = new QTabBar(this);
     tabs_->setObjectName(QStringLiteral("historyTabs"));
@@ -188,11 +185,7 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     connect(&theme_manager::instance(),
             &theme_manager::changed,
             this,
-            [this, search_icon]
-            {
-                search_icon->setIcon(svg_icon(u"search", themed("text_muted"), QSize(16, 16)));
-                list_->viewport()->update();
-            });
+            [this] { list_->viewport()->update(); });
     list_->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(list_, 1);
     layout->addWidget(status_);

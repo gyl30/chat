@@ -37,6 +37,7 @@ create_group_dialog::create_group_dialog(QWidget* parent) : QDialog(parent)
     layout->addLayout(columns, 1);
     search_ = new QLineEdit(this);
     search_->setObjectName(QStringLiteral("groupContactSearch"));
+    style_search_field(*search_);
     search_->setPlaceholderText(QStringLiteral("搜索好友"));
     available->addWidget(search_);
     list_ = new QListWidget(this);
@@ -54,6 +55,7 @@ create_group_dialog::create_group_dialog(QWidget* parent) : QDialog(parent)
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     proceed_ = buttons->button(QDialogButtonBox::Ok);
     proceed_->setObjectName(QStringLiteral("groupCreateButton"));
+    proceed_->setProperty("primary", true);
     proceed_->setText(QStringLiteral("创建群聊"));
     buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
     layout->addWidget(buttons);

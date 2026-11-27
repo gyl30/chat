@@ -443,6 +443,7 @@ QWidget* chat_widget::create_sidebar()
                 frame_dialog(dialog, false);
                 auto* buttons = dialog.findChild<QDialogButtonBox*>();
                 buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("joinGroupButton"));
+                buttons->button(QDialogButtonBox::Ok)->setProperty("primary", true);
                 for (auto* button : buttons->buttons())
                 {
                     button->setIcon({});
@@ -2453,6 +2454,7 @@ void chat_widget::show_message_menu(QPoint position)
         new emoji_highlighter(editor);
         auto* buttons = dialog.findChild<QDialogButtonBox*>();
         buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("editMessageButton"));
+        buttons->button(QDialogButtonBox::Ok)->setProperty("primary", true);
         for (auto* button : buttons->buttons())
         {
             button->setIcon({});
@@ -5277,7 +5279,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
 
     auto* section_separator = new QFrame(&dialog);
     section_separator->setObjectName(QStringLiteral("profileSectionSeparator"));
-    section_separator->setFixedHeight(10);
+    section_separator->setFixedHeight(1);
     layout->addWidget(section_separator);
 
     auto* info = new QFrame(&dialog);
@@ -5543,6 +5545,7 @@ void chat_widget::setup_profile_avatar(QDialog& dialog, QVBoxLayout* info_layout
     auto* info = info_layout->parentWidget();
     auto* change = new QPushButton(QStringLiteral("更换头像"), info);
     change->setObjectName(QStringLiteral("changeAvatarButton"));
+    change->setProperty("primary", true);
     auto* remove = new QPushButton(QStringLiteral("移除头像"), info);
     remove->setObjectName(QStringLiteral("removeAvatarButton"));
     auto* status = new QLabel(info);

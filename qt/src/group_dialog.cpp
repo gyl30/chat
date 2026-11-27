@@ -244,6 +244,7 @@ void group_dialog::setup_management(bool join_approval)
     name_row->addWidget(title_edit_, 1);
     rename_button_ = new QPushButton(QStringLiteral("保存群名"), this);
     rename_button_->setObjectName(QStringLiteral("groupRenameButton"));
+    rename_button_->setProperty("primary", true);
     rename_button_->setAutoDefault(false);
     name_row->addWidget(rename_button_);
     layout->addLayout(name_row);
@@ -301,6 +302,7 @@ void group_dialog::setup_management(bool join_approval)
     announcement_row->addStretch();
     announcement_button_ = new QPushButton(QStringLiteral("保存公告"), this);
     announcement_button_->setObjectName(QStringLiteral("groupAnnouncementButton"));
+    announcement_button_->setProperty("primary", true);
     announcement_button_->setAutoDefault(false);
     announcement_row->addWidget(announcement_button_);
     clear_announcement_button_ = new QPushButton(QStringLiteral("清空公告"), this);
@@ -415,6 +417,7 @@ void group_dialog::setup_members(QVBoxLayout* outer)
     member_hint->setWordWrap(true);
     members_layout->addWidget(member_hint);
     member_search_ = new QLineEdit(members_page);
+    style_search_field(*member_search_);
     member_search_->setPlaceholderText(QStringLiteral("搜索用户名、昵称或备注"));
     member_search_->setObjectName(QStringLiteral("groupMemberSearch"));
     members_layout->addWidget(member_search_);
@@ -465,6 +468,7 @@ void group_dialog::setup_join_requests()
     decisions->addStretch();
     accept_request_button_ = new QPushButton(QStringLiteral("通过申请"), requests_page);
     accept_request_button_->setObjectName(QStringLiteral("groupAcceptRequestButton"));
+    accept_request_button_->setProperty("primary", true);
     reject_request_button_ = new QPushButton(QStringLiteral("拒绝申请"), requests_page);
     reject_request_button_->setObjectName(QStringLiteral("groupRejectRequestButton"));
     for (auto* button : {accept_request_button_, reject_request_button_})
@@ -638,6 +642,7 @@ void group_dialog::connect_member_actions()
                 auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
                 buttons->button(QDialogButtonBox::Ok)->setText(QStringLiteral("邀请"));
                 buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("groupInviteSubmitButton"));
+                buttons->button(QDialogButtonBox::Ok)->setProperty("primary", true);
                 buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
                 for (auto* button : buttons->buttons())
                 {

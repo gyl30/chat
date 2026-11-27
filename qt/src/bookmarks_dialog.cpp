@@ -44,6 +44,7 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, chat_widget& chat, QWi
     setWindowTitle(QStringLiteral("消息收藏"));
     resize(780, 480);
     query_->setObjectName(QStringLiteral("bookmarkQuery"));
+    style_search_field(*query_);
     query_->setPlaceholderText(QStringLiteral("搜索收藏的消息文本"));
     query_->setClearButtonEnabled(true);
     results_->setObjectName(QStringLiteral("bookmarkResults"));

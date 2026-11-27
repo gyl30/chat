@@ -77,7 +77,7 @@ QMainWindow {
             background: ${border};
             margin: 4px 8px;
         }
-        QDialog#groupDialog QListWidget, QTabWidget#groupTabs::pane {
+        QDialog#groupDialog QListWidget, QTabWidget::pane {
             background: transparent;
             border: 0;
         }
@@ -86,19 +86,19 @@ QMainWindow {
             background: ${panel};
             border: 0;
         }
-        QTabWidget#contactCategories QTabBar::tab, QTabWidget#groupTabs QTabBar::tab {
+        QTabBar::tab {
             background: transparent;
             color: ${text_secondary};
             border: 0;
             border-bottom: 2px solid transparent;
             padding: 8px 14px;
         }
-        QTabWidget#contactCategories QTabBar::tab:selected, QTabWidget#groupTabs QTabBar::tab:selected {
+        QTabBar::tab:selected {
             color: ${accent};
             border-bottom-color: ${accent};
         }
-        QTabWidget#contactCategories QTabBar::tab:hover, QTabWidget#groupTabs QTabBar::tab:hover {
-            background: ${subtle};
+        QTabBar::tab:hover:!selected {
+            background: ${canvas_hover};
         }
         QLabel#groupOverviewTitle {
             font-size: 22px;
@@ -116,68 +116,32 @@ QMainWindow {
             font-weight: 600;
             color: ${text_secondary};
         }
-        QPlainTextEdit#groupAnnouncementEdit, QPlainTextEdit#editMessageText {
+        QTextEdit, QPlainTextEdit {
             background: ${surface};
             border: 1px solid ${input_border};
-            border-radius: 10px;
-            padding: 8px;
-        }
-        QPlainTextEdit#groupAnnouncementEdit:focus, QPlainTextEdit#editMessageText:focus {
-            border-color: ${focus};
+            border-radius: 8px;
+            padding: 6px;
         }
         QDialog QPushButton, QWidget#sidebarSearchPanel QPushButton, QToolButton#unpinMessageButton {
             min-height: 32px;
             padding: 0 12px;
             background: ${surface};
-            color: ${accent};
-            border: 1px solid ${border_strong};
+            color: ${text};
+            border: 1px solid ${input_border};
             border-radius: 8px;
         }
-        QDialog QPushButton:disabled, QToolButton#unpinMessageButton:disabled {
+        QDialog QPushButton:hover:enabled, QWidget#sidebarSearchPanel QPushButton:hover:enabled, QToolButton#unpinMessageButton:hover:enabled {
+            background: ${canvas_hover};
+        }
+        QDialog QPushButton:pressed:enabled, QWidget#sidebarSearchPanel QPushButton:pressed:enabled, QToolButton#unpinMessageButton:pressed:enabled {
+            background: ${selected};
+        }
+        QDialog QPushButton:focus, QWidget#sidebarSearchPanel QPushButton:focus, QToolButton#unpinMessageButton:focus {
+            border-color: ${focus};
+        }
+        QDialog QPushButton:disabled, QWidget#sidebarSearchPanel QPushButton:disabled, QToolButton#unpinMessageButton:disabled {
             color: ${text_muted};
             border-color: ${border};
-        }
-        QWidget#sidebarSearchPanel QPushButton:hover, QToolButton#unpinMessageButton:hover {
-            background: ${subtle};
-        }
-        QToolButton#unpinMessageButton:pressed {
-            background: ${selected};
-        }
-        QWidget#sidebarSearchPanel QPushButton:focus, QToolButton#unpinMessageButton:focus {
-            border-color: ${focus};
-        }
-        QDialog#createGroupDialog QPushButton:hover, QDialog#joinGroupDialog QPushButton:hover,
-        QDialog#groupInviteDialog QPushButton:hover, QDialog#confirmationDialog QPushButton:hover,
-        QDialog#editMessageDialog QPushButton:hover {
-            background: ${subtle};
-        }
-        QDialog#createGroupDialog QPushButton:focus, QDialog#joinGroupDialog QPushButton:focus,
-        QDialog#groupInviteDialog QPushButton:focus, QDialog#confirmationDialog QPushButton:focus,
-        QDialog#editMessageDialog QPushButton:focus {
-            border-color: ${focus};
-        }
-        QDialog#createGroupDialog QPushButton#groupCreateButton, QDialog#joinGroupDialog QPushButton#joinGroupButton,
-        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton,
-        QDialog#editMessageDialog QPushButton#editMessageButton {
-            background: ${accent};
-            color: ${on_accent};
-            border: 2px solid transparent;
-        }
-        QDialog#createGroupDialog QPushButton#groupCreateButton:hover, QDialog#joinGroupDialog QPushButton#joinGroupButton:hover,
-        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:hover,
-        QDialog#editMessageDialog QPushButton#editMessageButton:hover {
-            background: ${accent_hover};
-        }
-        QDialog#createGroupDialog QPushButton#groupCreateButton:focus, QDialog#joinGroupDialog QPushButton#joinGroupButton:focus,
-        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:focus,
-        QDialog#editMessageDialog QPushButton#editMessageButton:focus {
-            border-color: ${on_accent};
-        }
-        QDialog#createGroupDialog QPushButton#groupCreateButton:disabled, QDialog#joinGroupDialog QPushButton#joinGroupButton:disabled,
-        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:disabled,
-        QDialog#editMessageDialog QPushButton#editMessageButton:disabled {
-            background: ${selected};
-            color: ${text_secondary};
         }
         QListWidget#groupContactPicker, QListWidget#groupSelectedContacts, QListWidget#forwardTargets {
             background: transparent;
@@ -186,10 +150,8 @@ QMainWindow {
         }
         QListWidget#groupContactPicker::item, QListWidget#forwardTargets::item {
             padding: 0 8px;
-            border-radius: 8px;
         }
-        QListWidget#groupContactPicker::item:hover, QListWidget#forwardTargets::item:hover { background: ${subtle}; }
-        QListWidget#groupContactPicker:focus { border: 1px solid ${focus}; border-radius: 8px; }
+        QListWidget#groupContactPicker::item:hover:!selected, QListWidget#forwardTargets::item:hover:!selected { background: ${canvas_hover}; }
         QListWidget#groupContactPicker::item:selected, QListWidget#forwardTargets::item:selected { background: ${selected}; color: ${text}; }
         QListWidget#groupContactPicker::indicator, QDialog#groupInviteDialog QListWidget::indicator {
             width: 16px;
@@ -217,76 +179,16 @@ QMainWindow {
         }
         QDialog#confirmationDialog QPushButton#confirmationActionButton:hover { background: ${danger_hover}; }
         QDialog#confirmationDialog QPushButton#confirmationActionButton:focus { border-color: ${danger_soft}; }
-        QDialog#groupDialog QPushButton:hover,
-        QDialog#messageSearchDialog QPushButton:hover, QDialog#attachmentDialog QPushButton:hover {
-            background: ${subtle};
-        }
-        QDialog#groupDialog QPushButton:pressed,
-        QDialog#messageSearchDialog QPushButton:pressed, QDialog#attachmentDialog QPushButton:pressed {
-            background: ${selected};
-        }
-        QDialog#groupDialog QPushButton:focus,
-        QDialog#messageSearchDialog QPushButton:focus, QDialog#attachmentDialog QPushButton:focus {
-            border-color: ${focus};
-        }
-        QDialog#groupDialog QPushButton#groupReadAnnouncementButton,
-        QDialog#groupDialog QPushButton#groupAllMembersButton,
-        QDialog#groupDialog QPushButton#groupManageButton,
-        QDialog#groupDialog QPushButton#groupLeaveButton {
+        QPushButton#groupReadAnnouncementButton, QPushButton#groupAllMembersButton, QPushButton#groupManageButton {
+            border-color: transparent;
             background: transparent;
-            border: 2px solid transparent;
-            padding: 0 8px;
+            color: ${link};
         }
-        QDialog#groupDialog QPushButton#groupReadAnnouncementButton:hover,
-        QDialog#groupDialog QPushButton#groupAllMembersButton:hover,
-        QDialog#groupDialog QPushButton#groupManageButton:hover {
-            background: ${subtle};
-        }
-        QDialog#groupDialog QPushButton#groupReadAnnouncementButton:focus,
-        QDialog#groupDialog QPushButton#groupAllMembersButton:focus,
-        QDialog#groupDialog QPushButton#groupManageButton:focus,
-        QDialog#groupDialog QPushButton#groupLeaveButton:focus {
+        QPushButton#groupReadAnnouncementButton:focus, QPushButton#groupAllMembersButton:focus, QPushButton#groupManageButton:focus {
             border-color: ${focus};
         }
-        QDialog#groupDialog QPushButton#groupRenameButton,
-        QDialog#groupDialog QPushButton#groupAnnouncementButton,
-        QDialog#groupDialog QPushButton#groupAcceptRequestButton,
-        QDialog#messageSearchDialog QPushButton#searchMessagesButton,
-        QDialog#attachmentDialog QPushButton#saveAttachmentButton {
-            background: ${accent};
-            color: ${on_accent};
-            border: 2px solid transparent;
-        }
-        QDialog#groupDialog QPushButton#groupRenameButton:hover,
-        QDialog#groupDialog QPushButton#groupAnnouncementButton:hover,
-        QDialog#groupDialog QPushButton#groupAcceptRequestButton:hover,
-        QDialog#messageSearchDialog QPushButton#searchMessagesButton:hover,
-        QDialog#attachmentDialog QPushButton#saveAttachmentButton:hover {
-            background: ${accent_hover};
-        }
-        QDialog#groupDialog QPushButton#groupRenameButton:focus,
-        QDialog#groupDialog QPushButton#groupAnnouncementButton:focus,
-        QDialog#groupDialog QPushButton#groupAcceptRequestButton:focus,
-        QDialog#messageSearchDialog QPushButton#searchMessagesButton:focus,
-        QDialog#attachmentDialog QPushButton#saveAttachmentButton:focus {
-            border-color: ${on_accent};
-        }
-        QDialog#groupDialog QPushButton#groupRenameButton:disabled,
-        QDialog#groupDialog QPushButton#groupAnnouncementButton:disabled,
-        QDialog#groupDialog QPushButton#groupAcceptRequestButton:disabled,
-        QDialog#messageSearchDialog QPushButton#searchMessagesButton:disabled,
-        QDialog#attachmentDialog QPushButton#saveAttachmentButton:disabled {
-            background: ${selected};
-            color: ${text_secondary};
-        }
-        QDialog#groupDialog QPushButton#groupLeaveButton,
-        QDialog#groupDialog QPushButton#groupRevokeInviteButton,
-        QDialog#groupDialog QPushButton#groupClearAnnouncementButton {
+        QPushButton#groupLeaveButton:enabled, QPushButton#groupRevokeInviteButton:enabled, QPushButton#groupClearAnnouncementButton:enabled {
             color: ${danger};
-        }
-        QDialog#groupDialog QPushButton#groupRevokeInviteButton:disabled,
-        QDialog#groupDialog QPushButton#groupClearAnnouncementButton:disabled {
-            color: ${text_muted};
         }
         QWidget#loginPage {
             background: transparent;
@@ -355,31 +257,12 @@ QMainWindow {
             selection-background-color: ${accent};
             selection-color: ${on_accent};
         }
-        QLineEdit:focus {
-            border-color: ${focus};
-        }
         QFrame#loginCard QLineEdit:focus, QDialog#registrationDialog QLineEdit:focus {
             border-color: ${focus};
         }
         QPushButton#loginButton, QPushButton#registrationSubmitButton {
             min-height: 44px;
-            background: ${accent};
-            color: ${on_accent};
-            border: 2px solid transparent;
             border-radius: 10px;
-            font-weight: 600;
-        }
-        QPushButton#loginButton:hover, QPushButton#registrationSubmitButton:hover {
-            background: ${accent_hover};
-        }
-        QPushButton#loginButton:pressed, QPushButton#registrationSubmitButton:pressed {
-            background: ${accent_pressed};
-        }
-        QPushButton#loginButton:focus, QPushButton#registrationSubmitButton:focus {
-            border-color: ${focus};
-        }
-        QPushButton#loginButton:disabled, QPushButton#registrationSubmitButton:disabled {
-            background: ${accent_disabled};
         }
         QPushButton#registerButton, QPushButton#registrationCancelButton {
             min-height: 28px;
@@ -400,11 +283,6 @@ QMainWindow {
         }
         QPushButton#registerButton:disabled, QPushButton#registrationCancelButton:disabled {
             color: ${text_muted};
-        }
-        QLabel#registrationTitle {
-            font-size: 22px;
-            font-weight: 700;
-            color: ${text};
         }
         QToolButton#serverSettingsButton {
             padding: 0;
@@ -506,14 +384,6 @@ QMainWindow {
         QToolButton#connectionStatusButton:disabled {
             color: ${text_secondary};
         }
-        QToolButton#headerActionButton {
-            border: 0;
-            border-radius: 18px;
-            background: transparent;
-        }
-        QToolButton#headerActionButton:hover:enabled {
-            background: ${canvas_hover};
-        }
         QDialog#profileDialog {
             border: 1px solid ${border};
             border-radius: 12px;
@@ -525,14 +395,6 @@ QMainWindow {
         QFrame#profileSectionSeparator {
             background: ${canvas_hover};
             border: 0;
-        }
-        QToolButton#profileCloseButton {
-            border: 0;
-            border-radius: 18px;
-            background: transparent;
-        }
-        QToolButton#profileCloseButton:hover {
-            background: ${canvas_hover};
         }
         QLabel#profileDialogAvatar {
             background: ${selected};
@@ -558,15 +420,6 @@ QMainWindow {
             color: ${on_accent};
             font-size: 11px;
             font-weight: 700;
-        }
-        QLabel#profileSectionTitle {
-            color: ${text};
-            font-size: 14px;
-            font-weight: 600;
-        }
-        QLabel#themeLockedHint {
-            color: ${text_muted};
-            font-size: 12px;
         }
         QComboBox, QAbstractSpinBox {
             min-height: 34px;
@@ -642,24 +495,6 @@ QMainWindow {
             background: transparent;
             border: 2px solid transparent;
         }
-        QToolButton#profileActionButton[primary="true"], QDialog#profileDialog QPushButton#changeAvatarButton {
-            background: ${accent};
-            color: ${on_accent};
-            border: 2px solid transparent;
-        }
-        QToolButton#profileActionButton[primary="true"]:hover, QDialog#profileDialog QPushButton#changeAvatarButton:hover {
-            background: ${accent_hover};
-        }
-        QToolButton#profileActionButton[primary="true"]:pressed:enabled, QDialog#profileDialog QPushButton#changeAvatarButton:pressed:enabled {
-            background: ${accent_pressed};
-        }
-        QToolButton#profileActionButton[primary="true"]:focus, QDialog#profileDialog QPushButton#changeAvatarButton:focus {
-            border-color: ${focus};
-        }
-        QToolButton#profileActionButton[primary="true"]:disabled, QDialog#profileDialog QPushButton#changeAvatarButton:disabled {
-            background: ${selected};
-            color: ${text_secondary};
-        }
         QDialog#profileDialog QPushButton#profileLogoutButton, QDialog#profileDialog QPushButton#removeContactButton,
         QDialog#profileDialog QPushButton#rejectFriendRequestButton, QDialog#profileDialog QPushButton#cancelFriendRequestButton {
             color: ${danger};
@@ -688,7 +523,7 @@ QMainWindow {
         QListView#conversationList, QListView#userList {
             padding: 0;
         }
-        QListView#messageList, QListView#searchContextMessages {
+        QListView#messageList, QListView#searchContextMessages, QListView#messageSearchResults {
             margin: 0;
             padding: 0;
             font-size: 18px;
@@ -709,25 +544,28 @@ QMainWindow {
             margin: 6px 1px;
             background: transparent;
         }
-        QScrollBar::handle:vertical {
-            min-height: 32px;
+        QScrollBar::handle {
             background: ${border_strong};
             border-radius: 3px;
         }
-        QScrollBar::handle:vertical:hover {
+        QScrollBar::handle:vertical { min-height: 32px; }
+        QScrollBar::handle:hover {
             background: ${input_hover};
         }
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+        QScrollBar::add-line, QScrollBar::sub-line {
             width: 0;
             height: 0;
             background: transparent;
         }
-        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+        QScrollBar::add-page, QScrollBar::sub-page {
             background: transparent;
         }
         QScrollBar:horizontal {
-            height: 0;
+            height: 6px;
+            margin: 1px 6px;
+            background: transparent;
         }
+        QScrollBar::handle:horizontal { min-width: 32px; }
         QFrame#inputBar, QWidget#replyBar, QLabel#groupSpeechNotice {
             background: ${composer_surface};
             border-top: 1px solid ${composer_border};
@@ -797,8 +635,6 @@ QMainWindow {
         }
         QDialog#pollForm QToolButton#pollRemove:hover { color: ${danger}; background: ${danger_soft}; }
         QDialog#pollForm QToolButton#pollRemove:focus { border-color: ${focus}; }
-        QDialog#pollForm QPlainTextEdit { background: ${surface}; border: 1px solid ${input_border}; border-radius: 6px; padding: 4px; }
-        QDialog#pollForm QPlainTextEdit:focus { border-color: ${focus}; }
         QWidget#pollResults { background: ${panel}; }
         QWidget#pollResults QPushButton {
             color: ${link};
@@ -864,33 +700,6 @@ QMainWindow {
         QToolButton#sendButton:pressed:enabled {
             background: ${selected};
         }
-        QLineEdit#historySearchEdit {
-            min-height: 34px;
-            padding: 0 10px 0 4px;
-            background: ${canvas_hover};
-            border: 1px solid transparent;
-            border-radius: 17px;
-        }
-        QLineEdit#historySearchEdit:focus {
-            background: ${surface};
-            border-color: ${focus};
-        }
-        QTabBar#historyTabs::tab {
-            padding: 6px 14px;
-            margin-right: 4px;
-            background: transparent;
-            color: ${text_secondary};
-            border: 0;
-            border-bottom: 2px solid transparent;
-        }
-        QTabBar#historyTabs::tab:selected {
-            color: ${accent};
-            font-weight: 600;
-            border-bottom-color: ${accent};
-        }
-        QTabBar#historyTabs::tab:hover:!selected {
-            color: ${text};
-        }
         QListWidget#historyList {
             background: transparent;
         }
@@ -905,15 +714,7 @@ QPushButton:pressed:enabled, QToolButton:pressed:enabled { background: ${selecte
 QPushButton:focus, QToolButton:focus { border-color: ${focus}; }
 QPushButton:disabled, QToolButton:disabled { color: ${text_muted}; }
 
-QPushButton#loginButton:disabled, QPushButton#registrationSubmitButton:disabled { color: ${text_secondary}; }
-QPushButton#loginButton:focus, QPushButton#registrationSubmitButton:focus { border: 2px solid ${on_accent}; }
-
-QToolButton#profileActionButton[primary="true"]:focus,
-QDialog#profileDialog QPushButton#changeAvatarButton:focus { border-color: ${on_accent}; }
-QToolButton#composeToolButton:focus,
 QPushButton#chatHeaderButton:focus { border: 1px solid ${focus}; }
-
-
 QLineEdit, QPlainTextEdit, QTextEdit { placeholder-text-color: ${text_muted}; }
 
 
@@ -946,17 +747,13 @@ QMenu#mainNavigationMenu::item:selected {
 }
 
 /* Compact contact windows share the existing semantic palette. */
-QDialog#contactsDialog, QDialog#addContactDialog {
-    background: ${panel};
-    border: 1px solid ${border};
-}
 QLabel#dialogTitle { color: ${text}; font-size: 20px; font-weight: 700; }
 QLabel#contactsStatus, QLabel#addUsersStatus { color: ${text_secondary}; font-size: 13px; }
 QToolButton#contactsAddButton {
-    background: transparent; border: 1px solid transparent; border-radius: 8px;
+    background: ${surface}; color: ${text}; border: 1px solid ${input_border}; border-radius: 8px; padding: 0 10px;
 }
 QToolButton#contactsAddButton:hover {
-    background: ${subtle};
+    background: ${canvas_hover};
 }
 QToolButton#contactsAddButton:pressed {
     background: ${selected};
@@ -964,15 +761,18 @@ QToolButton#contactsAddButton:pressed {
 QToolButton#contactsAddButton:focus {
     border-color: ${focus};
 }
-QPushButton#addContactSearchButton, QPushButton#pollSubmit {
-    background: ${accent}; color: ${on_accent}; border: 1px solid ${accent};
+/* The same primary role applies to actions in every dialog. */
+QPushButton[primary="true"], QDialog#profileDialog QPushButton[primary="true"], QToolButton#profileActionButton[primary="true"] {
+    background: ${accent}; color: ${on_accent}; border: 1px solid transparent; font-weight: 600;
 }
-QPushButton#addContactSearchButton:hover, QPushButton#pollSubmit:hover { background: ${accent_hover}; }
-QPushButton#addContactSearchButton:pressed, QPushButton#pollSubmit:pressed { background: ${accent_pressed}; }
-QPushButton#addContactSearchButton:focus, QPushButton#pollSubmit:focus { border-color: ${on_accent}; }
-QPushButton#addContactSearchButton:disabled, QPushButton#pollSubmit:disabled {
-    background: ${accent_disabled}; color: ${text_muted}; border-color: ${border};
-}
+QPushButton[primary="true"]:hover:enabled, QDialog#profileDialog QPushButton[primary="true"]:hover:enabled,
+QToolButton#profileActionButton[primary="true"]:hover:enabled { background: ${accent_hover}; }
+QPushButton[primary="true"]:pressed:enabled, QDialog#profileDialog QPushButton[primary="true"]:pressed:enabled,
+QToolButton#profileActionButton[primary="true"]:pressed:enabled { background: ${accent_pressed}; }
+QPushButton[primary="true"]:disabled, QDialog#profileDialog QPushButton[primary="true"]:disabled,
+QToolButton#profileActionButton[primary="true"]:disabled { background: ${accent_disabled}; color: ${text_muted}; }
+QPushButton[primary="true"]:focus, QDialog#profileDialog QPushButton[primary="true"]:focus,
+QToolButton#profileActionButton[primary="true"]:focus { border-color: ${on_accent}; }
 
 /* Settings uses the same compact dialog surfaces and focus language as Contacts. */
 QDialog#settingsDialog {
@@ -997,12 +797,6 @@ QPushButton[settingsSection="true"] { padding: 8px 16px; font-size: 15px; }
 QToolButton#settingsAccountButton:hover, QPushButton[settingsSection="true"]:hover { background: ${subtle}; }
 QToolButton#settingsAccountButton:pressed, QPushButton[settingsSection="true"]:pressed { background: ${selected}; }
 QToolButton#settingsAccountButton:focus, QPushButton[settingsSection="true"]:focus { border-color: ${focus}; }
-QToolButton#settingsBackButton, QToolButton#settingsCloseButton {
-    background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 0;
-}
-QToolButton#settingsBackButton:hover, QToolButton#settingsCloseButton:hover { background: ${subtle}; }
-QToolButton#settingsBackButton:pressed, QToolButton#settingsCloseButton:pressed { background: ${selected}; }
-QToolButton#settingsBackButton:focus, QToolButton#settingsCloseButton:focus { border-color: ${focus}; }
 QDialog#profileDialog QPushButton#profileLogoutButton, QPushButton#settingsLogoutButton {
     background: transparent; color: ${danger}; border: 1px solid transparent;
     border-radius: 8px; text-align: left; padding: 8px 16px;
@@ -1016,18 +810,6 @@ QDialog#settingsDialog QCheckBox {
 QDialog#settingsDialog QCheckBox:hover:enabled { background: ${subtle}; }
 QDialog#settingsDialog QCheckBox:focus { border-color: ${focus}; }
 QDialog#settingsDialog QCheckBox:disabled { color: ${text_muted}; }
-QDialog#settingsDialog QCheckBox::indicator {
-    width: 18px; height: 18px; border: 1px solid ${border_strong};
-    border-radius: 4px; background: ${surface};
-}
-QDialog#settingsDialog QCheckBox::indicator:checked {
-    background: ${accent}; border-color: ${accent}; image: url("${check_icon}");
-}
-QDialog#settingsDialog QCheckBox::indicator:disabled { border-color: ${border}; }
-QDialog#settingsDialog QCheckBox::indicator:checked:disabled {
-    background: ${accent_disabled}; border-color: ${border_strong};
-}
-
 QLabel#settingsSectionLabel { color: ${text}; font-size: 15px; }
 
 
@@ -1052,13 +834,6 @@ QLabel#contactsRequestFeedback {
     margin: 4px 12px 8px 12px; padding: 8px 12px;
     background: ${subtle}; color: ${text_secondary}; border-radius: 8px; font-size: 13px;
 }
-QDialog#contactsDialog QPushButton#friendRequestAcceptButton {
-    background: ${accent}; color: ${on_accent}; border-color: transparent;
-}
-QDialog#contactsDialog QPushButton#friendRequestAcceptButton:hover:enabled { background: ${accent_hover}; }
-QDialog#contactsDialog QPushButton#friendRequestAcceptButton:pressed:enabled { background: ${accent_pressed}; }
-QDialog#contactsDialog QPushButton#friendRequestAcceptButton:disabled { background: ${accent_disabled}; color: ${text_muted}; }
-QDialog#contactsDialog QPushButton#friendRequestAcceptButton:focus { border-color: ${on_accent}; }
 QDialog#contactsDialog QPushButton#friendRequestRejectButton,
 QDialog#contactsDialog QPushButton#friendRequestCancelButton { color: ${danger}; }
 QDialog#contactsDialog QPushButton#friendRequestRejectButton:hover:enabled,
@@ -1079,11 +854,19 @@ QLabel#pollFeedback, QLabel#pollSummary { color: ${text_secondary}; }
 QDialog[chatPopup="true"] {
     background: ${panel}; border: 1px solid ${border}; border-radius: 10px;
 }
-QToolButton#popupCloseButton {
-    background: transparent; border: 1px solid transparent; border-radius: 6px;
+QToolButton#popupCloseButton, QToolButton#profileCloseButton, QToolButton#settingsCloseButton, QToolButton#settingsBackButton {
+    background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 0;
 }
-QToolButton#popupCloseButton:hover { background: ${subtle}; }
-QToolButton#popupCloseButton:focus { border-color: ${focus}; }
+QToolButton#popupCloseButton:hover, QToolButton#profileCloseButton:hover, QToolButton#settingsCloseButton:hover, QToolButton#settingsBackButton:hover {
+    background: ${canvas_hover};
+}
+QToolButton#popupCloseButton:pressed, QToolButton#profileCloseButton:pressed,
+QToolButton#settingsCloseButton:pressed, QToolButton#settingsBackButton:pressed {
+    background: ${selected};
+}
+QToolButton#popupCloseButton:focus, QToolButton#profileCloseButton:focus, QToolButton#settingsCloseButton:focus, QToolButton#settingsBackButton:focus {
+    border-color: ${focus};
+}
 
 QPushButton[forwardMode="true"]:checked {
     background: ${selected};

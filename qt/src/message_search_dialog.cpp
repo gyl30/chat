@@ -66,10 +66,12 @@ message_search_dialog::message_search_dialog(
     input_ = new QLineEdit(this);
     input_->setObjectName(QStringLiteral("messageSearchEdit"));
     input_->setAccessibleName(QStringLiteral("消息搜索关键词"));
+    style_search_field(*input_);
     input_->setPlaceholderText(QStringLiteral("输入当前会话的关键词"));
     input_->setMaxLength(256);
     auto* search_button = new QPushButton(QStringLiteral("搜索"), this);
     search_button->setObjectName(QStringLiteral("searchMessagesButton"));
+    search_button->setProperty("primary", true);
     search_button->setAutoDefault(false);
     search_button->setDefault(true);
     search_row->addWidget(input_, 1);

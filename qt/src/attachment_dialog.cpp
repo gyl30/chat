@@ -49,6 +49,7 @@ attachment_dialog::attachment_dialog(
     layout->addWidget(image_, 1);
     save_button_ = new QPushButton(QStringLiteral("保存文件"), this);
     save_button_->setObjectName(QStringLiteral("saveAttachmentButton"));
+    save_button_->setProperty("primary", true);
     auto* buttons = new QDialogButtonBox(this);
     buttons->addButton(save_button_, QDialogButtonBox::ActionRole);
     layout->addWidget(downloads.source_button(this, [=] { return download_source{conversation, message, item, {}}; }));
