@@ -12,6 +12,24 @@ using chat::detail::make_curl;
 using chat::detail::use_openssl_ca_file;
 s3_error queue_error(blocking_worker::unavailable) { return {0, "S3 worker unavailable"}; }
 
+std::string_view s3_error_reason(std::string_view body)
+{
+    auto parsed = s3::read_multipart_xml(body);
+    if (parsed && parsed->root == "Error")
+    {
+        // Log only known S3 codes. Error messages and other fields may contain credentials or object names.
+        for (std::string_view code : {"NoSuchBucket", "AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch",
+                                      "AuthorizationHeaderMalformed", "RequestTimeTooSkewed", "InvalidRequest", "InvalidArgument",
+                                      "InternalError", "SlowDown", "ServiceUnavailable"})
+        {
+            if (parsed->error_code == code)
+            {
+                return code;
+            }
+        }
+    }
+    return "S3 request failed";
+}
 struct response
 {
     std::string body, checksum;
@@ -97,7 +115,7 @@ struct bucket_client
         curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &status);
         if (status < 200 || status >= 300)
         {
-            return std::unexpected(s3_error{static_cast<int>(status), "S3 request failed"});
+            return std::unexpected(s3_error{static_cast<int>(status), s3_error_reason(result.body)});
         }
         if (method == "HEAD")
         {
@@ -179,18 +197,25 @@ boost::capy::task<object_result<std::string>> s3_objects::initiate(multipart_upl
         {
             bucket_client b(settings_);
             auto existing = b.find_multipart(task.key);
-            if (!existing || !existing->empty())
+            if (!existing)
+            {
+                spdlog::warn("S3 ListMultipartUploads failed (HTTP {}): {}", existing.error().status, existing.error().reason);
+                return existing;
+            }
+            if (!existing->empty())
             {
                 return existing;
             }
             auto r = b.request("POST", task.key, {{"uploads", ""}}, {}, {"Content-Type: " + task.media_type, "x-amz-meta-sha256: " + task.checksum});
             if (!r)
             {
+                spdlog::warn("S3 CreateMultipartUpload failed (HTTP {}): {}", r.error().status, r.error().reason);
                 return std::unexpected(r.error());
             }
             auto parsed = s3::read_multipart_xml(r->body);
             if (!parsed || parsed->root != "InitiateMultipartUploadResult" || parsed->upload_id.empty())
             {
+                spdlog::warn("S3 CreateMultipartUpload returned an invalid result");
                 return std::unexpected(s3_error{0, "invalid S3 initiation result"});
             }
             return std::move(parsed->upload_id);

@@ -145,6 +145,42 @@ def upload_row(db, cid):
         ).fetchone()
 
 
+async def missing_bucket(root, store, api, storage):
+    db = root / "missing-bucket.sqlite3"
+    body = b"resume the original zero-byte task"
+    with chat(db, storage) as url:
+        async with AsyncExitStack() as stack:
+            sender, conv = await direct(stack, url)
+            response = await sender.ask(
+                "begin_attachment",
+                conversation=conv,
+                client_id=30,
+                filename="recover.bin",
+                media_type="application/octet-stream",
+                size=len(body),
+                checksum=hashlib.sha256(body).hexdigest(),
+            )
+            assert response["error"]["message"] == "Could not initiate multipart upload"
+            await sender.ok("pause_attachment", upload=30)
+            status = await sender.ok("query_attachment", upload=30)
+            assert status["state"] == "paused" and status["confirmed"] == 0
+            key, multipart = upload_row(db, 30)
+            assert not multipart
+
+            api.create_bucket(
+                Bucket=store.bucket,
+                CreateBucketConfiguration={"LocationConstraint": store.region},
+            )
+            part = await sender.ok("resume_attachment", upload=30)
+            assert upload_row(db, 30)[0] == key
+            tag = await asyncio.to_thread(put, part["url"], body)
+            await sender.ok("confirm_attachment", upload=30, number=part["number"], etag=tag)
+            message = await sender.ok("finish_attachment", upload=30)
+            assert (await sender.ok("finish_attachment", upload=30))["id"] == message["id"]
+            assert api.get_object(Bucket=store.bucket, Key=key)["Body"].read() == body
+    print("PASS missing Silo bucket blocks initiation; creating the isolated bucket recovers the original paused zero-byte task")
+
+
 async def protocol(root, store, api, storage):
     with proxy(storage) as (env, faults, seen, *_):
         db = root / "wire.sqlite3"
@@ -494,10 +530,7 @@ async def run(root, probe):
     store = Store(region="us-west-2")
     store.bucket = "chat-wire-test"
     with store.node(root / "silo") as (api, storage):
-        api.create_bucket(
-            Bucket=store.bucket,
-            CreateBucketConfiguration={"LocationConstraint": store.region},
-        )
+        await missing_bucket(root, store, api, storage)
         await protocol(root, store, api, storage)
         await https(root, probe, storage)
 
