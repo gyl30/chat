@@ -254,6 +254,7 @@ class client
     void forward_message(std::int64_t conversation, std::int64_t source, std::int64_t client_id, message_result_handler handler);
     void delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler);
     void set_message_reaction(std::int64_t conversation, std::int64_t message, std::string emoji, reaction_result_handler handler);
+    // Upload progress reports the bytes confirmed by the server and the total size.
     void send_attachment(std::int64_t conversation,
                          std::string path,
                          message_result_handler handler,
@@ -261,6 +262,7 @@ class client
                          std::optional<std::int64_t> client_id = {},
                          progress_handler progress = {});
     using conversation_files_handler = std::function<void(std::expected<conversation_file_page, error>)>;
+    // Uses the same confirmed progress as send_attachment.
     void upload_conversation_file(
         std::int64_t conversation, std::string path, std::int64_t client_id, group_action_handler handler, progress_handler progress = {});
     void add_conversation_file(std::int64_t conversation, std::string key, group_action_handler handler);

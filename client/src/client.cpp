@@ -1685,14 +1685,6 @@ struct client::impl
         }
         end_upload(job, std::move(m));
     }
-    boost::capy::task<> notify_file_progress(job_ptr job, std::int64_t current, std::int64_t total)
-    {
-        if (!job->stop.stop_requested() && !suppress_callbacks_ && uploads_.contains(job->task.client_id))
-        {
-            job->progress(current, total);
-        }
-        co_return;
-    }
     boost::capy::task<> transfer_part(job_ptr job, std::string url, int number, std::int64_t offset, std::int64_t length)
     {
         if (job->stop.stop_requested())
@@ -1700,14 +1692,8 @@ struct client::impl
             co_return;
         }
         job->putting = true;
-        progress_handler progress;
-        if (job->progress)
-        {
-            progress = [this, job](auto current, auto total)
-            { boost::capy::run_async(io_context_.get_executor())(notify_file_progress(job, current, total)); };
-        }
         auto result = co_await file_worker_.run(
-            [&] { return detail::put_part(url, job->task.path, job->file, offset, length, job->stop.get_token(), progress); }, file_queue_error);
+            [&] { return detail::put_part(url, job->task.path, job->file, offset, length, job->stop.get_token()); }, file_queue_error);
         job->putting = false;
         if (job->stop.stop_requested() || suppress_callbacks_)
         {

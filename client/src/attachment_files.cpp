@@ -238,13 +238,8 @@ file_result<inspected_file> inspect_file(std::string const& path, std::stop_toke
     }
     return inspected_file{total, fp->second, std::move(hash), std::move(media)};
 }
-file_result<std::string> put_part(std::string const& url,
-                                  std::string const& path,
-                                  inspected_file const& snapshot,
-                                  std::int64_t offset,
-                                  std::int64_t length,
-                                  std::stop_token stop,
-                                  client::progress_handler const& progress)
+file_result<std::string> put_part(
+    std::string const& url, std::string const& path, inspected_file const& snapshot, std::int64_t offset, std::int64_t length, std::stop_token stop)
 {
     auto same = [&]
     {
@@ -283,10 +278,7 @@ file_result<std::string> put_part(std::string const& url,
     {
         std::string_view bytes;
         std::stop_token stop;
-        client::progress_handler const& progress;
-        std::int64_t offset, total;
-        std::chrono::steady_clock::time_point last{};
-    } transfer{bytes, stop, progress, offset, snapshot.size};
+    } transfer{bytes, stop};
     configure_transfer(curl.get(), url);
     curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers.get());
     curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
@@ -315,21 +307,8 @@ file_result<std::string> put_part(std::string const& url,
     curl_easy_setopt(
         curl.get(),
         CURLOPT_XFERINFOFUNCTION,
-        +[](void* data, curl_off_t, curl_off_t, curl_off_t total, curl_off_t sent)
-        {
-            auto& t = *static_cast<upload_transfer*>(data);
-            if (t.stop.stop_requested())
-            {
-                return 1;
-            }
-            auto const now = std::chrono::steady_clock::now();
-            if (t.progress && total && (now - t.last >= std::chrono::milliseconds(120) || sent == total))
-            {
-                t.progress(t.offset + sent, t.total);
-                t.last = now;
-            }
-            return 0;
-        });
+        +[](void* data, curl_off_t, curl_off_t, curl_off_t, curl_off_t)
+        { return static_cast<upload_transfer*>(data)->stop.stop_requested() ? 1 : 0; });
     auto const rc = curl_easy_perform(curl.get());
     if (stop.stop_requested())
     {
