@@ -364,7 +364,7 @@ void main_window::setup_registration_dialog()
 void main_window::setup_chat_page()
 {
     chat_page_ = new chat_widget(pages_);
-    chat_page_->setup_unified_search(*client_);
+    chat_page_->bind_client(*client_);
     client_->friend_remark = [this](qint64 id) { return chat_page_->friend_remark(id); };
     connect(client_.get(), &client_bridge::friendship_changed, chat_page_, &chat_widget::profile_access_changed);
     connect(client_.get(), &client_bridge::conversation_changed, chat_page_, &chat_widget::profile_access_changed);

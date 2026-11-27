@@ -135,6 +135,20 @@ struct probe_controls
     completion_barrier<qint64, quint64, QString> download;
 };
 
+QJsonArray profile_media_rows(QWidget const& dialog)
+{
+    QJsonArray rows;
+    for (auto const* name : {"profileMediaImages", "profileMediaFiles", "profileMediaLinks", "groupFilesEntry"})
+    {
+        auto const* entry = dialog.findChild<QPushButton*>(name);
+        if (entry && entry->isVisible())
+        {
+            rows.append(entry->text());
+        }
+    }
+    return rows;
+}
+
 QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject const& cmd)
 {
     auto* edit = window.findChild<QPlainTextEdit*>("messageEdit");
@@ -336,6 +350,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         }
         if (auto* profile = chat->findChild<QDialog*>("profileDialog"))
         {
+            out["media"] = profile_media_rows(*profile);
             out["profile"] = profile->findChild<QLabel*>("profileDialogName")->text();
             auto* editor = profile->findChild<QAbstractButton*>("editUserProfile");
             out["signature"] = profile->findChild<QLabel*>("profileSignatureText")->text();
@@ -434,9 +449,15 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     else if (op == "group_profile")
     {
         auto* d = window.findChild<QDialog*>("groupDialog");
+        out["open"] = d != nullptr;
         if (!d)
         {
             return out;
+        }
+        out["media"] = profile_media_rows(*d);
+        if (cmd["close"].toBool())
+        {
+            d->reject();
         }
         auto* search = d->findChild<QLineEdit*>("groupMemberSearch");
         if (cmd.contains("query"))
@@ -801,19 +822,17 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 }
                 if (list && cmd.contains("category"))
                 {
-                    list->parentWidget()->findChild<QComboBox*>()->setCurrentIndex(cmd["category"].toInt());
+                    dialog->findChild<QTabBar*>("groupFileCategories")->setCurrentIndex(cmd["category"].toInt());
                 }
                 if (list && (cmd["reload"].toBool() || cmd["more"].toBool()))
                 {
-                    auto const label = cmd["reload"].toBool() ? QStringLiteral("刷新") : QStringLiteral("加载更多");
-                    for (auto* button : list->parentWidget()->findChildren<QPushButton*>())
+                    QAbstractButton* action = cmd["reload"].toBool()
+                                                  ? static_cast<QAbstractButton*>(dialog->findChild<QToolButton*>("groupFileReload"))
+                                                  : list->parentWidget()->findChild<QPushButton*>("groupFilesMore");
+                    if (action && action->isEnabled())
                     {
-                        if (button->text() == label && button->isEnabled())
-                        {
-                            button->click();
-                            out["triggered"] = true;
-                            break;
-                        }
+                        action->click();
+                        out["triggered"] = true;
                     }
                 }
                 out["count"] = list ? list->count() : 0;

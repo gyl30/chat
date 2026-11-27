@@ -7,7 +7,7 @@
 class chat_widget;
 class QToolButton;
 class client_bridge;
-class QComboBox;
+class QTabBar;
 class empty_state;
 class QLabel;
 class QLineEdit;
@@ -24,6 +24,7 @@ class group_files_page final : public QWidget
     void set_access(bool member, bool manager, bool can_publish);
     void refresh();
     void show_files();
+    QWidget* header_actions() const { return header_actions_; }
    signals:
     void upload_requested(bool group_only);
 
@@ -41,12 +42,13 @@ class group_files_page final : public QWidget
     qint64 conversation_;
     qint64 user_;
     chat_widget* chat_ = nullptr;
+    QWidget* header_actions_;
     QToolButton* upload_;
     void refresh_uploads();
     bool manager_ = false;
     quint64 request_ = 0;
     QTimer search_delay_;
-    QComboBox* category_;
+    QTabBar* category_;
     QLineEdit* search_;
     QListWidget* list_;
     QLabel* status_;

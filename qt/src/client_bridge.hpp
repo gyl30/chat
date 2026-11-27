@@ -128,6 +128,10 @@ class client_bridge final : public QObject
     void search_messages(qint64 conversation, QString query, qint64 before = 0);
     // Browsing and searching the history window share one request sequence.
     void get_history(qint64 conversation, chat::message_category category, QString query, qint64 before);
+    void get_history_head(qint64 conversation,
+                          chat::message_category category,
+                          QObject& receiver,
+                          std::function<void(std::expected<qint64, chat::error>)> callback);
     void add_contact(qint64 user);
     void remove_contact(qint64 user);
     void send_attachment(qint64 conversation, QString path, qint64 reply_to, qint64 client_id, bool group_only);

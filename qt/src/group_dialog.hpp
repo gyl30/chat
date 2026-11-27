@@ -79,7 +79,7 @@ class group_dialog final : public QDialog
     bool eventFilter(QObject* object, QEvent* event) override;
 
    private:
-    void setup_overview();
+    void setup_overview(client_bridge& client);
     void setup_management(bool join_approval);
     void setup_members(QVBoxLayout* overview);
     void setup_join_requests();
@@ -115,7 +115,8 @@ class group_dialog final : public QDialog
     QListWidget* list_;
     QPushButton* admin_button_;
     QPushButton* rename_button_;
-    QPushButton* invite_button_;
+    QToolButton* invite_button_;
+    QWidget* details_;
     QToolButton* leave_button_;
     QPushButton* transfer_button_;
     QPushButton* remove_button_;

@@ -102,7 +102,7 @@ QMainWindow {
             background: ${canvas_hover};
         }
         QLabel#groupOverviewTitle {
-            font-size: 22px;
+            font-size: 20px;
             font-weight: 600;
             color: ${text};
         }
@@ -150,9 +150,6 @@ QMainWindow {
             outline: 0;
         }
         QDialogButtonBox { dialogbuttonbox-buttons-have-icons: 0; }
-        QListWidget#forwardTargets::item { padding: 0 8px; }
-        QListWidget#forwardTargets::item:hover:!selected { background: ${canvas_hover}; }
-        QListWidget#forwardTargets::item:selected { background: ${selected}; color: ${text}; }
         QDialog#confirmationDialog QPushButton#confirmationActionButton {
             background: ${danger};
             color: ${on_accent};
@@ -365,26 +362,11 @@ QMainWindow {
             border: 1px solid ${border};
             border-radius: 12px;
         }
-        QFrame#profileHeaderSection, QFrame#profileInfoSection {
-            background: ${panel};
-            border: 0;
-        }
-        QLabel#profileDialogAvatar {
-            background: ${selected};
-            color: ${accent};
-            border-radius: 52px;
-            font-size: 34px;
-            font-weight: 700;
-        }
-        QLabel#profileDialogName {
-            color: ${text};
-            font-size: 22px;
-            font-weight: 600;
-        }
-        QLabel#profileRelationship {
-            color: ${text_secondary};
-            font-size: 13px;
-        }
+        QWidget#profileContent { background: ${canvas}; }
+        QFrame#profileHeaderSection { background: ${surface}; border: 0; }
+        QFrame#profileInfoSection { background: transparent; border: 0; }
+        QLabel#profileDialogName { color: ${text}; font-size: 20px; font-weight: 600; }
+        QLabel#profileRelationship { color: ${text_secondary}; font-size: 14px; }
         QLabel#mainMenuBadge {
             min-width: 16px;
             padding: 0 4px;
@@ -671,21 +653,25 @@ QLineEdit, QPlainTextEdit, QTextEdit { placeholder-text-color: ${text_muted}; }
 QLabel#groupOverviewCount { font-size: 14px; }
 QDialog#groupDialog QLabel#dialogTitle { font-size: 15px; }
 QDialog QPushButton[profileEntry="true"] {
-    text-align: left;
     background: transparent;
+    border: 1px solid transparent;
     border-radius: 0;
-    border: 0;
-    padding: 3px 12px;
-    min-height: 25px;
+    padding: 0;
+    min-height: 44px;
+    max-height: 44px;
 }
-QDialog QPushButton[profileEntry="true"]:hover { background: ${canvas_hover}; }
-QToolButton#groupFileUpload {
-    background: ${panel};
-    border: 1px solid ${input_border};
-    padding: 5px 8px;
-    border-radius: 8px;
+QDialog QPushButton[profileEntry="true"]:hover:enabled { background: ${canvas_hover}; }
+QDialog QPushButton[profileEntry="true"]:pressed:enabled { background: ${selected}; }
+QDialog QPushButton[profileEntry="true"]:focus { border-color: ${focus}; }
+QListWidget#groupMembersList { background: transparent; }
+QTabBar#groupFileCategories::tab { padding: 7px 10px; }
+QDialog QPushButton[previewTool="true"] {
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 3px 8px;
 }
-QToolButton#groupFileUpload:hover { background: ${canvas_hover}; }
+QDialog QPushButton[previewTool="true"]:hover:enabled { background: ${canvas_hover}; }
+QDialog QPushButton[previewTool="true"]:focus { border-color: ${focus}; }
 QScrollArea#attachmentViewport, QScrollArea#attachmentViewport > QWidget > QWidget {
     background: ${scrim};
 }
@@ -754,18 +740,13 @@ QLabel#settingsAccountCaption, QLabel#settingsHint, QLabel#settingsTrayUnavailab
     color: ${text_secondary}; font-size: 13px;
 }
 QLabel#settingsSectionHeading { color: ${text_secondary}; font-size: 14px; font-weight: 600; }
-QToolButton#settingsAccountButton, QPushButton[settingsSection="true"] {
+QToolButton#settingsAccountButton {
     background: transparent; color: ${text}; border: 1px solid transparent;
     border-radius: 8px; text-align: left;
 }
-QPushButton[settingsSection="true"] { padding: 8px 16px; font-size: 15px; }
-QToolButton#settingsAccountButton:hover, QPushButton[settingsSection="true"]:hover { background: ${subtle}; }
-QToolButton#settingsAccountButton:pressed, QPushButton[settingsSection="true"]:pressed { background: ${selected}; }
-QToolButton#settingsAccountButton:focus, QPushButton[settingsSection="true"]:focus { border-color: ${focus}; }
-QDialog#profileDialog QPushButton#profileLogoutButton, QPushButton#settingsLogoutButton {
-    background: transparent; color: ${danger}; border: 1px solid transparent;
-    border-radius: 8px; text-align: left; padding: 8px 16px;
-}
+QToolButton#settingsAccountButton:hover { background: ${subtle}; }
+QToolButton#settingsAccountButton:pressed { background: ${selected}; }
+QToolButton#settingsAccountButton:focus { border-color: ${focus}; }
 QPushButton#settingsLogoutButton:hover, QPushButton#settingsLogoutButton:pressed { background: ${danger_soft}; }
 QPushButton#settingsLogoutButton:focus { border-color: ${danger}; }
 QDialog#settingsDialog QCheckBox {
@@ -775,7 +756,6 @@ QDialog#settingsDialog QCheckBox {
 QDialog#settingsDialog QCheckBox:hover:enabled { background: ${subtle}; }
 QDialog#settingsDialog QCheckBox:focus { border-color: ${focus}; }
 QDialog#settingsDialog QCheckBox:disabled { color: ${text_muted}; }
-QLabel#settingsSectionLabel { color: ${text}; font-size: 15px; }
 
 
 /* Friend requests share the contacts row rhythm and existing semantic colors. */
@@ -869,20 +849,17 @@ QLabel#emptyStateHint {
 
 QToolButton[profileAction="true"] {
     background: ${subtle};
-    border: 1px solid transparent;
+    border: 1px solid ${border};
     border-radius: 9px;
     color: ${text};
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
 }
-QToolButton[profileAction="true"]:hover { background: ${canvas_hover}; }
-QToolButton[profileAction="true"]:pressed { background: ${selected}; }
+QToolButton[profileAction="true"]:hover:enabled { background: ${canvas_hover}; }
+QToolButton[profileAction="true"]:pressed:enabled { background: ${selected}; }
 QToolButton[profileAction="true"]:focus { border-color: ${focus}; }
-QToolButton[profileAction="true"][danger="true"], QDialog QPushButton[profileEntry="true"][danger="true"] {
-    color: ${danger};
-}
+QToolButton[profileAction="true"][danger="true"]:enabled { color: ${danger}; }
 QToolButton[profileAction="true"]:disabled { color: ${text_muted}; }
-QDialog QPushButton[profileEntry="true"]:focus { border: 1px solid ${focus}; }
 QLabel#profileFieldCaption { color: ${text_secondary}; font-size: 13px; }
 
 QLabel#globalSearchFilterError { color: ${danger}; }

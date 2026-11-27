@@ -4,6 +4,7 @@
 #include "message_model.hpp"
 #include "theme.hpp"
 #include "user_model.hpp"
+#include "user_delegate.hpp"
 #include <QButtonGroup>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -38,7 +39,9 @@ void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows
     layout->addWidget(search);
     auto* targets = new QListWidget;
     targets->setObjectName(QStringLiteral("forwardTargets"));
-    targets->setIconSize(QSize(34, 34));
+    targets->setItemDelegate(new user_delegate(targets));
+    targets->setMouseTracking(true);
+    targets->setUniformItemSizes(true);
     targets->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     layout->addWidget(targets, 1);
     auto* empty = new empty_state(*targets->viewport());
@@ -48,9 +51,12 @@ void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows
     preview->setWordWrap(true);
     layout->addWidget(preview);
     QPushButton* bundle = nullptr;
+    QWidget* modes_bar = nullptr;
     if (rows.size() >= 2 && rows.size() <= 50)
     {
-        auto* modes = new QHBoxLayout;
+        modes_bar = new QWidget(&dialog);
+        auto* modes = new QHBoxLayout(modes_bar);
+        modes->setContentsMargins(0, 0, 0, 0);
         modes->setSpacing(0);
         auto* options = new QButtonGroup(&dialog);
         auto* individual = new QPushButton(QStringLiteral("逐条转发"));
@@ -65,11 +71,12 @@ void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows
             modes->addWidget(choice);
         }
         individual->setChecked(true);
-        layout->addLayout(modes);
+        layout->addWidget(modes_bar);
     }
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     auto* send = buttons->button(QDialogButtonBox::Ok);
     send->setText(QStringLiteral("确认转发"));
+    send->setProperty("primary", true);
     buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
     layout->addWidget(buttons);
 
@@ -95,6 +102,10 @@ void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows
                                                                 : QStringLiteral("未找到转发目标"),
                            u"search");
         send->setVisible(targets->count() != 0);
+        if (modes_bar)
+        {
+            modes_bar->setVisible(targets->count() != 0);
+        }
         bool complete = !ids.isEmpty() && (!bundle || !bundle->isChecked() || ids.size() == rows.size());
         send->setEnabled(connection_available_ && target && complete && owner == self_user_ && visit == conversation_visit_);
         if (!target)
@@ -134,8 +145,13 @@ void chat_widget::choose_forward_target(QList<QPersistentModelIndex> const& rows
             {
                 return;
             }
-            auto* item = new QListWidgetItem(avatar_icon(name, 34, avatars_.image(avatar), avatar < 0 ? -avatar : 0), name, targets);
-            item->setSizeHint(QSize(0, 45));
+            auto* item = new QListWidgetItem(name, targets);
+            item->setData(Qt::DecorationRole, avatars_.image(avatar));
+            if (auto const presence = member_presence(peer))
+            {
+                item->setData(user_model::online_role, presence->online);
+                item->setData(user_model::last_seen_role, presence->last_seen);
+            }
             item->setToolTip(username);
             item->setData(Qt::UserRole, id);
             item->setData(Qt::UserRole + 1, peer);

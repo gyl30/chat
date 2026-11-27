@@ -2,12 +2,13 @@
 #include "group_files_page.hpp"
 #include "client_bridge.hpp"
 #include "theme.hpp"
+#include "icons.hpp"
 #include "chat_widget.hpp"
 #include "download_tasks.hpp"
 #include <QToolButton>
 #include <QMenu>
 
-#include <QComboBox>
+#include <QTabBar>
 #include <QCursor>
 #include <QDateTime>
 #include <QFileDialog>
@@ -89,30 +90,54 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
     : QWidget(parent), client_(client), conversation_(conversation), user_(user)
 {
     auto* layout = new QVBoxLayout(this);
-    auto* filters = new QHBoxLayout;
-    category_ = new QComboBox(this);
-    category_->addItem(QStringLiteral("全部文件"), QString{});
-    for (auto const* key : {"image", "document", "archive", "other"})
-    {
-        category_->addItem(category_name(key), QString::fromLatin1(key));
-    }
+    layout->setContentsMargins(16, 8, 16, 8);
+    layout->setSpacing(7);
     search_ = new QLineEdit(this);
+    search_->setObjectName(QStringLiteral("groupFilesSearch"));
     style_search_field(*search_);
     search_->setPlaceholderText(QStringLiteral("搜索文件名"));
-    auto* reload = new QPushButton(QStringLiteral("刷新"), this);
-    filters->addWidget(category_);
-    filters->addWidget(search_, 1);
-    filters->addWidget(reload);
-    layout->addLayout(filters);
-    upload_ = new QToolButton(this);
-    upload_->setText(QStringLiteral("上传文件"));
-    upload_->setObjectName(QStringLiteral("groupFileUpload"));
+    layout->addWidget(search_);
+
+    category_ = new QTabBar(this);
+    category_->setObjectName(QStringLiteral("groupFileCategories"));
+    category_->setDrawBase(false);
+    category_->setExpanding(false);
+    category_->setElideMode(Qt::ElideNone);
+    category_->addTab(QStringLiteral("全部"));
+    for (auto const* key : {"image", "document", "archive", "other"})
+    {
+        auto const index = category_->addTab(category_name(key));
+        category_->setTabData(index, QString::fromLatin1(key));
+    }
+    layout->addWidget(category_);
+
+    header_actions_ = new QWidget(this);
+    auto* actions = new QHBoxLayout(header_actions_);
+    actions->setContentsMargins(0, 0, 0, 0);
+    actions->setSpacing(3);
+    auto tool = [this, actions](QString name, QString text, QStringView symbol)
+    {
+        auto* button = new QToolButton(header_actions_);
+        button->setObjectName(std::move(name));
+        button->setAccessibleName(text);
+        button->setToolTip(std::move(text));
+        button->setFixedSize(32, 32);
+        button->setIconSize(chat_theme::action_icon);
+        button->setProperty("navigationTool", true);
+        auto refresh = [button, icon = symbol.toString()] { button->setIcon(svg_icon(icon, themed("text_secondary"), chat_theme::action_icon)); };
+        refresh();
+        connect(&theme_manager::instance(), &theme_manager::changed, button, refresh);
+        actions->addWidget(button);
+        return button;
+    };
+    upload_ = tool(QStringLiteral("groupFileUpload"), QStringLiteral("上传文件"), u"attach");
     upload_->setPopupMode(QToolButton::InstantPopup);
     auto* uploads = new QMenu(upload_);
     upload_->setMenu(uploads);
     uploads->addAction(QStringLiteral("仅上传到群文件"), this, [this] { emit upload_requested(true); });
     uploads->addAction(QStringLiteral("上传并发送到聊天"), this, [this] { emit upload_requested(false); });
-    filters->addWidget(upload_);
+    auto* reload = tool(QStringLiteral("groupFileReload"), QStringLiteral("刷新"), u"refresh");
+    header_actions_->hide();
 
     list_ = new QListWidget(this);
     list_->setObjectName(QStringLiteral("groupFileList"));
@@ -127,6 +152,7 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
     status_->hide();
     layout->addWidget(status_);
     more_ = new QPushButton(QStringLiteral("加载更多"), this);
+    more_->setObjectName(QStringLiteral("groupFilesMore"));
     more_->hide();
     layout->addWidget(more_, 0, Qt::AlignHCenter);
 
@@ -143,7 +169,7 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
                 }
             });
     connect(list_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) { activate(*item); });
-    connect(reload, &QPushButton::clicked, this, &group_files_page::refresh);
+    connect(reload, &QToolButton::clicked, this, &group_files_page::refresh);
     search_delay_.setSingleShot(true);
     search_delay_.setInterval(220);
     connect(&search_delay_, &QTimer::timeout, this, [this] { request_page(false); });
@@ -155,7 +181,7 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
                 reset_files();
                 search_delay_.start();
             });
-    connect(category_, &QComboBox::currentIndexChanged, this, &group_files_page::refresh);
+    connect(category_, &QTabBar::currentChanged, this, &group_files_page::refresh);
     connect(more_, &QPushButton::clicked, this, [this] { request_page(true); });
     connect(&client_,
             &client_bridge::files_received,
@@ -388,7 +414,8 @@ void group_files_page::set_access(bool member, bool manager, bool can_publish)
     bool const gained = member && !isEnabled();
     setEnabled(member);
     manager_ = manager;
-    upload_->setVisible(can_publish);
+    header_actions_->setEnabled(member);
+    upload_->setVisible(member && can_publish);
     if (!member)
     {
         request_ = 0;
@@ -445,7 +472,7 @@ void group_files_page::request_page(bool older)
     set_status(QStringLiteral("正在加载…"));
     request_ = client_.list_files(conversation_,
                                   search_->text(),
-                                  category_->currentData().toString(),
+                                  category_->tabData(category_->currentIndex()).toString(),
                                   last ? last->data(created_role).toLongLong() : 0,
                                   last ? last->data(key_role).toString() : QString{});
 }

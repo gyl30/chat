@@ -87,6 +87,8 @@
 #include "message_model.hpp"
 #include "presence.hpp"
 #include "profile_controls.hpp"
+#include "profile_media.hpp"
+#include "client_bridge.hpp"
 #include "empty_state.hpp"
 #include "theme.hpp"
 #include "user_delegate.hpp"
@@ -486,16 +488,16 @@ QWidget* chat_widget::create_sidebar()
                 input->setAccessibleName(QStringLiteral("邀请码"));
                 auto* ok = buttons->button(QDialogButtonBox::Ok);
                 ok->setEnabled(false);
-                connect(input,
-                        &QLineEdit::textChanged,
-                        &dialog,
-                        [&dialog, ok](QString const& text)
-                        {
-                            auto const valid = chat::normalize_invite_token(text.toStdString()).has_value();
-                            ok->setEnabled(valid);
-                            dialog.setLabelText(!text.isEmpty() && !valid ? QStringLiteral("邀请码格式不正确，请检查后重试")
-                                                                          : QStringLiteral("邀请码"));
-                        });
+                connect(
+                    input,
+                    &QLineEdit::textChanged,
+                    &dialog,
+                    [&dialog, ok](QString const& text)
+                    {
+                        auto const valid = chat::normalize_invite_token(text.toStdString()).has_value();
+                        ok->setEnabled(valid);
+                        dialog.setLabelText(!text.isEmpty() && !valid ? QStringLiteral("邀请码格式不正确，请检查后重试") : QStringLiteral("邀请码"));
+                    });
                 if (dialog.exec() != QDialog::Accepted || !connection_available_)
                 {
                     return;
@@ -551,8 +553,9 @@ void chat_widget::set_downloads(download_tasks& downloads)
     downloads_ = &downloads;
     messages_->set_downloads(downloads);
 }
-void chat_widget::setup_unified_search(client_bridge& client)
+void chat_widget::bind_client(client_bridge& client)
 {
+    client_ = &client;
     auto* rooms = findChild<QWidget*>(QStringLiteral("sidebarRooms"));
     auto* layout = qobject_cast<QVBoxLayout*>(rooms->parentWidget()->layout());
     auto* panel = new sidebar_search(client, *conversation_search_, *contacts_, *conversations_, avatars_, rooms->parentWidget());
@@ -2902,8 +2905,8 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
     {
         auto* rows = static_cast<QBoxLayout*>(input_bar_->layout());
         auto const margins = rows->contentsMargins();
-        auto const required = margins.left() + rows->itemAt(0)->minimumSize().width() + rows->spacing() +
-                              rows->itemAt(1)->minimumSize().width() + margins.right();
+        auto const required =
+            margins.left() + rows->itemAt(0)->minimumSize().width() + rows->spacing() + rows->itemAt(1)->minimumSize().width() + margins.right();
         // Keep the same editor and buttons when the visible tools need a second row.
         rows->setDirection(required > input_bar_->contentsRect().width() ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
     }
@@ -3114,10 +3117,7 @@ void chat_widget::set_error(QString message)
     notice_timer_->start();
 }
 
-void chat_widget::set_conversations_error(QString message)
-{
-    set_list_status(std::move(message));
-}
+void chat_widget::set_conversations_error(QString message) { set_list_status(std::move(message)); }
 
 // The status row takes space only while it has something to say.
 void chat_widget::set_list_status(QString text)
@@ -5233,7 +5233,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     dialog.setObjectName(QStringLiteral("profileDialog"));
     dialog.setWindowTitle(username);
     dialog.setModal(true);
-    dialog.resize(436, 480);
+    dialog.resize(456, 478);
     auto* layout = new QVBoxLayout(&dialog);
     frame_dialog(dialog);
     layout->setContentsMargins(0, 0, 0, 8);
@@ -5245,8 +5245,9 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     auto* content = new QWidget(scroll);
+    content->setObjectName(QStringLiteral("profileContent"));
     auto* body = new QVBoxLayout(content);
-    body->setContentsMargins(16, 12, 16, 18);
+    body->setContentsMargins(0, 0, 0, 14);
     body->setSpacing(8);
     scroll->setWidget(content);
     layout->addWidget(scroll, 1);
@@ -5254,14 +5255,14 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     auto* header = new QFrame(content);
     header->setObjectName(QStringLiteral("profileHeaderSection"));
     auto* header_layout = new QVBoxLayout(header);
-    header_layout->setContentsMargins(0, 0, 0, 10);
+    header_layout->setContentsMargins(20, 16, 20, 16);
     header_layout->setSpacing(8);
 
     auto* avatar = new QLabel(header);
     avatar->setObjectName(QStringLiteral("profileDialogAvatar"));
     avatar->setAlignment(Qt::AlignCenter);
-    avatar->setFixedSize(104, 104);
-    avatar->setPixmap(avatar_icon(username, 104, avatars_.image(user)).pixmap(104, 104));
+    avatar->setFixedSize(profile_avatar_size, profile_avatar_size);
+    avatar->setPixmap(avatar_icon(username, profile_avatar_size, avatars_.image(user)).pixmap(profile_avatar_size));
     connect(&avatars_,
             &avatar_cache::changed,
             &dialog,
@@ -5269,7 +5270,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
             {
                 if (changed == user)
                 {
-                    avatar->setPixmap(avatar_icon(username, 104, avatars_.image(user)).pixmap(104, 104));
+                    avatar->setPixmap(avatar_icon(username, profile_avatar_size, avatars_.image(user)).pixmap(profile_avatar_size));
                 }
             });
     header_layout->addWidget(avatar, 0, Qt::AlignHCenter);
@@ -5301,8 +5302,8 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     auto* info = new QFrame(content);
     info->setObjectName(QStringLiteral("profileInfoSection"));
     auto* info_layout = new QVBoxLayout(info);
-    info_layout->setContentsMargins(6, 0, 6, 0);
-    info_layout->setSpacing(10);
+    info_layout->setContentsMargins(22, 8, 22, 8);
+    info_layout->setSpacing(12);
     auto field = [info, info_layout](QString const& caption, QToolButton* accessory = nullptr)
     {
         auto* row = new QWidget(info);
@@ -5378,7 +5379,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
                 {
                     first = false;
                     body->layout()->activate();
-                    dialog.resize(dialog.width(), std::clamp(body->sizeHint().height() + 62, 350, 620));
+                    dialog.resize(dialog.width(), std::clamp(body->sizeHint().height() + 48, 365, 620));
                 }
             });
     connect(contacts_, &QAbstractItemModel::modelReset, &dialog, [this, user] { emit profile_requested(user); });
@@ -5423,10 +5424,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     emit profile_requested(user);
     setup_profile_friendship(dialog, info_layout, relationship, message_button, user, username);
 
-    auto* shared = new QWidget(content);
-    auto* shared_layout = new QVBoxLayout(shared);
-    shared_layout->setContentsMargins(0, 0, 0, 0);
-    shared_layout->setSpacing(0);
+    auto* shared = client_ && user != self_user_ ? new profile_media(*client_, *this, content) : nullptr;
     auto direct = [this, user]() -> std::optional<conversation_data>
     {
         auto const& rooms = conversations_->items();
@@ -5436,7 +5434,10 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     auto update_shared = [this, direct, mute, shared]
     {
         auto const room = direct();
-        shared->setVisible(room.has_value());
+        if (shared)
+        {
+            shared->set_conversation(room ? room->id : 0);
+        }
         mute->setVisible(room.has_value());
         mute->setEnabled(connection_available_);
         display_notification_action(*mute, room && room->muted());
@@ -5457,16 +5458,12 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
                 }
             });
     update_shared();
-    static const QStringView titles[]{u"图片", u"文件", u"链接"};
-    static const QStringView icons[]{u"image", u"file", u"link"};
-    for (int i = 0; i < 3; ++i)
+    if (shared)
     {
-        auto* entry = profile_entry(shared, titles[i].toString(), icons[i]);
-        shared_layout->addWidget(entry);
-        connect(entry,
-                &QPushButton::clicked,
+        connect(shared,
+                &profile_media::history_requested,
                 &dialog,
-                [this, direct, kind = i + 1]
+                [this, direct](int kind)
                 {
                     if (auto const room = direct(); connection_available_ && room)
                     {
@@ -5490,7 +5487,11 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
         connect(logout, &QPushButton::clicked, &dialog, [this, &dialog] { emit logout_requested(&dialog); });
     }
     body->addWidget(info);
-    body->addWidget(shared);
+    if (shared)
+    {
+        shared->layout()->setContentsMargins(16, 0, 16, 0);
+        body->addWidget(shared);
+    }
     if (auto* remove = dialog.findChild<QPushButton*>(QStringLiteral("removeContactButton")))
     {
         body->addWidget(remove);

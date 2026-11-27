@@ -9,6 +9,8 @@ add_executable(client
     src/avatar.cpp
     src/empty_state.cpp
     src/profile_controls.cpp
+    src/profile_media.cpp
+    src/profile_media.hpp
     src/attachment_dialog.cpp
     src/download_tasks.cpp
     src/file_presentation.cpp
@@ -105,6 +107,9 @@ qt_add_resources(client chat_icons
         resources/icons/image.svg
         resources/icons/file.svg
         resources/icons/folder.svg
+        resources/icons/refresh.svg
+        resources/icons/shield.svg
+        resources/icons/palette.svg
         resources/icons/link.svg
         resources/icons/logout.svg
         resources/icons/user-minus.svg

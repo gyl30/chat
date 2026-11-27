@@ -1,3 +1,4 @@
+#include "profile_controls.hpp"
 #include "theme.hpp"
 #include "settings_dialog.hpp"
 
@@ -40,7 +41,7 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     round_window(*this, chat_theme::dialog_radius);
     setWindowModality(Qt::WindowModal);
-    resize(520, 580);
+    resize(520, 530);
     setMinimumSize(420, 400);
 
     auto* outer = new QVBoxLayout(this);
@@ -130,7 +131,6 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     auto* account_caption = new QLabel(QStringLiteral("我的账号"), account_);
     account_caption->setObjectName(QStringLiteral("settingsAccountCaption"));
     account_caption->setAttribute(Qt::WA_TransparentForMouseEvents);
-    identity_text->addWidget(account_caption);
     account_name_ = new QLabel(account_);
     account_name_->setObjectName(QStringLiteral("settingsAccountName"));
     account_name_->setTextFormat(Qt::PlainText);
@@ -138,46 +138,29 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     account_name_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     account_name_->setAttribute(Qt::WA_TransparentForMouseEvents);
     identity_text->addWidget(account_name_);
+    identity_text->addWidget(account_caption);
     identity->addLayout(identity_text, 1);
     home->addWidget(account_);
-    auto* devices = new QPushButton(QStringLiteral("账号安全与登录设备"), home->parentWidget());
+    auto* devices = profile_entry(home->parentWidget(), QStringLiteral("账号安全与登录设备"), u"shield", false, true);
     devices->setObjectName(QStringLiteral("settingsDevicesButton"));
-    devices->setAutoDefault(false);
     home->addWidget(devices);
     connect(devices, &QPushButton::clicked, this, &settings_dialog::devices_requested);
     static std::array<QString, 3> const section_names = {
         QStringLiteral("settingsNotificationsButton"), QStringLiteral("settingsAppearanceChatButton"), QStringLiteral("settingsDesktopWindowButton")};
+    static constexpr QStringView icons[]{u"bell", u"palette", u"monitor"};
     for (int page = 1; page <= static_cast<int>(section_names.size()); ++page)
     {
-        auto* button = new QPushButton(home->parentWidget());
-        button->setObjectName(section_names.at(static_cast<std::size_t>(page - 1)));
-        button->setProperty("settingsSection", true);
-        button->setAccessibleName(page_title(page));
-        button->setAutoDefault(false);
-        button->setMinimumHeight(48);
-        button->setCursor(Qt::PointingHandCursor);
-        auto* row = new QHBoxLayout(button);
-        row->setContentsMargins(16, 0, 16, 0);
-        row->setSpacing(12);
-        auto* label = new QLabel(page_title(page), button);
-        label->setObjectName(QStringLiteral("settingsSectionLabel"));
-        label->setAttribute(Qt::WA_TransparentForMouseEvents);
-        row->addWidget(label, 1);
-        auto* arrow = new QLabel(button);
-        arrow->setObjectName(QStringLiteral("settingsSectionArrow"));
-        arrow->setFixedSize(20, 20);
-        arrow->setAttribute(Qt::WA_TransparentForMouseEvents);
-        row->addWidget(arrow);
+        auto const index = static_cast<std::size_t>(page - 1);
+        auto* button = profile_entry(home->parentWidget(), page_title(page), icons[index], false, true);
+        button->setObjectName(section_names.at(index));
         home->addWidget(button);
         connect(button, &QPushButton::clicked, this, [this, page] { show_page(page); });
     }
-    home->addStretch();
-    auto* logout = new QPushButton(QStringLiteral("退出登录"), home->parentWidget());
+    home->addSpacing(6);
+    auto* logout = profile_entry(home->parentWidget(), QStringLiteral("退出登录"), u"logout", true);
     logout->setObjectName(QStringLiteral("settingsLogoutButton"));
-    logout->setAccessibleName(logout->text());
-    logout->setAutoDefault(false);
-    logout->setMinimumHeight(40);
     home->addWidget(logout);
+    home->addStretch();
     connect(account_, &QToolButton::clicked, this, &settings_dialog::account_requested);
     connect(logout, &QPushButton::clicked, this, &settings_dialog::logout_requested);
 
@@ -314,13 +297,7 @@ void settings_dialog::show_page(int page)
 void settings_dialog::refresh_icons()
 {
     close_->setIcon(svg_icon(u"close", themed("text_secondary"), chat_theme::action_icon));
-    auto const down = svg_icon(u"chevron-down", themed("text_secondary"), QSize(20, 20));
     back_->setIcon(svg_icon(u"back", themed("text_secondary"), chat_theme::action_icon));
-    auto const right = down.pixmap(QSize(20, 20)).transformed(QTransform().rotate(-90));
-    for (auto* arrow : findChildren<QLabel*>(QStringLiteral("settingsSectionArrow")))
-    {
-        arrow->setPixmap(right);
-    }
 }
 
 void settings_dialog::keyPressEvent(QKeyEvent* event)

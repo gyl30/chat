@@ -70,7 +70,8 @@ class chat_widget final : public QWidget
     void activate_upload(qint64 id, file_action action);
     void add_upload_actions(QMenu& menu, qint64 id);
     void set_downloads(download_tasks& downloads);
-    void setup_unified_search(client_bridge& client);
+    void bind_client(client_bridge& client);
+    bool connection_available() const { return connection_available_; }
     avatar_cache& avatars() { return avatars_; }
     message_images& images() { return images_; }
     void finish_avatar_update(QString error);
@@ -242,6 +243,7 @@ class chat_widget final : public QWidget
     bool eventFilter(QObject* object, QEvent* event) override;
 
    private:
+    QPointer<client_bridge> client_;
     QWidget* create_sidebar();
     void add_list_actions(QMenu& menu);
     void add_local_content(QMenu& menu);

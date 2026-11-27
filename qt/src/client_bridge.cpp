@@ -13,6 +13,7 @@
 
 #include <QByteArray>
 #include <QMetaType>
+#include <QPointer>
 #include <QStandardPaths>
 
 #include <chat/client.hpp>
@@ -1633,6 +1634,39 @@ void client_bridge::get_history(qint64 conversation, chat::message_category cate
                     });
     };
     client_->get_categorized_history(conversation, category, to_utf8(query), cursor, std::move(receive));
+}
+
+void client_bridge::get_history_head(qint64 conversation,
+                                     chat::message_category category,
+                                     QObject& receiver,
+                                     std::function<void(std::expected<qint64, chat::error>)> callback)
+{
+    client_->get_categorized_history(
+        conversation,
+        category,
+        {},
+        {},
+        1,
+        [this, connection = connection_generation_.load(), owner = QPointer(&receiver), callback = std::move(callback)](auto result) mutable
+        {
+            std::expected<qint64, chat::error> head;
+            if (!result)
+            {
+                head = std::unexpected(std::move(result.error()));
+            }
+            else if (!result->messages.empty())
+            {
+                head = result->messages.front().id;
+            }
+            post_result(connection,
+                        [owner = std::move(owner), callback = std::move(callback), head = std::move(head)]() mutable
+                        {
+                            if (owner)
+                            {
+                                callback(std::move(head));
+                            }
+                        });
+        });
 }
 
 std::function<void(std::expected<chat::friendship_result, chat::error>)> client_bridge::friend_request_result(qint64 user)
