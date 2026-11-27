@@ -36,6 +36,7 @@ class QListView;
 class QListWidget;
 class QPushButton;
 class QMenu;
+class attachment_menu;
 class friend_list_model;
 class QStackedWidget;
 class QToolButton;
@@ -313,6 +314,8 @@ class chat_widget final : public QWidget
     bool can_queue_text() const;
     bool can_send() const;
     void update_compose_state();
+    void setup_attachment_menu();
+    void close_attachment_menu();
     void create_group();
     void request_older_messages();
     void update_reading_navigation();
@@ -388,7 +391,7 @@ class chat_widget final : public QWidget
     QToolButton* screenshot_button_ = nullptr;
     QToolButton* mention_button_ = nullptr;
     QToolButton* mention_all_button_ = nullptr;
-    QAction* create_poll_action_ = nullptr;
+    attachment_menu* attachment_menu_ = nullptr;
     QToolButton* markdown_button_ = nullptr;
     QToolButton* emoji_button_ = nullptr;
     QToolButton* history_button_ = nullptr;

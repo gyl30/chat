@@ -609,18 +609,6 @@ QMainWindow {
             border-radius: 18px;
             background: transparent;
         }
-        QToolButton#sendAttachmentButton::menu-button {
-            subcontrol-origin: padding;
-            subcontrol-position: center right;
-            width: 12px;
-            border: 0;
-            background: transparent;
-        }
-        QToolButton#sendAttachmentButton::menu-arrow {
-            image: url("${chevron_icon}");
-            width: 9px;
-            height: 9px;
-        }
         QDialog#pollForm QToolButton#pollRemove {
             background: transparent;
             border: 1px solid transparent;

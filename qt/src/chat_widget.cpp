@@ -1834,15 +1834,14 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     connect(message_edit_, &QPlainTextEdit::updateRequest, this, resize_composer, Qt::QueuedConnection);
     attachment_button_ = new QToolButton(input_bar);
     attachment_button_->setObjectName(QStringLiteral("sendAttachmentButton"));
-    attachment_button_->setText(QStringLiteral("文件/图片"));
-    attachment_button_->setToolTip(QStringLiteral("发送文件或图片"));
-    attachment_button_->setAccessibleName(QStringLiteral("发送文件或图片"));
+    attachment_button_->setAccessibleName(QStringLiteral("附件"));
     attachment_button_->setIcon(svg_icon(u"attach", themed("text"), QSize(22, 22)));
     attachment_button_->setIconSize(QSize(22, 22));
     attachment_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
     attachment_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
     attachment_button_->setEnabled(false);
     field_layout->insertWidget(0, attachment_button_, 0, Qt::AlignVCenter);
+    setup_attachment_menu();
     input_layout->addStretch();
     auto make_composer_button = [input_bar](QString const& name, QStringView icon, QString const& label)
     {
@@ -1962,19 +1961,6 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     mention_all_button_->hide();
     connect(mention_all_button_, &QToolButton::toggled, mention_all_button_, &QWidget::setVisible);
     connect(mention_all_button_, &QToolButton::toggled, this, &chat_widget::draft_edited);
-    auto* attachments = new QMenu(attachment_button_);
-    attachments->addAction(QStringLiteral("发送文件"), this, [this] { choose_attachment(active_conversation_, false, this); });
-    create_poll_action_ = attachments->addAction(QStringLiteral("发起投票"),
-                                                 this,
-                                                 [this]
-                                                 {
-                                                     if (active_group_ && can_send())
-                                                     {
-                                                         emit create_poll_requested(active_conversation_);
-                                                     }
-                                                 });
-    attachment_button_->setMenu(attachments);
-    attachment_button_->setPopupMode(QToolButton::MenuButtonPopup);
     markdown_button_ = new QToolButton(input_bar);
     markdown_button_->setProperty("composeText", true);
     markdown_button_->setObjectName(QStringLiteral("markdownButton"));
@@ -1999,7 +1985,6 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
                     emit chat_history_requested(active_conversation_, active_username_);
                 }
             });
-    connect(attachment_button_, &QToolButton::clicked, this, [this] { choose_attachment(active_conversation_, false, this); });
     send_button_ = new QToolButton(input_bar);
     send_button_->setObjectName(QStringLiteral("sendButton"));
     send_button_->setIcon(composer_send_icon());
@@ -4400,6 +4385,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     }
     if (user != active_conversation_)
     {
+        close_attachment_menu();
         close_poll_results();
     }
     auto const existing = conversations_->index_for_conversation(user);

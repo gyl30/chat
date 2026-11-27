@@ -117,6 +117,7 @@ qt_add_resources(client chat_icons
         resources/icons/more.svg
         resources/icons/pin.svg
         resources/icons/plus.svg
+        resources/icons/poll.svg
         resources/icons/screenshot.svg
         resources/icons/search.svg
         resources/icons/send.svg

@@ -1,12 +1,19 @@
 #include "chat_widget.hpp"
 #include "emoji_segments.hpp"
+#include "icons.hpp"
 #include "presence.hpp"
+#include "theme_manager.hpp"
 
 #include <algorithm>
 #include <limits>
 #include <utility>
 
 #include <QAction>
+#include <QCursor>
+#include <QKeyEvent>
+#include <QMenu>
+#include <QMouseEvent>
+#include <QScreen>
 #include <QDateTime>
 #include <QLabel>
 #include <QPlainTextEdit>
@@ -16,6 +23,205 @@
 #include <QTimer>
 #include <QToolButton>
 #include <chat/client.hpp>
+
+class attachment_menu final : public QMenu
+{
+   public:
+    attachment_menu(QToolButton& button, std::function<bool()> available) : QMenu(&button), button_(button), available_(std::move(available))
+    {
+        setObjectName(QStringLiteral("attachmentMenu"));
+        setAccessibleName(QStringLiteral("附件"));
+        setMouseTracking(true);
+        button_.installEventFilter(this);
+        open_delay_.setSingleShot(true);
+        open_delay_.setInterval(200);
+        close_delay_.setSingleShot(true);
+        close_delay_.setInterval(150);
+        connect(&open_delay_, &QTimer::timeout, this,
+                [this]
+                {
+                    if (button_.isActiveWindow() && anchor().contains(QCursor::pos()))
+                    {
+                        show_at_button();
+                    }
+                });
+        connect(&close_delay_, &QTimer::timeout, this,
+                [this]
+                {
+                    if (!contains_pointer())
+                    {
+                        hide();
+                    }
+                });
+        connect(this, &QMenu::aboutToHide, this,
+                [this]
+                {
+                    close_delay_.stop();
+                    hover_blocked_ = anchor().contains(QCursor::pos());
+                });
+    }
+
+    void show_at_button()
+    {
+        open_delay_.stop();
+        if (isVisible() || !available_() || !button_.isVisible())
+        {
+            return;
+        }
+        auto const area = button_.screen()->availableGeometry();
+        auto const rect = anchor();
+        auto const size = sizeHint();
+        auto const x = std::clamp(rect.left(), area.left(), std::max(area.left(), area.right() + 1 - size.width()));
+        auto const top = rect.top() - size.height();
+        auto const bottom = rect.bottom() + 1;
+        auto const y = top >= area.top() ? top : std::min(bottom, std::max(area.top(), area.bottom() + 1 - size.height()));
+        popup(QPoint(x, y));
+    }
+
+    void cancel()
+    {
+        open_delay_.stop();
+        close_delay_.stop();
+        hide();
+    }
+
+   private:
+    QRect anchor() const { return QRect(button_.mapToGlobal(QPoint{}), button_.size()); }
+
+    bool contains_pointer() const
+    {
+        auto const point = QCursor::pos();
+        return anchor().contains(point) || frameGeometry().contains(point);
+    }
+
+    void track_pointer()
+    {
+        if (!anchor().contains(QCursor::pos()))
+        {
+            hover_blocked_ = false;
+            open_delay_.stop();
+        }
+        if (!isVisible() || contains_pointer())
+        {
+            close_delay_.stop();
+        }
+        else if (!close_delay_.isActive())
+        {
+            close_delay_.start();
+        }
+    }
+
+    bool eventFilter(QObject* object, QEvent* event) override
+    {
+        if (object != &button_)
+        {
+            return QMenu::eventFilter(object, event);
+        }
+        switch (event->type())
+        {
+            case QEvent::Enter:
+                if (!hover_blocked_ && !isVisible() && available_())
+                {
+                    open_delay_.start();
+                }
+                [[fallthrough]];
+            case QEvent::Leave:
+                track_pointer();
+                break;
+            case QEvent::Hide:
+            case QEvent::EnabledChange:
+                if (!button_.isVisible() || !button_.isEnabled())
+                {
+                    cancel();
+                }
+                break;
+            case QEvent::KeyPress:
+            {
+                auto const key = static_cast<QKeyEvent*>(event)->key();
+                if ((key == Qt::Key_Return || key == Qt::Key_Enter) && button_.isEnabled())
+                {
+                    button_.click();
+                    return true;
+                }
+                break;
+            }
+            default:
+                break;
+        }
+        return false;
+    }
+
+    bool event(QEvent* event) override
+    {
+        switch (event->type())
+        {
+            case QEvent::Enter:
+            case QEvent::Leave:
+            case QEvent::MouseMove:
+                track_pointer();
+                break;
+            case QEvent::MouseButtonPress:
+            case QEvent::MouseButtonRelease:
+                if (anchor().contains(static_cast<QMouseEvent*>(event)->globalPosition().toPoint()))
+                {
+                    return true;
+                }
+                break;
+            default:
+                break;
+        }
+        return QMenu::event(event);
+    }
+
+    QToolButton& button_;
+    std::function<bool()> available_;
+    QTimer open_delay_;
+    QTimer close_delay_;
+    bool hover_blocked_ = false;
+};
+
+void chat_widget::setup_attachment_menu()
+{
+    attachment_menu_ = new attachment_menu(*attachment_button_, [this] { return active_group_ && can_send(); });
+    auto* file = attachment_menu_->addAction(QStringLiteral("文件"), this,
+                                             [this]
+                                             {
+                                                 if (can_send())
+                                                 {
+                                                     choose_attachment(active_conversation_, false, this);
+                                                 }
+                                             });
+    auto* poll = attachment_menu_->addAction(QStringLiteral("投票"), this,
+                                             [this]
+                                             {
+                                                 if (active_group_ && can_send())
+                                                 {
+                                                     emit create_poll_requested(active_conversation_);
+                                                 }
+                                             });
+    auto update_icons = [file, poll]
+    {
+        file->setIcon(svg_icon(u"attach", themed("text_secondary"), {18, 18}));
+        poll->setIcon(svg_icon(u"poll", themed("text_secondary"), {18, 18}));
+    };
+    update_icons();
+    connect(&theme_manager::instance(), &theme_manager::changed, attachment_menu_, update_icons);
+    resume_reading_after_menu(*attachment_menu_);
+    connect(attachment_button_, &QToolButton::clicked, this,
+            [this]
+            {
+                if (active_group_)
+                {
+                    attachment_menu_->show_at_button();
+                }
+                else if (can_send())
+                {
+                    choose_attachment(active_conversation_, false, this);
+                }
+            });
+}
+
+void chat_widget::close_attachment_menu() { attachment_menu_->cancel(); }
 
 bool chat_widget::can_queue_text() const
 {
@@ -50,7 +256,11 @@ void chat_widget::update_compose_state()
     send_button_->setEnabled(item && !blocked && !saving_text_ && !message_edit_->toPlainText().isEmpty() && (!reply_to_ || !reply_bar_->isHidden()));
     attachment_button_->setEnabled(allowed);
     screenshot_button_->setEnabled(allowed);
-    create_poll_action_->setVisible(active_group_ && allowed);
+    attachment_button_->setToolTip(active_group_ ? QStringLiteral("附件") : QStringLiteral("选择文件"));
+    if (!active_group_ || !allowed)
+    {
+        close_attachment_menu();
+    }
     emit poll_creation_availability(active_conversation_, active_group_ && allowed);
     mention_button_->setVisible(active_group_);
     mention_button_->setEnabled(allowed);
