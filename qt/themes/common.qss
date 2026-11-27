@@ -686,12 +686,11 @@ QMainWindow {
             font-size: 18px;
         }
         QLabel#emptyConversationHint {
-            background: ${day_pill};
-            color: ${text_secondary};
-            border-radius: 12px;
-            min-height: 24px;
-            padding: 0 10px;
-            font-size: 13px;
+            background: rgba(${scrim.rgb}, 0.68);
+            color: ${badge_text};
+            border-radius: 18px;
+            padding: 6px 14px;
+            font-size: 16px;
             font-weight: bold;
         }
         QListView#searchContextMessages {

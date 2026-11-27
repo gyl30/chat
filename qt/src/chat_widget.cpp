@@ -1607,7 +1607,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     list->preserve_layout = [this](const auto& update) { preserve_reading(update); };
     auto* hint_layout = new QGridLayout(list->viewport());
     hint_layout->setContentsMargins(0, 0, 0, 0);
-    empty_conversation_hint_ = new QLabel(QStringLiteral("选择一个会话开始聊天"), list->viewport());
+    empty_conversation_hint_ = new QLabel(QStringLiteral("选择一个对话开始聊天"), list->viewport());
     empty_conversation_hint_->setObjectName(QStringLiteral("emptyConversationHint"));
     empty_conversation_hint_->setAttribute(Qt::WA_TransparentForMouseEvents);
     empty_conversation_hint_->setAlignment(Qt::AlignCenter);
