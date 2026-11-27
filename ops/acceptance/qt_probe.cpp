@@ -1551,11 +1551,41 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     {
         if (cmd["open"].toBool())
         {
-            auto* advanced = window.findChild<QAction*>("globalSearchAction");
-            QTimer::singleShot(0, advanced, &QAction::trigger);
+            auto* search = window.findChild<QAction*>(cmd["inConversation"].toBool() ? "messageSearchAction" : "globalSearchAction");
+            QTimer::singleShot(0, search, &QAction::trigger);
         }
         auto* d = qobject_cast<QDialog*>(QApplication::activeModalWidget());
-        if (d)
+        if (d && cmd["inConversation"].toBool())
+        {
+            auto* input = d->findChild<QLineEdit*>("messageSearchEdit");
+            auto* results = d->findChild<QListView*>("messageSearchResults");
+            if (input && results)
+            {
+                out["open"] = true;
+                if (cmd.contains("query"))
+                {
+                    input->setText(cmd["query"].toString());
+                    d->findChild<QPushButton*>("searchMessagesButton")->click();
+                }
+                QJsonArray ids;
+                for (int i = 0; i < results->model()->rowCount(); ++i)
+                {
+                    const auto row = results->model()->index(i, 0);
+                    const auto id = row.data(message_model::id_role).toLongLong();
+                    ids.append(id);
+                    if (id == cmd["inspect"].toInteger())
+                    {
+                        out["read"] = row.data(message_model::read_role).toBool();
+                    }
+                }
+                out["ids"] = ids;
+                if (cmd["close"].toBool())
+                {
+                    d->reject();
+                }
+            }
+        }
+        else if (d)
         {
             auto* l = d->findChild<QTreeWidget*>();
             auto* q = d->findChild<QLineEdit*>("globalSearchQuery");

@@ -12,6 +12,7 @@ class QListView;
 class QPushButton;
 class message_model;
 class message_search_results_model;
+struct member_data;
 
 class message_search_dialog final : public QDialog
 {
@@ -35,6 +36,8 @@ class message_search_dialog final : public QDialog
     void update_poll(chat::poll_update const& update);
     void set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions, QString const& error);
     void update_message(qint64 conversation, message_data message, QString const& error);
+    void set_members(qint64 conversation, QList<member_data> const& members, QString const& error);
+    void set_read_message(qint64 conversation, qint64 user, qint64 message);
 
    signals:
     void search_requested(QString query, qint64 before);

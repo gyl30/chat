@@ -134,6 +134,23 @@ async def run(root, probe, case):
                     await check([old, new, again, latest], [(False, []), (False, []), (True, [2]), (True, [3])])
                     print("PASS current roster, multi-device read, clear, leave/rejoin, kick/reinvite and stale reply ordering", flush=True)
 
+                    current = {"inConversation": True}
+                    await ui.call("searchui", open=True, **current)
+                    await ui.wait("searchui", lambda r: r.get("open"), **current)
+                    gate.hold.add("get_members")
+                    await ui.call("searchui", query="回执", **current)
+                    pending = await ui.wait("searchui", lambda r: latest in r["ids"], inspect=latest, **current)
+                    assert not pending["read"]
+                    await gate.caught("get_members")
+                    await gate.release("get_members")
+                    await ui.wait("searchui", lambda r: r["read"], inspect=latest, **current)
+                    assert not (await ui.call("searchui", inspect=new, **current))["read"]
+                    await b2.ok("mark_read", conversation=room, message=marker)
+                    await ui.wait("searchui", lambda r: r["read"], inspect=marker, **current)
+                    await ui.call("searchui", close=True, **current)
+                    print("PASS in-conversation search uses join boundaries and live receipts", flush=True)
+
+                    fresh = await send(room, 105)
                     await a.ok("hide_conversation", conversation=room)
                     await ui.call("searchui", open=True)
                     await ui.wait("searchui", lambda r: r.get("open"))
@@ -147,8 +164,8 @@ async def run(root, probe, case):
                     await gate.release("get_members")
                     await ui.wait("searchui", lambda r: r["read"], inspect=latest)
                     assert not (await ui.call("searchui", inspect=new))["read"]
-                    await b2.ok("mark_read", conversation=room, message=marker)
-                    await ui.wait("searchui", lambda r: r["read"], inspect=marker)
+                    await b2.ok("mark_read", conversation=room, message=fresh)
+                    await ui.wait("searchui", lambda r: r["read"], inspect=fresh)
                     assert not (await ui.call("searchui", inspect=new))["read"]
                     print("PASS hidden-group search context uses join boundaries and live receipts", flush=True)
             finally:

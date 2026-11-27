@@ -207,6 +207,22 @@ void message_search_dialog::update_poll(chat::poll_update const& update)
     }
 }
 
+void message_search_dialog::set_members(qint64 conversation, QList<member_data> const& members, QString const& error)
+{
+    if (group_ && conversation == conversation_ && error.isEmpty())
+    {
+        messages_->set_members(members);
+    }
+}
+
+void message_search_dialog::set_read_message(qint64 conversation, qint64 user, qint64 message)
+{
+    if (conversation == conversation_)
+    {
+        messages_->set_read_message(user, message);
+    }
+}
+
 void message_search_dialog::set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions, QString const& error)
 {
     if (conversation == conversation_ && message > 0 && error.isEmpty())

@@ -1154,8 +1154,17 @@ void main_window::show_message_search(qint64 conversation, qint64 self_user, boo
     connect(&dialog,
             &message_search_dialog::search_requested,
             &dialog,
-            [this, conversation](QString query, qint64 before) { client_->search_messages(conversation, std::move(query), before); });
+            [this, conversation, group](QString query, qint64 before)
+            {
+                if (group && before == 0)
+                {
+                    client_->get_members(conversation);
+                }
+                client_->search_messages(conversation, std::move(query), before);
+            });
     connect(client_.get(), &client_bridge::message_search_received, &dialog, &message_search_dialog::set_results, Qt::AutoConnection);
+    connect(client_.get(), &client_bridge::members_received, &dialog, &message_search_dialog::set_members);
+    connect(client_.get(), &client_bridge::messages_read, &dialog, &message_search_dialog::set_read_message);
     connect(client_.get(), &client_bridge::poll_changed, &dialog, &message_search_dialog::update_poll);
     connect(client_.get(), &client_bridge::reaction_changed, &dialog, &message_search_dialog::set_reactions, Qt::AutoConnection);
     connect(client_.get(), &client_bridge::message_updated, &dialog, &message_search_dialog::update_message, Qt::AutoConnection);
@@ -1167,6 +1176,10 @@ void main_window::show_message_search(qint64 conversation, qint64 self_user, boo
                 if (removed && id == conversation)
                 {
                     dialog.reject();
+                }
+                else if (id == conversation)
+                {
+                    dialog.set_members(id, {}, {});
                 }
             });
     qint64 located = 0;
