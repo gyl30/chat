@@ -25,7 +25,7 @@
 
 namespace
 {
-constexpr QSize chip_size{136, 38};
+constexpr QSize chip_size{128, 38};
 
 class selected_member_delegate final : public QStyledItemDelegate
 {
@@ -134,7 +134,7 @@ create_group_dialog::create_group_dialog(QWidget* parent, bool invite) : QDialog
             list_,
             [this]
             {
-                if (auto* item = list_->currentItem())
+                if (auto* item = list_->currentItem(); item && !item->isHidden())
                 {
                     toggle_member(*item);
                 }
@@ -163,7 +163,19 @@ create_group_dialog::create_group_dialog(QWidget* parent, bool invite) : QDialog
         }
     };
     connect(selected_, &QListWidget::itemClicked, this, remove);
-    connect(selected_, &QListWidget::itemActivated, this, remove);
+    auto* remove_by_keyboard = new QShortcut(selected_);
+    remove_by_keyboard->setKeys({QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter), QKeySequence(Qt::Key_Space)});
+    remove_by_keyboard->setContext(Qt::WidgetShortcut);
+    connect(remove_by_keyboard,
+            &QShortcut::activated,
+            selected_,
+            [this, remove]
+            {
+                if (auto* chip = selected_->currentItem())
+                {
+                    remove(chip);
+                }
+            });
     connect(search_, &QLineEdit::textChanged, this, &create_group_dialog::filter_contacts);
     update_selection();
     (title_ ? title_ : search_)->setFocus(Qt::OtherFocusReason);
