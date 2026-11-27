@@ -132,7 +132,7 @@ class client_bridge final : public QObject
     void remove_contact(qint64 user);
     void send_attachment(qint64 conversation, QString path, qint64 reply_to, qint64 client_id, bool group_only);
     void change_file(qint64 conversation, QString key, bool add);
-    void list_files(qint64 conversation, QString search, QString category, qint64 before, QString key);
+    quint64 list_files(qint64 conversation, QString search, QString category, qint64 before, QString key);
     void download_file(qint64 conversation, QString key, QString filename, QString path, bool open);
     void get_attachment(qint64 conversation, qint64 message, QString filename, QString target, qint64 item = 0);
     void start_download(qint64 id,
@@ -229,7 +229,7 @@ class client_bridge final : public QObject
     void attachment_restored(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed, bool group_only);
     void group_file_finished(qint64 id, QString error, bool unavailable);
     void files_changed(qint64 conversation, QString error);
-    void files_received(qint64 conversation, chat::conversation_file_page page, bool older, QString error);
+    void files_received(quint64 request, chat::conversation_file_page page, bool older, QString error);
     void poll_created(qint64 request, QString error, bool refused);
     void poll_changed(chat::poll_update update);
     void poll_write_finished(qint64 room, qint64 message, QString error);
@@ -296,7 +296,7 @@ class client_bridge final : public QObject
                                 std::uint64_t connection);
     quint64 content_request_ = 0;
     std::uint64_t conversations_generation_ = 0;
-    std::uint64_t files_generation_ = 0;
+    quint64 files_request_ = 0;
     std::uint64_t contacts_generation_ = 0;
     std::uint64_t friend_requests_generation_ = 0;
     std::uint64_t messages_generation_ = 0;

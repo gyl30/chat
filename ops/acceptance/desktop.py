@@ -414,6 +414,60 @@ async def outbox_queue(ui, gate, direct, group, root, db, binary, entry):
     print("PASS Outbox dispatches independent heads, preserves 18 row order and skips definitive rejection", flush=True)
 
 
+async def file_search(ui, gate, b):
+    group = (await b.ok("create_group", title="群文件搜索", members=[1]))["conversation"]
+    names = ["Résumé%_文件.TXT", "Réglage.zip"]
+
+    async def publish(client, filename):
+        data = filename.encode()
+        part = await begin(b, group, client, data, filename)
+        await b.ok("confirm_attachment", upload=client, number=1, etag=put(part["url"], data))
+        item = (await b.ok("finish_attachment", upload=client))["attachment"]
+        await b.ok("add_conversation_file", conversation_id=group, object_key=item["object_key"])
+
+    for client, filename in enumerate(names, 9001):
+        await publish(client, filename)
+    await ui.wait("select", lambda r: r["ok"], conv=group)
+    method = "list_conversation_files"
+    gate.hold.add(method)
+    await ui.call("group", id=group)
+    await ui.wait("group_download", lambda r: "names" in r)
+    await gate.caught(method)
+    start = len(gate.messages)
+
+    def queries():
+        return [r["params"] for r in gate.messages[start:] if r["method"] == method]
+
+    await ui.call("group_download", queries=["R", "RÉ", "RÉSUMÉ%_"])
+    await gate.release(method)
+    waiting = await ui.call("group_download")
+    in_burst = queries()
+    print(f"group file search: burst RPCs={len(in_burst)}, rows before settled query={waiting['names']}", flush=True)
+    assert not in_burst and not waiting["names"]
+    await ui.wait("group_download", lambda r: r["names"] == names[:1])
+    settled = queries()
+    assert len(settled) == 1 and settled[0]["search"] == "RÉSUMÉ%_"
+    await ui.call("group_download", queries=["RÉ"], category=3)
+    await ui.wait("group_download", lambda r: r["names"] == names[1:])
+    await ui.call("group_download", queries=[""], category=0)
+    await ui.wait("group_download", lambda r: set(r["names"]) == set(names))
+    pages = [f"分页{number}.txt" for number in range(51)]
+    for client, filename in enumerate(pages, 9100):
+        await publish(client, filename)
+    await ui.call("group_download", queries=["分页"], reload=True)
+    first = (await ui.wait("group_download", lambda r: len(r["names"]) == 50))["names"]
+    assert set(first) <= set(pages)
+    assert (await ui.call("group_download", more=True))["triggered"]
+    all_names = (await ui.wait("group_download", lambda r: len(r["names"]) == 51))["names"]
+    assert all_names[:50] == first and set(all_names) == set(pages)
+    assert not (await ui.call("group_download", more=True)).get("triggered")
+    await ui.call("group_download", queries=["RÉSUMÉ"])
+    await b.ok("remove_group_member", conversation=group, user=1)
+    await ui.wait("group_download", lambda r: not r.get("names"))
+    await ui.call("group_download", close=True)
+    print("PASS group-file debounce 3 inputs to 1 RPC, stale response ignored, Unicode, category, reload, 50/51 pages and membership loss", flush=True)
+
+
 async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
     async with AsyncExitStack() as stack:
         c = await login(stack, server, "c", "c", True)
@@ -632,11 +686,15 @@ async def main(root, binary):
                             await outbox(ui, gate, a, b, d, root, db, binary, entry)
                             await outbox_queue(ui, gate, d, g, root, db, binary, entry)
                             return
+                        if sys.argv[2:] == ["file-search"]:
+                            await file_search(ui, gate, b)
+                            return
                         await notifications(ui, gate, a, b, g, root)
                         await search_cases(ui, gate, a, b, other)
                         await other_views(ui, gate, a, b, g, d)
                         await outbox(ui, gate, a, b, d, root, db, binary, entry)
                         await outbox_queue(ui, gate, d, g, root, db, binary, entry)
+                        await file_search(ui, gate, b)
                         await transfers(ui, gate, a, b, g, d, root, db, binary, entry, url)
                         await pin_cases(ui, gate, a, b, g)
                     finally:

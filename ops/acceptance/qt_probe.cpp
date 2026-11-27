@@ -780,7 +780,38 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 {
                     tabs->setCurrentWidget(list->parentWidget());
                 }
+                if (list && cmd.contains("queries"))
+                {
+                    auto* search = list->parentWidget()->findChild<QLineEdit*>();
+                    for (auto const& query : cmd["queries"].toArray())
+                    {
+                        search->setText(query.toString());
+                    }
+                }
+                if (list && cmd.contains("category"))
+                {
+                    list->parentWidget()->findChild<QComboBox*>()->setCurrentIndex(cmd["category"].toInt());
+                }
+                if (list && (cmd["reload"].toBool() || cmd["more"].toBool()))
+                {
+                    auto const label = cmd["reload"].toBool() ? QStringLiteral("刷新") : QStringLiteral("加载更多");
+                    for (auto* button : list->parentWidget()->findChildren<QPushButton*>())
+                    {
+                        if (button->text() == label && button->isEnabled())
+                        {
+                            button->click();
+                            out["triggered"] = true;
+                            break;
+                        }
+                    }
+                }
                 out["count"] = list ? list->topLevelItemCount() : 0;
+                QJsonArray names;
+                for (int row = 0; list && row < list->topLevelItemCount(); ++row)
+                {
+                    names.append(list->topLevelItem(row)->text(0));
+                }
+                out["names"] = names;
                 if (cmd["choose"].toBool() && list && list->topLevelItemCount())
                 {
                     list->setCurrentItem(list->topLevelItem(0));

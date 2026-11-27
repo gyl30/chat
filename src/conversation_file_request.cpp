@@ -50,7 +50,7 @@ std::expected<std::optional<chat::conversation_file_page>, sqlite_error> list_fi
              ELSE 'other' END AS category
         FROM conversation_files c JOIN files f ON f.object_key=c.object_key JOIN users u ON u.id=f.uploader_id
         WHERE c.conversation_id=?1 AND (?2 IS NULL OR (c.created_at,c.object_key)<(?2,?3))
-          AND instr(lower(f.filename),lower(?4))>0 AND (?5='' OR category=?5)
+          AND instr(chat_lower(f.filename),chat_lower(?4))>0 AND (?5='' OR category=?5)
         ORDER BY c.created_at DESC,c.object_key DESC LIMIT ?6)SQL",
                         p.conversation_id,
                         p.cursor_created_at,

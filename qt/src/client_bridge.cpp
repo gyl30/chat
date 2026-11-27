@@ -1406,27 +1406,26 @@ void client_bridge::change_file(qint64 conversation, QString key, bool add)
         client_->remove_conversation_file(conversation, to_utf8(key), std::move(handler));
     }
 }
-void client_bridge::list_files(qint64 conversation, QString search, QString category, qint64 before, QString key)
+quint64 client_bridge::list_files(qint64 conversation, QString search, QString category, qint64 before, QString key)
 {
+    auto const request = ++files_request_;
     client_->list_conversation_files(conversation,
                                      to_utf8(search),
                                      to_utf8(category),
                                      before,
                                      to_utf8(key),
-                                     [this, conversation, before, n = ++files_generation_, g = connection_generation_.load()](auto r)
+                                     [this, request, before, g = connection_generation_.load()](auto r)
                                      {
                                          post_result(g,
-                                                     [this, conversation, before, n, r = std::move(r)]() mutable
+                                                     [this, request, before, r = std::move(r)]() mutable
                                                      {
-                                                         if (n == files_generation_)
-                                                         {
-                                                             emit files_received(conversation,
-                                                                                 r ? std::move(*r) : chat::conversation_file_page{},
-                                                                                 before != 0,
-                                                                                 r ? QString{} : display_error(r.error()));
-                                                         }
+                                                         emit files_received(request,
+                                                                             r ? std::move(*r) : chat::conversation_file_page{},
+                                                                             before != 0,
+                                                                             r ? QString{} : display_error(r.error()));
                                                      });
                                      });
+    return request;
 }
 void client_bridge::download_file(qint64 conversation, QString key, QString filename, QString path, bool open)
 {

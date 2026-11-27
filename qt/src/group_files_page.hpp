@@ -1,6 +1,7 @@
 #ifndef CHAT_QT_SRC_GROUP_FILES_PAGE_HPP
 #define CHAT_QT_SRC_GROUP_FILES_PAGE_HPP
 
+#include <QTimer>
 #include <QWidget>
 
 class chat_widget;
@@ -25,6 +26,7 @@ class group_files_page final : public QWidget
 
    private:
     void request_page(bool older);
+    void reset_files();
     void update_selection();
     void download(bool open);
 
@@ -36,6 +38,8 @@ class group_files_page final : public QWidget
     QToolButton* download_actions_;
     void refresh_uploads();
     bool manager_ = false;
+    quint64 request_ = 0;
+    QTimer search_delay_;
     QComboBox* category_;
     QLineEdit* search_;
     QTreeWidget* list_;

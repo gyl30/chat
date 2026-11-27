@@ -121,7 +121,17 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
     connect(upload, &QPushButton::clicked, this, [this] { emit upload_requested(true); });
     connect(send, &QPushButton::clicked, this, [this] { emit upload_requested(false); });
     connect(reload, &QPushButton::clicked, this, &group_files_page::refresh);
-    connect(search_, &QLineEdit::textChanged, this, &group_files_page::refresh);
+    search_delay_.setSingleShot(true);
+    search_delay_.setInterval(220);
+    connect(&search_delay_, &QTimer::timeout, this, [this] { request_page(false); });
+    connect(search_,
+            &QLineEdit::textChanged,
+            this,
+            [this]
+            {
+                reset_files();
+                search_delay_.start();
+            });
     connect(category_, &QComboBox::currentIndexChanged, this, &group_files_page::refresh);
     connect(more_, &QPushButton::clicked, this, [this] { request_page(true); });
     connect(list_, &QTreeWidget::itemSelectionChanged, this, &group_files_page::update_selection);
@@ -151,9 +161,9 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
     connect(&client_,
             &client_bridge::files_received,
             this,
-            [this](qint64 group, chat::conversation_file_page const& page, bool older, QString const& error)
+            [this](quint64 request, chat::conversation_file_page const& page, bool older, QString const& error)
             {
-                if (group != conversation_ || !isEnabled())
+                if (request != request_ || !isEnabled())
                 {
                     return;
                 }
@@ -184,11 +194,14 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
             this,
             [this](qint64 group, QString const& error)
             {
-                if (group == conversation_ && isVisible())
+                if (group == conversation_ && isVisible() && isEnabled())
                 {
                     if (error.isEmpty())
                     {
-                        refresh();
+                        if (!search_delay_.isActive())
+                        {
+                            refresh();
+                        }
                     }
                     else
                     {
@@ -265,6 +278,9 @@ void group_files_page::set_access(bool member, bool manager, bool can_publish)
     upload_send_->setEnabled(can_publish);
     if (!member)
     {
+        request_ = 0;
+        search_delay_.stop();
+        more_->setEnabled(false);
         list_->clear();
     }
     update_selection();
@@ -285,26 +301,44 @@ void group_files_page::update_selection()
     download_actions_->setText(state);
     download_actions_->setVisible(!local && !state.isEmpty());
 }
-void group_files_page::refresh() { request_page(false); }
+void group_files_page::reset_files()
+{
+    request_ = 0;
+    more_->setEnabled(false);
+    status_->setText(QStringLiteral("正在加载…"));
+    for (int row = list_->topLevelItemCount() - 1; row >= 0; --row)
+    {
+        if (!list_->topLevelItem(row)->data(0, local_upload_role).isValid())
+        {
+            delete list_->takeTopLevelItem(row);
+        }
+    }
+    refresh_uploads();
+}
+void group_files_page::refresh()
+{
+    if (!isEnabled())
+    {
+        return;
+    }
+    search_delay_.stop();
+    reset_files();
+    request_page(false);
+}
 void group_files_page::request_page(bool older)
 {
     if (!isEnabled())
     {
         return;
     }
-    if (!older)
-    {
-        list_->clear();
-        refresh_uploads();
-    }
-    auto const* last = list_->topLevelItem(list_->topLevelItemCount() - 1);
+    auto const* last = older ? list_->topLevelItem(list_->topLevelItemCount() - 1) : nullptr;
     more_->setEnabled(false);
     status_->setText(QStringLiteral("正在加载…"));
-    client_.list_files(conversation_,
-                       search_->text(),
-                       category_->currentData().toString(),
-                       last ? last->data(0, created_role).toLongLong() : 0,
-                       last ? last->data(0, key_role).toString() : QString{});
+    request_ = client_.list_files(conversation_,
+                                  search_->text(),
+                                  category_->currentData().toString(),
+                                  last ? last->data(0, created_role).toLongLong() : 0,
+                                  last ? last->data(0, key_role).toString() : QString{});
 }
 void group_files_page::download(bool open)
 {
