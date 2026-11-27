@@ -105,10 +105,8 @@ async def check(root, probe):
                     await gate.release("get_messages", error=True)
                     # A failed image recheck has no bearing on confirmed files or links.
                     await media("文件", "链接", "群文件")
-                    recovered = (await upload(b, group, 87, "image/png"))["id"]
                     await media("图片", "文件", "链接", "群文件")
                     await b.ok("delete_message", conversation=group, message=extra)
-                    await b.ok("delete_message", conversation=group, message=recovered)
                     await media("文件", "链接", "群文件")
                     await b.ok(
                         "edit_message",

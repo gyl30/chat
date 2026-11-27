@@ -40,7 +40,6 @@ profile_media::profile_media(client_bridge& client, chat_widget& chat, QWidget* 
     }
 
     refresh_.setSingleShot(true);
-    refresh_.setInterval(60);
     connect(&refresh_, &QTimer::timeout, this, &profile_media::request);
     connect(&client, &client_bridge::message_received, this, [this](message_data const& message) { on_message(message, false); });
     connect(&client,
@@ -148,7 +147,7 @@ void profile_media::schedule(category_entry& entry)
     entry.dirty = true;
     if (!refresh_.isActive())
     {
-        refresh_.start();
+        refresh_.start(60);
     }
 }
 
@@ -186,6 +185,15 @@ void profile_media::request()
                                      else if (result.error().kind == chat::error_kind::rpc && result.error().code == chat::conversation_unavailable)
                                      {
                                          set_conversation(0);
+                                     }
+                                     else
+                                     {
+                                         // Retry the unresolved category without treating the failure as an empty page.
+                                         current.dirty = true;
+                                         if (!refresh_.isActive())
+                                         {
+                                             refresh_.start(1000);
+                                         }
                                      }
                                  });
     }
